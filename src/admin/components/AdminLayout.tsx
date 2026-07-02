@@ -2,13 +2,13 @@ import { ReactNode, useState } from 'react';
 import {
   Shield, LayoutDashboard, Users, BarChart3, Settings,
   ScrollText, LogOut, Menu, X, TrendingUp, ChevronRight,
-  Sparkles, UsersRound, Building2, Crown,
+  Sparkles, UsersRound, Building2, Crown, CreditCard,
 } from 'lucide-react';
 import { useAdminAuth } from '../AdminAuthContext';
 
 export type AdminPage =
   | 'dashboard' | 'users' | 'financeiro' | 'settings'
-  | 'logs' | 'ai' | 'equipe' | 'empresa';
+  | 'logs' | 'ai' | 'equipe' | 'empresa' | 'planos';
 
 type Props = { page: AdminPage; onNavigate: (p: AdminPage) => void; children: ReactNode };
 
@@ -16,6 +16,7 @@ const nav: { id: AdminPage; label: string; icon: React.ElementType; superOnly?: 
   { id: 'dashboard',  label: 'Dashboard',         icon: LayoutDashboard },
   { id: 'users',      label: 'Utilizadores',       icon: Users },
   { id: 'financeiro', label: 'Financeiro',         icon: BarChart3 },
+  { id: 'planos',     label: 'Planos & Assinaturas', icon: CreditCard },
   { id: 'equipe',     label: 'Minha Equipe',       icon: UsersRound, superOnly: true },
   { id: 'empresa',    label: 'IK Finance Corp.',   icon: Building2 },
   { id: 'ai',         label: 'IK Finance AI',      icon: Sparkles },

@@ -88,6 +88,12 @@ export const adminApi = {
   companySendChat: (mensagem: string, tipo = 'geral') =>
     req<IKChatMessage>('POST', '/company/chat', { mensagem, tipo }),
   companyActivity: (page = 1) => req<{ logs: AdminActivityLog[]; total: number }>('GET', `/company/activity?page=${page}`),
+
+  // ── Plan requests ─────────────────────────────────────────────────────────
+  planRequests: (status = '', page = 1) =>
+    req<{ requests: PlanRequest[]; total: number }>('GET', `/plans/requests?status=${status}&page=${page}`),
+  planRequestUpdate: (id: string, body: { status?: string; admin_nota?: string; plan?: string }) =>
+    req<PlanRequest>('PUT', `/plans/requests/${id}`, body),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -184,4 +190,13 @@ export type AdminActivityLog = {
   id: string; admin_id: string | null; admin_nome: string; admin_role: string | null;
   acao: string; modulo: string; entidade: string;
   entidade_id: string | null; detalhes: Record<string, unknown> | null; created_at: string;
+};
+
+export type PlanRequest = {
+  id: string; user_id: string; user_email: string; user_nome: string | null;
+  plan: string; billing: string; preco: number; moeda: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  mensagem: string | null; admin_nota: string | null;
+  admin_id: string | null; admin_nome: string | null;
+  whatsapp: string | null; reviewed_at: string | null; created_at: string;
 };

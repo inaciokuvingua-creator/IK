@@ -582,6 +582,67 @@ Deno.serve(async (req: Request) => {
       return ok({ logs: data ?? [], total: count ?? 0 });
     }
 
+    // ── GET /plans/requests ────────────────────────────────────────────────────
+    if (path === "/plans/requests" && req.method === "GET") {
+      const statusFilter = url.searchParams.get("status") ?? "";
+      const p = parseInt(url.searchParams.get("page") ?? "1");
+      const limit = 30;
+      const offset = (p - 1) * limit;
+      let q = adminClient
+        .from("plan_requests")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (statusFilter) q = q.eq("status", statusFilter);
+      const { data, count, error } = await q;
+      if (error) return err(error.message);
+      return ok({ requests: data ?? [], total: count ?? 0 });
+    }
+
+    // ── PUT /plans/requests/:id ────────────────────────────────────────────────
+    if (path.startsWith("/plans/requests/") && req.method === "PUT") {
+      const reqId = path.replace("/plans/requests/", "");
+      const body = await req.json();
+      const allowed: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (body.status)     allowed.status      = body.status;
+      if (body.admin_nota !== undefined) allowed.admin_nota = body.admin_nota;
+      if (body.plan)       allowed.plan        = body.plan;
+      allowed.admin_id   = adminUser.id;
+      allowed.admin_nome = adminUser.nome;
+      allowed.reviewed_at = new Date().toISOString();
+
+      const { data: reqData, error: reqErr } = await adminClient
+        .from("plan_requests")
+        .update(allowed)
+        .eq("id", reqId)
+        .select()
+        .single();
+      if (reqErr) return err(reqErr.message);
+
+      // If approved, activate plan on user profile
+      if (body.status === "approved" && reqData) {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + (reqData.billing === "anual" ? 12 : 1));
+        await adminClient
+          .from("user_profiles")
+          .update({ plan: reqData.plan, plan_expires_at: expiresAt.toISOString(), trial_active: false })
+          .eq("user_id", reqData.user_id);
+
+        await adminClient.from("plan_subscriptions").insert({
+          user_id: reqData.user_id,
+          plan: reqData.plan,
+          preco: reqData.preco,
+          moeda: reqData.moeda,
+          status: "active",
+          starts_at: new Date().toISOString(),
+          expires_at: expiresAt.toISOString(),
+        });
+      }
+
+      await logAction(adminClient, adminUser.id, adminUser.nome, `plan_request_${body.status}`, "plan_requests", reqId, { plan: reqData?.plan, user: reqData?.user_email });
+      return ok(reqData);
+    }
+
     return err("Rota não encontrada", 404);
   } catch (e) {
     console.error("[admin-api]", e);

@@ -10,6 +10,7 @@ import AdminLogs from './pages/AdminLogs';
 import AdminAI from './pages/AdminAI';
 import AdminEquipe from './pages/AdminEquipe';
 import AdminEmpresaInterna from './pages/AdminEmpresaInterna';
+import AdminPlanos from './pages/AdminPlanos';
 
 function AdminContent() {
   const { admin, loading } = useAdminAuth();
@@ -32,6 +33,7 @@ function AdminContent() {
       {page === 'financeiro' && <AdminFinanceiro />}
       {page === 'equipe'     && <AdminEquipe />}
       {page === 'empresa'    && <AdminEmpresaInterna />}
+      {page === 'planos'     && <AdminPlanos />}
       {page === 'ai'         && <AdminAI />}
       {page === 'settings'   && <AdminSettings />}
       {page === 'logs'       && <AdminLogs />}
