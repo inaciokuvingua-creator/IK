@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#10B981"/>
+  <rect x="56" y="56" width="400" height="400" rx="80" fill="#059669"/>
+  <!-- Trending up arrow -->
+  <polyline points="96,340 196,220 276,290 416,140" fill="none" stroke="white" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow head -->
+  <polyline points="340,140 416,140 416,216" fill="none" stroke="white" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- IK text -->
+  <text x="256" y="430" font-family="Arial Black, sans-serif" font-size="72" font-weight="900" fill="white" text-anchor="middle" letter-spacing="4">IK</text>
+</svg>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA primary meta -->
+    <title>IK Finance</title>
+    <meta name="description" content="Seu gestor inteligente de cofres, negócios e patrimônio" />
+    <meta name="theme-color" content="#10B981" />
+    <meta name="background-color" content="#030712" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- iOS PWA meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IK Finance" />
+
+    <!-- Android / Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="IK Finance" />
+
+    <!-- Windows / Edge -->
+    <meta name="msapplication-TileColor" content="#10B981" />
+    <meta name="msapplication-TileImage" content="/icon-144x144.png" />
+    <meta name="msapplication-config" content="none" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="IK Finance" />
+    <meta property="og:description" content="Seu gestor inteligente de cofres, negócios e patrimônio" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icon-512x512.png" />
+
+    <!-- Safe area insets for notch / Dynamic Island -->
+    <style>
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sar: env(safe-area-inset-right);
+        --sab: env(safe-area-inset-bottom);
+        --sal: env(safe-area-inset-left);
+      }
+      body { margin: 0; background-color: #030712; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
