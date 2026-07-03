@@ -130,8 +130,11 @@ export default function Marketplace() {
                 </>
               ) : (
                 <>
-                  <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center shrink-0">
-                    {p.tipo === 'digital' ? <Download size={20} className="text-blue-400" /> : <Package size={20} className="text-orange-400" />}
+                  <div className="w-14 h-14 rounded-xl bg-gray-800 overflow-hidden flex items-center justify-center shrink-0">
+                    {p.imagem_url
+                      ? <img src={p.imagem_url} alt={p.nome} className="w-full h-full object-cover" />
+                      : p.tipo === 'digital' ? <Download size={20} className="text-blue-400" /> : <Package size={20} className="text-orange-400" />
+                    }
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">

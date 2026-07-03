@@ -1,28 +1,39 @@
 import { useEffect, useState } from 'react';
 import {
   Store, Plus, Package, Pencil, Trash2, X, AlertCircle,
-  Check, Eye, EyeOff, CheckCircle, TrendingUp, Download, Tag
+  Check, Eye, EyeOff, CheckCircle, Download, Tag, Image,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
+import ImageUpload from '../components/ImageUpload';
+import FileUpload from '../components/FileUpload';
 
 type MyStore = {
   id: string; owner_id: string; slug: string; nome: string;
   descricao: string | null; categoria: string; verified: boolean; ativo: boolean;
-  rating: number; total_sales: number; created_at: string;
+  rating: number; total_sales: number; logo_url: string | null; banner_url: string | null;
+  created_at: string;
 };
 type Product = {
   id: string; store_id: string; nome: string; descricao: string | null;
   preco: number; moeda: string; tipo: 'digital' | 'physical'; categoria: string;
-  ativo: boolean; destaque: boolean; total_vendas: number; created_at: string;
+  ativo: boolean; destaque: boolean; total_vendas: number;
+  imagem_url: string | null; arquivo_url: string | null;
+  created_at: string;
 };
 
 const CATS_STORE = ['geral','música','tecnologia','moda','educação','arte','outros'];
 const CATS_PRODUCT = ['música','beats','instrumentais','cursos','livros','pdfs','templates','arquivos','produtos','outros'];
 
-const emptyStore = () => ({ nome:'', slug:'', descricao:'', categoria:'geral' });
-const emptyProduct = () => ({ nome:'', descricao:'', preco:'', moeda:'AOA', tipo:'digital' as const, categoria:'outros', arquivo_url:'' });
+const emptyStore = () => ({ nome: '', slug: '', descricao: '', categoria: 'geral' });
+const emptyProduct = () => ({
+  nome: '', descricao: '', preco: '', moeda: 'AOA',
+  tipo: 'digital' as const, categoria: 'outros',
+  imagem_url: '' as string | null,
+  arquivo_url: '' as string | null,
+  arquivo_nome: '' as string | null,
+});
 
 export default function MinhaLoja() {
   const { user } = useAuth();
@@ -34,19 +45,25 @@ export default function MinhaLoja() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [storeForm, setStoreForm] = useState(emptyStore());
+  const [storeLogo, setStoreLogo] = useState<string | null>(null);
   const [productForm, setProductForm] = useState(emptyProduct());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3500); };
+  const showToast = (ok: boolean, msg: string) => {
+    setToast({ ok, msg });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const load = async () => {
     setLoading(true);
     const { data } = await supabase.from('stores').select('*').eq('owner_id', user!.id).maybeSingle();
     setStore(data);
     if (data) {
-      const { data: prods } = await supabase.from('products').select('*').eq('store_id', data.id).order('created_at', { ascending: false });
+      const { data: prods } = await supabase
+        .from('products').select('*').eq('store_id', data.id)
+        .order('created_at', { ascending: false });
       setProducts(prods ?? []);
     }
     setLoading(false);
@@ -57,8 +74,10 @@ export default function MinhaLoja() {
   const openCreateStore = () => {
     if (store) {
       setStoreForm({ nome: store.nome, slug: store.slug, descricao: store.descricao ?? '', categoria: store.categoria });
+      setStoreLogo(store.logo_url);
     } else {
       setStoreForm(emptyStore());
+      setStoreLogo(null);
     }
     setShowStoreModal(true);
   };
@@ -66,7 +85,12 @@ export default function MinhaLoja() {
   const saveStore = async () => {
     setError(null); setSaving(true);
     const slug = storeForm.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-    const payload = { nome: storeForm.nome, slug, descricao: storeForm.descricao || null, categoria: storeForm.categoria };
+    const payload = {
+      nome: storeForm.nome, slug,
+      descricao: storeForm.descricao || null,
+      categoria: storeForm.categoria,
+      logo_url: storeLogo,
+    };
     const { error: err } = store
       ? await supabase.from('stores').update(payload).eq('id', store.id)
       : await supabase.from('stores').insert({ ...payload, owner_id: user!.id });
@@ -76,10 +100,22 @@ export default function MinhaLoja() {
     await load();
   };
 
-  const openCreateProduct = () => { setEditingProduct(null); setProductForm(emptyProduct()); setShowProductModal(true); };
+  const openCreateProduct = () => {
+    setEditingProduct(null);
+    setProductForm(emptyProduct());
+    setShowProductModal(true);
+  };
+
   const openEditProduct = (p: Product) => {
     setEditingProduct(p);
-    setProductForm({ nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco), moeda: p.moeda, tipo: p.tipo, categoria: p.categoria, arquivo_url: '' });
+    setProductForm({
+      nome: p.nome, descricao: p.descricao ?? '',
+      preco: String(p.preco), moeda: p.moeda,
+      tipo: p.tipo, categoria: p.categoria,
+      imagem_url: p.imagem_url,
+      arquivo_url: p.arquivo_url,
+      arquivo_nome: p.arquivo_url ? p.arquivo_url.split('/').pop() ?? null : null,
+    });
     setShowProductModal(true);
   };
 
@@ -88,9 +124,14 @@ export default function MinhaLoja() {
     setError(null); setSaving(true);
     const payload = {
       store_id: store.id, owner_id: user!.id,
-      nome: productForm.nome, descricao: productForm.descricao || null,
-      preco: parseFloat(productForm.preco) || 0, moeda: productForm.moeda,
-      tipo: productForm.tipo, categoria: productForm.categoria,
+      nome: productForm.nome,
+      descricao: productForm.descricao || null,
+      preco: parseFloat(productForm.preco) || 0,
+      moeda: productForm.moeda,
+      tipo: productForm.tipo,
+      categoria: productForm.categoria,
+      imagem_url: productForm.imagem_url || null,
+      arquivo_url: productForm.arquivo_url || null,
     };
     const { error: err } = editingProduct
       ? await supabase.from('products').update(payload).eq('id', editingProduct.id)
@@ -122,13 +163,15 @@ export default function MinhaLoja() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Minha Loja</h1>
           <p className="text-gray-400 text-sm mt-0.5">Gerencie sua loja e produtos no marketplace IK Finance</p>
         </div>
         {store && (
-          <button onClick={openCreateProduct} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          <button onClick={openCreateProduct}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
             <Plus size={16} /> Novo Produto
           </button>
         )}
@@ -140,18 +183,20 @@ export default function MinhaLoja() {
         </div>
       )}
 
-      {/* No store yet */}
       {!store ? (
         <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
           <Store size={40} className="text-gray-700 mx-auto mb-4" />
           <h3 className="text-white font-bold text-lg mb-2">Crie sua loja no marketplace</h3>
-          <p className="text-gray-500 text-sm max-w-sm mx-auto mb-6">Venda produtos digitais (música, cursos, PDFs, templates) e físicos para qualquer pessoa no mundo.</p>
+          <p className="text-gray-500 text-sm max-w-sm mx-auto mb-6">
+            Venda produtos digitais (música, cursos, PDFs, templates) e físicos para qualquer pessoa no mundo.
+          </p>
           <div className="flex flex-wrap justify-center gap-3 mb-8 text-xs text-gray-600">
             {['95% da receita para você','Entrega digital automática','Clientes de todo o mundo','Pagamentos seguros'].map(f => (
               <span key={f} className="flex items-center gap-1"><Check size={11} className="text-emerald-500" />{f}</span>
             ))}
           </div>
-          <button onClick={openCreateStore} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors">
+          <button onClick={openCreateStore}
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors">
             <Store size={16} /> Criar Minha Loja
           </button>
         </div>
@@ -159,13 +204,19 @@ export default function MinhaLoja() {
         <>
           {/* Store header */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-            <div className="h-16 bg-gradient-to-r from-emerald-900/40 to-teal-900/30" />
+            <div className="h-20 bg-gradient-to-r from-emerald-900/40 to-teal-900/30 relative">
+              {store.banner_url && <img src={store.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
+            </div>
             <div className="px-6 pb-5 -mt-6">
               <div className="flex items-end justify-between mb-3">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 border-4 border-gray-900 flex items-center justify-center text-white font-bold text-2xl">
-                  {store.nome[0]?.toUpperCase()}
+                <div className="w-16 h-16 rounded-2xl border-4 border-gray-900 overflow-hidden bg-gray-800 flex items-center justify-center shrink-0">
+                  {store.logo_url
+                    ? <img src={store.logo_url} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-white font-bold text-2xl">{store.nome[0]?.toUpperCase()}</span>
+                  }
                 </div>
-                <button onClick={openCreateStore} className="flex items-center gap-2 text-sm text-gray-400 border border-gray-700 px-3 py-2 rounded-xl hover:bg-gray-800 transition-colors">
+                <button onClick={openCreateStore}
+                  className="flex items-center gap-2 text-sm text-gray-400 border border-gray-700 px-3 py-2 rounded-xl hover:bg-gray-800 transition-colors">
                   <Pencil size={13} /> Editar loja
                 </button>
               </div>
@@ -182,7 +233,7 @@ export default function MinhaLoja() {
                 </div>
                 <div className="text-center">
                   <p className="text-white font-bold text-lg">{products.reduce((s, p) => s + p.total_vendas, 0)}</p>
-                  <p className="text-gray-500 text-xs">Vendas totais</p>
+                  <p className="text-gray-500 text-xs">Vendas</p>
                 </div>
                 <div className="text-center">
                   <p className="text-white font-bold text-lg">{store.rating.toFixed(1)}</p>
@@ -196,7 +247,8 @@ export default function MinhaLoja() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-white font-semibold">Produtos ({products.length})</h3>
-              <button onClick={openCreateProduct} className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
+              <button onClick={openCreateProduct}
+                className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
                 <Plus size={14} /> Adicionar
               </button>
             </div>
@@ -210,30 +262,42 @@ export default function MinhaLoja() {
             ) : (
               <div className="space-y-2">
                 {products.map(p => (
-                  <div key={p.id} className="flex items-center gap-4 p-4 bg-gray-900 border border-gray-800 rounded-2xl hover:border-gray-700 transition-colors">
-                    <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center shrink-0">
-                      {p.tipo === 'digital' ? <Download size={17} className="text-blue-400" /> : <Package size={17} className="text-orange-400" />}
+                  <div key={p.id}
+                    className="flex items-center gap-4 p-4 bg-gray-900 border border-gray-800 rounded-2xl hover:border-gray-700 transition-colors">
+                    {/* Thumbnail */}
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-800 shrink-0 flex items-center justify-center">
+                      {p.imagem_url
+                        ? <img src={p.imagem_url} alt="" className="w-full h-full object-cover" />
+                        : p.tipo === 'digital'
+                          ? <Download size={17} className="text-blue-400" />
+                          : <Package size={17} className="text-orange-400" />
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-white font-medium text-sm truncate">{p.nome}</p>
                         {!p.ativo && <span className="text-xs text-gray-600 border border-gray-700 px-1.5 py-0.5 rounded-full">Inativo</span>}
                         {p.destaque && <span className="text-xs text-amber-400 bg-amber-950/50 border border-amber-800/50 px-1.5 py-0.5 rounded-full">Destaque</span>}
+                        {p.arquivo_url && <span className="text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Download size={9} />Ficheiro</span>}
                       </div>
-                      <p className="text-gray-500 text-xs capitalize mt-0.5">{p.categoria} · {p.tipo === 'digital' ? 'Digital' : 'Físico'} · {p.total_vendas} vendas</p>
+                      <p className="text-gray-500 text-xs capitalize mt-0.5">
+                        {p.categoria} · {p.tipo === 'digital' ? 'Digital' : 'Físico'} · {p.total_vendas} vendas
+                      </p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-emerald-400 font-bold text-sm">{format(p.preco)}</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => toggleActive(p)} title={p.ativo ? 'Desativar' : 'Ativar'}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => toggleActive(p)}
                         className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
                         {p.ativo ? <Eye size={14} /> : <EyeOff size={14} />}
                       </button>
-                      <button onClick={() => openEditProduct(p)} className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
+                      <button onClick={() => openEditProduct(p)}
+                        className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => deleteProduct(p.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-xl transition-colors">
+                      <button onClick={() => deleteProduct(p.id)}
+                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-xl transition-colors">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -245,44 +309,74 @@ export default function MinhaLoja() {
         </>
       )}
 
-      {/* Store modal */}
+      {/* ── Store modal ── */}
       {showStoreModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowStoreModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowStoreModal(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-white font-semibold">{store ? 'Editar Loja' : 'Criar Loja'}</h3>
               <button onClick={() => setShowStoreModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
             </div>
-            <div className="space-y-3">
+
+            <div className="space-y-4">
+              {/* Logo upload */}
+              <div>
+                <label className="text-xs text-gray-500 mb-2 block">Logo da loja</label>
+                <ImageUpload
+                  bucket="store-assets"
+                  path={`${user!.id}/logo`}
+                  currentUrl={storeLogo}
+                  onUploaded={(url) => setStoreLogo(url)}
+                  shape="square"
+                  size="md"
+                  placeholder="Logo"
+                />
+              </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Nome da loja *</label>
-                <input value={storeForm.nome} onChange={e => { setStoreForm({...storeForm, nome: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-') }); }}
+                <input value={storeForm.nome}
+                  onChange={e => setStoreForm({ ...storeForm, nome: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-') })}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">URL da loja</label>
                 <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
                   <span className="px-3 text-gray-500 text-xs border-r border-gray-700 py-2.5">ikfinance.com/</span>
-                  <input value={storeForm.slug} onChange={e => setStoreForm({...storeForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
+                  <input value={storeForm.slug}
+                    onChange={e => setStoreForm({ ...storeForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                     className="flex-1 bg-transparent text-white px-3 py-2.5 text-sm focus:outline-none" />
                 </div>
               </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Categoria</label>
-                <select value={storeForm.categoria} onChange={e => setStoreForm({...storeForm, categoria: e.target.value})}
+                <select value={storeForm.categoria}
+                  onChange={e => setStoreForm({ ...storeForm, categoria: e.target.value })}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
                   {CATS_STORE.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                 </select>
               </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Descrição</label>
-                <textarea value={storeForm.descricao} onChange={e => setStoreForm({...storeForm, descricao: e.target.value})} rows={2}
+                <textarea value={storeForm.descricao}
+                  onChange={e => setStoreForm({ ...storeForm, descricao: e.target.value })}
+                  rows={2}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none" />
               </div>
+
               {error && <p className="text-red-400 text-sm flex items-center gap-1.5"><AlertCircle size={14} />{error}</p>}
             </div>
+
             <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowStoreModal(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
+              <button onClick={() => setShowStoreModal(false)}
+                className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">
+                Cancelar
+              </button>
               <button onClick={saveStore} disabled={saving || !storeForm.nome}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
                 {saving ? 'Salvando...' : store ? 'Salvar' : 'Criar Loja'}
@@ -292,24 +386,44 @@ export default function MinhaLoja() {
         </div>
       )}
 
-      {/* Product modal */}
+      {/* ── Product modal ── */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProductModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowProductModal(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-white font-semibold">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h3>
               <button onClick={() => setShowProductModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
             </div>
-            <div className="space-y-3">
+
+            <div className="space-y-4">
+              {/* Product image */}
+              <div>
+                <label className="text-xs text-gray-500 mb-2 block">Imagem do produto</label>
+                <ImageUpload
+                  bucket="product-images"
+                  path={`${user!.id}/${editingProduct?.id ?? 'new'}`}
+                  currentUrl={productForm.imagem_url}
+                  onUploaded={(url) => setProductForm(f => ({ ...f, imagem_url: url }))}
+                  shape="square"
+                  size="lg"
+                  placeholder="Imagem"
+                />
+              </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Nome do produto *</label>
-                <input value={productForm.nome} onChange={e => setProductForm({...productForm, nome: e.target.value})}
+                <input value={productForm.nome}
+                  onChange={e => setProductForm({ ...productForm, nome: e.target.value })}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">Tipo</label>
-                  <select value={productForm.tipo} onChange={e => setProductForm({...productForm, tipo: e.target.value as 'digital'|'physical'})}
+                  <select value={productForm.tipo}
+                    onChange={e => setProductForm({ ...productForm, tipo: e.target.value as 'digital' | 'physical' })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
                     <option value="digital">Digital</option>
                     <option value="physical">Físico</option>
@@ -317,43 +431,60 @@ export default function MinhaLoja() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">Categoria</label>
-                  <select value={productForm.categoria} onChange={e => setProductForm({...productForm, categoria: e.target.value})}
+                  <select value={productForm.categoria}
+                    onChange={e => setProductForm({ ...productForm, categoria: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
                     {CATS_PRODUCT.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                   </select>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">Preço *</label>
-                  <input type="number" value={productForm.preco} onChange={e => setProductForm({...productForm, preco: e.target.value})}
+                  <input type="number" value={productForm.preco}
+                    onChange={e => setProductForm({ ...productForm, preco: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">Moeda</label>
-                  <select value={productForm.moeda} onChange={e => setProductForm({...productForm, moeda: e.target.value})}
+                  <select value={productForm.moeda}
+                    onChange={e => setProductForm({ ...productForm, moeda: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
                     {['AOA','USD','EUR','BRL','GBP'].map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
               </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Descrição</label>
-                <textarea value={productForm.descricao} onChange={e => setProductForm({...productForm, descricao: e.target.value})} rows={2}
+                <textarea value={productForm.descricao ?? ''}
+                  onChange={e => setProductForm({ ...productForm, descricao: e.target.value })}
+                  rows={2}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none" />
               </div>
+
+              {/* File upload for digital products */}
               {productForm.tipo === 'digital' && (
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">Link do arquivo (URL)</label>
-                  <input value={productForm.arquivo_url} onChange={e => setProductForm({...productForm, arquivo_url: e.target.value})}
-                    placeholder="https://..."
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
-                </div>
+                <FileUpload
+                  bucket="product-files"
+                  path={`${user!.id}/${editingProduct?.id ?? 'new'}`}
+                  currentUrl={productForm.arquivo_url}
+                  currentName={productForm.arquivo_nome}
+                  onUploaded={(url, name) => setProductForm(f => ({ ...f, arquivo_url: url, arquivo_nome: name }))}
+                  maxMb={100}
+                  label="Ficheiro do produto (qualquer formato)"
+                />
               )}
+
               {error && <p className="text-red-400 text-sm flex items-center gap-1.5"><AlertCircle size={14} />{error}</p>}
             </div>
+
             <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowProductModal(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
+              <button onClick={() => setShowProductModal(false)}
+                className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">
+                Cancelar
+              </button>
               <button onClick={saveProduct} disabled={saving || !productForm.nome || !productForm.preco}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
                 {saving ? 'Salvando...' : editingProduct ? 'Salvar' : 'Criar Produto'}

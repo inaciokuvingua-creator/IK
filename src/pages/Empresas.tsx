@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import ImageUpload from '../components/ImageUpload';
 
 type Company = {
   id: string; owner_id: string; nome: string; nif: string | null;
@@ -32,6 +33,7 @@ export default function Empresas() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('employee');
   const [inviting, setInviting] = useState(false);
@@ -61,16 +63,17 @@ export default function Empresas() {
   useEffect(() => { load(); }, []);
   useEffect(() => { if (selected) loadCompanyData(selected.id); }, [selected?.id]);
 
-  const openCreate = () => { setEditing(null); setForm(empty()); setShowModal(true); };
+  const openCreate = () => { setEditing(null); setForm(empty()); setLogoUrl(null); setShowModal(true); };
   const openEdit = (c: Company) => {
     setEditing(c);
     setForm({ nome: c.nome, nif: c.nif ?? '', setor: c.setor, descricao: c.descricao ?? '', website: c.website ?? '' });
+    setLogoUrl(c.logo_url);
     setShowModal(true);
   };
 
   const save = async () => {
     setError(null); setSaving(true);
-    const payload = { nome: form.nome, nif: form.nif || null, setor: form.setor, descricao: form.descricao || null, website: form.website || null };
+    const payload = { nome: form.nome, nif: form.nif || null, setor: form.setor, descricao: form.descricao || null, website: form.website || null, logo_url: logoUrl };
     const { error: err } = editing
       ? await supabase.from('companies').update(payload).eq('id', editing.id)
       : await supabase.from('companies').insert(payload);
@@ -148,8 +151,8 @@ export default function Empresas() {
                 className={`w-full text-left p-4 rounded-2xl border transition-all ${selected?.id === c.id ? 'bg-emerald-500/10 border-emerald-700' : 'bg-gray-900 border-gray-800 hover:border-gray-700'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-400 font-bold text-lg shrink-0">
-                      {c.nome[0]?.toUpperCase()}
+                    <div className="w-10 h-10 rounded-xl bg-gray-800 overflow-hidden flex items-center justify-center text-emerald-400 font-bold text-lg shrink-0">
+                      {c.logo_url ? <img src={c.logo_url} alt="" className="w-full h-full object-cover" /> : c.nome[0]?.toUpperCase()}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -171,8 +174,8 @@ export default function Empresas() {
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-400 font-bold text-lg">
-                    {selected.nome[0]?.toUpperCase()}
+                  <div className="w-10 h-10 rounded-xl bg-gray-800 overflow-hidden flex items-center justify-center text-emerald-400 font-bold text-lg">
+                    {selected.logo_url ? <img src={selected.logo_url} alt="" className="w-full h-full object-cover" /> : selected.nome[0]?.toUpperCase()}
                   </div>
                   <div>
                     <p className="text-white font-bold">{selected.nome}</p>
@@ -295,7 +298,19 @@ export default function Empresas() {
               <h3 className="text-white font-semibold">{editing ? 'Editar Empresa' : 'Nova Empresa'}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 mb-2 block">Logo da empresa</label>
+                <ImageUpload
+                  bucket="company-assets"
+                  path={`${user!.id}/${editing?.id ?? 'new'}/logo`}
+                  currentUrl={logoUrl}
+                  onUploaded={(url) => setLogoUrl(url)}
+                  shape="square"
+                  size="md"
+                  placeholder="Logo"
+                />
+              </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">Nome da empresa *</label>
                 <input value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} required
