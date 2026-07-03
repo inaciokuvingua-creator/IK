@@ -1,211 +1,764 @@
-import { useEffect, useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, ChevronDown } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ComposedChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
+import {
+  TrendingUp, TrendingDown, BarChart2, PieChart as PieIcon,
+  Activity, Layers, RefreshCw, Wifi, WifiOff, ChevronDown,
+  ArrowUp, ArrowDown, Minus, Calendar, Filter, LayoutGrid,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Transacao, Cofre, Negocio } from '../lib/supabase';
-import { formatDate } from '../lib/format';
+import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 
-type Summary = { totalEntradas: number; totalSaidas: number; saldo: number; byCategoria: Record<string, { entradas: number; saidas: number }> };
+// ── Types ────────────────────────────────────────────────────────────────────
+type Tx = {
+  id: string; tipo: 'entrada' | 'saida'; valor: number;
+  categoria: string; data_transacao: string; descricao: string;
+  cofre_id: string | null; negocio_id: string | null;
+};
+type Cofre = { id: string; nome: string; saldo: number; cor: string; };
+type Negocio = { id: string; nome: string; receita_mensal: number; despesa_mensal: number; ativo: boolean; };
+type Patrimonio = { id: string; nome: string; categoria: string; valor_aquisicao: number; valor_atual: number; };
 
+type ChartType = 'area' | 'bar' | 'line' | 'composed' | 'pie' | 'donut' | 'radar';
+
+const CHART_TYPES: { id: ChartType; label: string; icon: React.ElementType }[] = [
+  { id: 'area',     label: 'Área',      icon: Activity   },
+  { id: 'bar',      label: 'Barras',    icon: BarChart2  },
+  { id: 'line',     label: 'Linha',     icon: TrendingUp },
+  { id: 'composed', label: 'Composto',  icon: Layers     },
+  { id: 'pie',      label: 'Pizza',     icon: PieIcon    },
+  { id: 'donut',    label: 'Rosquinha', icon: PieIcon    },
+  { id: 'radar',    label: 'Radar',     icon: LayoutGrid },
+];
+
+const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const PALETTE = ['#10b981','#ef4444','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4','#a78bfa'];
+
+// ── Tooltip customizado ───────────────────────────────────────────────────────
+function CustomTooltip({ active, payload, label, format }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-3 shadow-2xl min-w-[160px]">
+      {label && <p className="text-gray-400 text-xs mb-2 font-medium">{label}</p>}
+      {payload.map((p: any, i: number) => (
+        <div key={i} className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-xs text-gray-400">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.fill }} />
+            {p.name}
+          </span>
+          <span className="text-white text-xs font-bold">{format(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PieTooltip({ active, payload, format }: any) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0];
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-3 shadow-2xl">
+      <p className="text-gray-300 text-xs font-medium capitalize">{name}</p>
+      <p className="text-white text-sm font-bold mt-0.5">{format(value)}</p>
+    </div>
+  );
+}
+
+// ── KPI Card ──────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, delta, color }: { label: string; value: string; delta?: number; color: string }) {
+  const up = (delta ?? 0) > 0;
+  const zero = (delta ?? 0) === 0;
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+      <p className="text-gray-500 text-xs mb-2">{label}</p>
+      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      {delta !== undefined && (
+        <div className={`flex items-center gap-1 mt-1.5 text-xs ${zero ? 'text-gray-600' : up ? 'text-emerald-400' : 'text-red-400'}`}>
+          {zero ? <Minus size={11} /> : up ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+          {zero ? 'Sem variação' : `${Math.abs(delta).toFixed(1)}% vs mês anterior`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Chart type selector ────────────────────────────────────────────────────────
+function ChartTypePicker({ value, onChange }: { value: ChartType; onChange: (t: ChartType) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-gray-800/60 border border-gray-700 rounded-xl p-1 flex-wrap">
+      {CHART_TYPES.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            value === id
+              ? 'bg-emerald-500 text-white shadow'
+              : 'text-gray-500 hover:text-gray-200 hover:bg-gray-700/50'
+          }`}
+        >
+          <Icon size={12} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function Relatorios() {
+  const { user } = useAuth();
   const { format } = useCurrency();
-  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
-  const [cofres, setCofres] = useState<Cofre[]>([]);
-  const [negocios, setNegocios] = useState<Negocio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [periodoMes, setPeriodoMes] = useState(new Date().getMonth() + 1);
-  const [periodoAno, setPeriodoAno] = useState(new Date().getFullYear());
-  const [filtroCofre, setFiltroCofre] = useState('todos');
-  const [filtroTipo, setFiltroTipo] = useState<'todos' | 'entrada' | 'saida'>('todos');
 
+  const [txs, setTxs]             = useState<Tx[]>([]);
+  const [cofres, setCofres]        = useState<Cofre[]>([]);
+  const [negocios, setNegocios]    = useState<Negocio[]>([]);
+  const [patrimonio, setPatrimonio] = useState<Patrimonio[]>([]);
+  const [loading, setLoading]      = useState(true);
+  const [realtime, setRealtime]    = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Filters
+  const currentYear = new Date().getFullYear();
+  const [year, setYear]         = useState(currentYear);
+  const [monthFilter, setMonthFilter] = useState<number | 'all'>('all');
+  const [cofreFilter, setCofreFilter] = useState('all');
+
+  // Chart type per section
+  const [cashflowType, setCashflowType] = useState<ChartType>('area');
+  const [catType, setCatType]           = useState<ChartType>('bar');
+  const [negocioType, setNegocioType]   = useState<ChartType>('bar');
+  const [patrimonioType, setPatrimonioType] = useState<ChartType>('donut');
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    const [t, c, n, p] = await Promise.all([
+      supabase.from('transacoes').select('*').eq('user_id', user.id).order('data_transacao'),
+      supabase.from('cofres').select('id,nome,saldo,cor').eq('user_id', user.id),
+      supabase.from('negocios').select('*').eq('user_id', user.id),
+      supabase.from('patrimonio').select('*').eq('user_id', user.id),
+    ]);
+    setTxs(t.data ?? []);
+    setCofres(c.data ?? []);
+    setNegocios(n.data ?? []);
+    setPatrimonio(p.data ?? []);
+    setLoading(false);
+    setLastUpdate(new Date());
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Real-time subscriptions
   useEffect(() => {
-    Promise.all([
-      supabase.from('transacoes').select('*').order('data_transacao', { ascending: false }),
-      supabase.from('cofres').select('*'),
-      supabase.from('negocios').select('*'),
-    ]).then(([t, c, n]) => {
-      if (!t.error) setTransacoes(t.data ?? []);
-      if (!c.error) setCofres(c.data ?? []);
-      if (!n.error) setNegocios(n.data ?? []);
-      setLoading(false);
+    if (!user) return;
+    const ch = supabase
+      .channel('relatorios-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes', filter: `user_id=eq.${user.id}` }, () => { load(); setLastUpdate(new Date()); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cofres',     filter: `user_id=eq.${user.id}` }, () => { load(); setLastUpdate(new Date()); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'negocios',   filter: `user_id=eq.${user.id}` }, () => { load(); setLastUpdate(new Date()); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patrimonio', filter: `user_id=eq.${user.id}` }, () => { load(); setLastUpdate(new Date()); })
+      .subscribe((status) => setRealtime(status === 'SUBSCRIBED'));
+    return () => { supabase.removeChannel(ch); };
+  }, [user, load]);
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return txs.filter(tx => {
+      const d = new Date(tx.data_transacao);
+      if (d.getFullYear() !== year) return false;
+      if (monthFilter !== 'all' && d.getMonth() !== monthFilter) return false;
+      if (cofreFilter !== 'all') {
+        if (cofreFilter === 'none') return tx.cofre_id === null;
+        if (tx.cofre_id !== cofreFilter) return false;
+      }
+      return true;
     });
-  }, []);
+  }, [txs, year, monthFilter, cofreFilter]);
 
-  const filtered = transacoes.filter((t) => {
-    const [y, m] = t.data_transacao.split('-');
-    const matchPeriod = parseInt(m) === periodoMes && parseInt(y) === periodoAno;
-    const matchCofre = filtroCofre === 'todos' || t.cofre_id === filtroCofre;
-    const matchTipo = filtroTipo === 'todos' || t.tipo === filtroTipo;
-    return matchPeriod && matchCofre && matchTipo;
-  });
+  // Monthly cashflow (12 months of selected year)
+  const monthlyCashflow = useMemo(() => {
+    return MONTHS.map((m, i) => {
+      const monthTxs = txs.filter(tx => {
+        const d = new Date(tx.data_transacao);
+        return d.getFullYear() === year && d.getMonth() === i;
+      });
+      const entradas = monthTxs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
+      const saidas   = monthTxs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
+      return { mes: m, Entradas: entradas, Saídas: saidas, Saldo: entradas - saidas };
+    });
+  }, [txs, year]);
 
-  const summary: Summary = filtered.reduce<Summary>((acc, t) => {
-    if (t.tipo === 'entrada') acc.totalEntradas += t.valor;
-    else acc.totalSaidas += t.valor;
-    acc.saldo = acc.totalEntradas - acc.totalSaidas;
-    if (!acc.byCategoria[t.categoria]) acc.byCategoria[t.categoria] = { entradas: 0, saidas: 0 };
-    if (t.tipo === 'entrada') acc.byCategoria[t.categoria].entradas += t.valor;
-    else acc.byCategoria[t.categoria].saidas += t.valor;
-    return acc;
-  }, { totalEntradas: 0, totalSaidas: 0, saldo: 0, byCategoria: {} });
+  // Category breakdown
+  const byCategoria = useMemo(() => {
+    const map: Record<string, { entrada: number; saida: number }> = {};
+    filtered.forEach(tx => {
+      if (!map[tx.categoria]) map[tx.categoria] = { entrada: 0, saida: 0 };
+      map[tx.categoria][tx.tipo] += tx.valor;
+    });
+    return Object.entries(map)
+      .map(([cat, v]) => ({ name: cat, Entradas: v.entrada, Saídas: v.saida, Total: v.entrada + v.saida }))
+      .sort((a, b) => b.Total - a.Total)
+      .slice(0, 8);
+  }, [filtered]);
 
-  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  const years = Array.from(new Set(transacoes.map((t) => parseInt(t.data_transacao.split('-')[0])))).sort((a, b) => b - a);
-  if (!years.includes(periodoAno)) years.unshift(periodoAno);
+  // Pie data for saidas by category
+  const pieSaidas = useMemo(() => {
+    const map: Record<string, number> = {};
+    filtered.filter(t => t.tipo === 'saida').forEach(t => {
+      map[t.categoria] = (map[t.categoria] ?? 0) + t.valor;
+    });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filtered]);
 
-  const topSaidas = Object.entries(summary.byCategoria)
-    .sort((a, b) => b[1].saidas - a[1].saidas)
-    .slice(0, 5);
+  // Negócios comparison
+  const negocioData = useMemo(() =>
+    negocios.filter(n => n.ativo).map(n => ({
+      name: n.nome.length > 14 ? n.nome.slice(0, 13) + '…' : n.nome,
+      Receita: n.receita_mensal,
+      Despesa: n.despesa_mensal,
+      Lucro:   n.receita_mensal - n.despesa_mensal,
+    })), [negocios]);
 
-  const maxSaida = Math.max(...topSaidas.map(([, v]) => v.saidas), 1);
+  // Patrimônio by category
+  const patrimonioData = useMemo(() => {
+    const map: Record<string, number> = {};
+    patrimonio.forEach(p => { map[p.categoria] = (map[p.categoria] ?? 0) + p.valor_atual; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [patrimonio]);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
+  // Radar data: monthly performance (last 6 months)
+  const radarData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i);
+      const monthTxs = txs.filter(tx => {
+        const td = new Date(tx.data_transacao);
+        return td.getFullYear() === d.getFullYear() && td.getMonth() === d.getMonth();
+      });
+      const ent = monthTxs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
+      const sai = monthTxs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
+      return { subject: MONTHS[d.getMonth()], Entradas: ent, Saídas: sai };
+    });
+  }, [txs]);
+
+  // KPI deltas (current vs previous month)
+  const { kpiTotals, delta } = useMemo(() => {
+    const now = new Date();
+    const cm = now.getMonth(), cy = now.getFullYear();
+    const pm = cm === 0 ? 11 : cm - 1;
+    const py = cm === 0 ? cy - 1 : cy;
+
+    const curr = txs.filter(t => { const d = new Date(t.data_transacao); return d.getMonth() === cm && d.getFullYear() === cy; });
+    const prev = txs.filter(t => { const d = new Date(t.data_transacao); return d.getMonth() === pm && d.getFullYear() === py; });
+
+    const sum = (arr: Tx[], tipo: string) => arr.filter(t => t.tipo === tipo).reduce((s, t) => s + t.valor, 0);
+    const pct = (a: number, b: number) => b === 0 ? 0 : ((a - b) / b) * 100;
+
+    const entCurr = sum(curr, 'entrada'), entPrev = sum(prev, 'entrada');
+    const saiCurr = sum(curr, 'saida'),   saiPrev = sum(prev, 'saida');
+    const totEnt  = txs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
+    const totSai  = txs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
+
+    return {
+      kpiTotals: { entradas: totEnt, saidas: totSai, saldo: totEnt - totSai, entCurr, saiCurr },
+      delta: { entradas: pct(entCurr, entPrev), saidas: pct(saiCurr, saiPrev), saldo: pct(entCurr - saiCurr, entPrev - saiPrev) },
+    };
+  }, [txs]);
+
+  const cofresTotal = cofres.reduce((s, c) => s + c.saldo, 0);
+  const patrimonioTotal = patrimonio.reduce((s, p) => s + p.valor_atual, 0);
+
+  const fmtCompact = (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+    return String(Math.round(v));
+  };
+
+  // ── Cumulative balance line ────────────────────────────────────────────────
+  const cumulativeLine = useMemo(() => {
+    let running = 0;
+    const yearTxs = txs.filter(t => new Date(t.data_transacao).getFullYear() === year);
+    const byDay: Record<string, number> = {};
+    yearTxs.forEach(t => {
+      const day = t.data_transacao.slice(0, 10);
+      byDay[day] = (byDay[day] ?? 0) + (t.tipo === 'entrada' ? t.valor : -t.valor);
+    });
+    return Object.entries(byDay).sort().map(([date, delta]) => {
+      running += delta;
+      return { date: date.slice(5), Saldo: running };
+    });
+  }, [txs, year]);
+
+  // ── Cofres data ────────────────────────────────────────────────────────────
+  const cofresData = useMemo(() =>
+    cofres.map(c => ({ name: c.nome.length > 12 ? c.nome.slice(0, 11) + '…' : c.nome, value: c.saldo, color: c.cor || '#10b981' })),
+    [cofres]);
+
+  const AXIS_STYLE = { fill: '#6b7280', fontSize: 11 };
+  const GRID_STROKE = '#1f2937';
+  const ANIMATION = { isAnimationActive: true, animationDuration: 800, animationEasing: 'ease-out' as const };
+
+  if (loading) return (
+    <div className="space-y-4 animate-pulse">
+      <div className="h-8 bg-gray-900 rounded-xl w-64" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1,2,3,4].map(i => <div key={i} className="h-28 bg-gray-900 rounded-2xl border border-gray-800" />)}
+      </div>
+      <div className="h-80 bg-gray-900 rounded-2xl border border-gray-800" />
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Relatórios</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Análise detalhada das suas finanças</p>
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <BarChart2 size={22} className="text-emerald-400" /> Relatórios
+          </h1>
+          <p className="text-gray-400 text-sm mt-0.5 flex items-center gap-1.5">
+            {realtime
+              ? <><Wifi size={11} className="text-emerald-400" /> Dados em tempo real</>
+              : <><WifiOff size={11} className="text-red-400" /> Reconectando...</>
+            }
+            <span className="text-gray-600 mx-1">·</span>
+            <span className="text-gray-600 text-xs">Atualizado {lastUpdate.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+          </p>
+        </div>
+        <button onClick={load} className="flex items-center gap-2 text-sm text-gray-400 border border-gray-700 hover:border-gray-600 hover:text-white px-4 py-2 rounded-xl transition-colors">
+          <RefreshCw size={14} /> Atualizar
+        </button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative">
-          <select value={periodoMes} onChange={(e) => setPeriodoMes(parseInt(e.target.value))} className="input py-2 text-sm pr-9 appearance-none">
-            {meses.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+      <div className="flex flex-wrap gap-3 bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+        <div className="flex items-center gap-2">
+          <Calendar size={14} className="text-gray-500" />
+          <select value={year} onChange={e => setYear(Number(e.target.value))}
+            className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
+            {[currentYear - 2, currentYear - 1, currentYear].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
-        <div className="relative">
-          <select value={periodoAno} onChange={(e) => setPeriodoAno(parseInt(e.target.value))} className="input py-2 text-sm pr-9 appearance-none">
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        <select value={monthFilter === 'all' ? 'all' : String(monthFilter)}
+          onChange={e => setMonthFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+          className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
+          <option value="all">Todos os meses</option>
+          {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+        </select>
+        {cofres.length > 0 && (
+          <select value={cofreFilter}
+            onChange={e => setCofreFilter(e.target.value)}
+            className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
+            <option value="all">Todos os cofres</option>
+            <option value="none">Sem cofre</option>
+            {cofres.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-        <div className="relative">
-          <select value={filtroCofre} onChange={(e) => setFiltroCofre(e.target.value)} className="input py-2 text-sm pr-9 appearance-none">
-            <option value="todos">Todos os cofres</option>
-            {cofres.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-        <div className="flex gap-1">
-          {(['todos', 'entrada', 'saida'] as const).map((t) => (
-            <button key={t} onClick={() => setFiltroTipo(t)} className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${filtroTipo === t ? 'bg-emerald-500 text-white' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-              {t === 'todos' ? 'Todos' : t === 'entrada' ? 'Entradas' : 'Saídas'}
-            </button>
-          ))}
+        )}
+        <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
+          <Filter size={11} /> {filtered.length} transações
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <ArrowUpRight size={15} className="text-emerald-400" />
-            <p className="text-gray-400 text-xs">Total Entradas</p>
-          </div>
-          <p className="text-2xl font-bold text-emerald-400">{format(summary.totalEntradas)}</p>
-          <p className="text-gray-600 text-xs mt-1">{filtered.filter((t) => t.tipo === 'entrada').length} transações</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <ArrowDownRight size={15} className="text-red-400" />
-            <p className="text-gray-400 text-xs">Total Saídas</p>
-          </div>
-          <p className="text-2xl font-bold text-red-400">{format(summary.totalSaidas)}</p>
-          <p className="text-gray-600 text-xs mt-1">{filtered.filter((t) => t.tipo === 'saida').length} transações</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-          <p className="text-gray-400 text-xs mb-1">Saldo do Período</p>
-          <p className={`text-2xl font-bold ${summary.saldo >= 0 ? 'text-white' : 'text-red-400'}`}>{format(summary.saldo)}</p>
-          <p className="text-gray-600 text-xs mt-1">{filtered.length} transações no total</p>
-        </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Total Entradas" value={format(kpiTotals.entradas)} delta={delta.entradas} color="text-emerald-400" />
+        <KpiCard label="Total Saídas"   value={format(kpiTotals.saidas)}   delta={delta.saidas}   color="text-red-400"     />
+        <KpiCard label="Saldo Líquido"  value={format(kpiTotals.saldo)}    delta={delta.saldo}    color={kpiTotals.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+        <KpiCard label="Cofres"         value={format(cofresTotal)}         color="text-blue-400"  />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* By category */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <h2 className="font-semibold text-white mb-4">Saídas por Categoria</h2>
-          {topSaidas.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-6">Sem dados para o período</p>
+      {/* ─────────────── CHART 1: Monthly Cashflow ─────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
+          <div>
+            <h2 className="text-white font-semibold">Fluxo de Caixa Mensal — {year}</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Entradas vs saídas por mês</p>
+          </div>
+          <ChartTypePicker value={cashflowType} onChange={setCashflowType} />
+        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          {cashflowType === 'area' ? (
+            <AreaChart data={monthlyCashflow}>
+              <defs>
+                <linearGradient id="gEnt" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gSai" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <XAxis dataKey="mes" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              <Area type="monotone" dataKey="Entradas" stroke="#10b981" fill="url(#gEnt)" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Area type="monotone" dataKey="Saídas"   stroke="#ef4444" fill="url(#gSai)" strokeWidth={2} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+            </AreaChart>
+          ) : cashflowType === 'bar' ? (
+            <BarChart data={monthlyCashflow} barGap={4} barCategoryGap="25%">
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <XAxis dataKey="mes" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              <Bar dataKey="Entradas" fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
+              <Bar dataKey="Saídas"   fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
+            </BarChart>
+          ) : cashflowType === 'line' ? (
+            <LineChart data={monthlyCashflow}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <XAxis dataKey="mes" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              <Line type="monotone" dataKey="Entradas" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Line type="monotone" dataKey="Saídas"   stroke="#ef4444" strokeWidth={2.5} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Line type="monotone" dataKey="Saldo"    stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 3" dot={false} {...ANIMATION} />
+              <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 4" />
+            </LineChart>
+          ) : cashflowType === 'composed' ? (
+            <ComposedChart data={monthlyCashflow}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <XAxis dataKey="mes" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              <Bar dataKey="Entradas" fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
+              <Bar dataKey="Saídas"   fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
+              <Line type="monotone" dataKey="Saldo" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: '#f59e0b', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+            </ComposedChart>
+          ) : cashflowType === 'pie' ? (
+            <PieChart>
+              <Pie data={[{ name: 'Entradas', value: kpiTotals.entradas }, { name: 'Saídas', value: kpiTotals.saidas }]}
+                cx="50%" cy="50%" outerRadius={110} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                labelLine={false} {...ANIMATION}>
+                <Cell fill="#10b981" /><Cell fill="#ef4444" />
+              </Pie>
+              <Tooltip content={<PieTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+            </PieChart>
+          ) : cashflowType === 'donut' ? (
+            <PieChart>
+              <Pie data={[{ name: 'Entradas', value: kpiTotals.entradas }, { name: 'Saídas', value: kpiTotals.saidas }]}
+                cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" paddingAngle={3} {...ANIMATION}>
+                <Cell fill="#10b981" /><Cell fill="#ef4444" />
+              </Pie>
+              <Tooltip content={<PieTooltip format={format} />} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+            </PieChart>
           ) : (
-            <div className="space-y-3">
-              {topSaidas.map(([cat, vals]) => (
-                <div key={cat}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-300 capitalize">{cat}</span>
-                    <span className="text-red-400 font-medium">{format(vals.saidas)}</span>
+            <RadarChart data={radarData} cx="50%" cy="50%" outerRadius={100}>
+              <PolarGrid stroke={GRID_STROKE} />
+              <PolarAngleAxis dataKey="subject" tick={AXIS_STYLE} />
+              <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
+              <Radar name="Entradas" dataKey="Entradas" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+              <Radar name="Saídas"   dataKey="Saídas"   stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+            </RadarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+
+      {/* ─────────────── CHART 2: Saldo Acumulado ──────────────────────────── */}
+      {cumulativeLine.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <div className="mb-5">
+            <h2 className="text-white font-semibold">Saldo Acumulado — {year}</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Evolução do saldo ao longo do tempo</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={cumulativeLine}>
+              <defs>
+                <linearGradient id="gSaldo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <XAxis dataKey="date" tick={AXIS_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+              <Tooltip content={<CustomTooltip format={format} />} />
+              <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 4" label={{ value: 'Zero', fill: '#6b7280', fontSize: 10 }} />
+              <Area type="monotone" dataKey="Saldo" stroke="#3b82f6" fill="url(#gSaldo)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#3b82f6' }} {...ANIMATION} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ─────────────── CHART 3 + 4: Categories + Cofres ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Categories */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
+            <div>
+              <h2 className="text-white font-semibold">Por Categoria</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Distribuição por tipo de gasto</p>
+            </div>
+            <ChartTypePicker value={catType} onChange={setCatType} />
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            {catType === 'pie' ? (
+              <PieChart>
+                <Pie data={pieSaidas} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
+                  {pieSaidas.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+              </PieChart>
+            ) : catType === 'donut' ? (
+              <PieChart>
+                <Pie data={pieSaidas} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={2} dataKey="value" {...ANIMATION}>
+                  {pieSaidas.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+              </PieChart>
+            ) : catType === 'radar' ? (
+              <RadarChart data={byCategoria} cx="50%" cy="50%" outerRadius={90}>
+                <PolarGrid stroke={GRID_STROKE} />
+                <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
+                <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
+                <Radar name="Saídas" dataKey="Saídas" stroke="#ef4444" fill="#ef4444" fillOpacity={0.25} {...ANIMATION} />
+                <Radar name="Entradas" dataKey="Entradas" stroke="#10b981" fill="#10b981" fillOpacity={0.2} {...ANIMATION} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+              </RadarChart>
+            ) : catType === 'area' ? (
+              <AreaChart data={byCategoria}>
+                <defs>
+                  <linearGradient id="gCatS" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 9 }} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Area type="monotone" dataKey="Saídas" stroke="#ef4444" fill="url(#gCatS)" strokeWidth={2} {...ANIMATION} />
+              </AreaChart>
+            ) : catType === 'line' ? (
+              <LineChart data={byCategoria}>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 9 }} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+                <Line type="monotone" dataKey="Entradas" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
+                <Line type="monotone" dataKey="Saídas"   stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
+              </LineChart>
+            ) : (
+              <BarChart data={byCategoria} layout={catType === 'composed' ? 'horizontal' : 'vertical'} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis type="number" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} />
+                <YAxis type="category" dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+                <Bar dataKey="Saídas"   fill="#ef4444" radius={[0,4,4,0]} {...ANIMATION} />
+                <Bar dataKey="Entradas" fill="#10b981" radius={[0,4,4,0]} {...ANIMATION} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+
+        {/* Cofres */}
+        {cofresData.length > 0 && (
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+            <div className="mb-5">
+              <h2 className="text-white font-semibold">Saldo por Cofre</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Distribuição de saldo entre cofres</p>
+            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={cofresData} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={true} {...ANIMATION}>
+                  {cofresData.map((c, i) => <Cell key={i} fill={c.color || PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Cofres legend with saldo */}
+            <div className="mt-4 space-y-2">
+              {cofresData.map((c, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color || PALETTE[i % PALETTE.length] }} />
+                    <span className="text-gray-400 text-xs truncate max-w-[120px]">{c.name}</span>
                   </div>
-                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-500 rounded-full transition-all" style={{ width: `${(vals.saidas / maxSaida) * 100}%` }} />
-                  </div>
+                  <span className="text-white text-xs font-semibold">{format(c.value)}</span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Negocios summary */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <h2 className="font-semibold text-white mb-4">Resumo por Negócio</h2>
-          {negocios.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-6">Nenhum negócio cadastrado</p>
-          ) : (
-            <div className="space-y-2">
-              {negocios.filter((n) => n.ativo).map((n) => {
-                const lucro = n.receita_mensal - n.despesa_mensal;
-                return (
-                  <div key={n.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-800/50 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{n.nome}</p>
-                      <p className="text-gray-500 text-xs">{n.categoria}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-sm font-semibold ${lucro >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{format(lucro)}</p>
-                      <p className="text-gray-600 text-xs">lucro/mês</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Transactions list */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-        <h2 className="font-semibold text-white mb-4">
-          Transações — {meses[periodoMes - 1]} {periodoAno}
-          <span className="text-gray-500 font-normal text-sm ml-2">({filtered.length})</span>
-        </h2>
-
-        {filtered.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-gray-500 text-sm">Nenhuma transação no período selecionado</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map((t) => {
-              const cofre = cofres.find((c) => c.id === t.cofre_id);
-              return (
-                <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-800/30 transition-colors">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${t.tipo === 'entrada' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'}`}>
-                    {t.tipo === 'entrada' ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{t.descricao}</p>
-                    <p className="text-gray-500 text-xs">{formatDate(t.data_transacao)} · {t.categoria}{cofre ? ` · ${cofre.nome}` : ''}</p>
-                  </div>
-                  <span className={`text-sm font-semibold shrink-0 ${t.tipo === 'entrada' ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {t.tipo === 'entrada' ? '+' : '-'}{format(t.valor)}
-                  </span>
-                </div>
-              );
-            })}
           </div>
         )}
       </div>
+
+      {/* ─────────────── CHART 5: Negócios ─────────────────────────────────── */}
+      {negocioData.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
+            <div>
+              <h2 className="text-white font-semibold">Desempenho dos Negócios</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Receita, despesa e lucro mensal por negócio</p>
+            </div>
+            <ChartTypePicker value={negocioType} onChange={setNegocioType} />
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            {negocioType === 'radar' ? (
+              <RadarChart data={negocioData} cx="50%" cy="50%" outerRadius={100}>
+                <PolarGrid stroke={GRID_STROKE} />
+                <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
+                <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
+                <Radar name="Receita" dataKey="Receita" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Radar name="Despesa" dataKey="Despesa" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Radar name="Lucro"   dataKey="Lucro"   stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+              </RadarChart>
+            ) : negocioType === 'pie' ? (
+              <PieChart>
+                <Pie data={negocioData.map(n => ({ name: n.name, value: n.Lucro }))}
+                  cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
+                  {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+              </PieChart>
+            ) : negocioType === 'donut' ? (
+              <PieChart>
+                <Pie data={negocioData.map(n => ({ name: n.name, value: Math.max(0, n.Lucro) }))}
+                  cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2} dataKey="value" {...ANIMATION}>
+                  {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              </PieChart>
+            ) : negocioType === 'line' ? (
+              <LineChart data={negocioData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                <Line type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+                <Line type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+                <Line type="monotone" dataKey="Lucro"   stroke="#f59e0b" strokeWidth={2}   dot={{ r: 4 }} strokeDasharray="5 3" {...ANIMATION} />
+              </LineChart>
+            ) : negocioType === 'area' ? (
+              <AreaChart data={negocioData}>
+                <defs>
+                  <linearGradient id="gRec" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gDes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                <Area type="monotone" dataKey="Receita" stroke="#10b981" fill="url(#gRec)" strokeWidth={2} {...ANIMATION} />
+                <Area type="monotone" dataKey="Despesa" stroke="#ef4444" fill="url(#gDes)" strokeWidth={2} {...ANIMATION} />
+              </AreaChart>
+            ) : negocioType === 'composed' ? (
+              <ComposedChart data={negocioData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                <Bar dataKey="Receita" fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
+                <Bar dataKey="Despesa" fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
+                <Line type="monotone" dataKey="Lucro" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+              </ComposedChart>
+            ) : (
+              <BarChart data={negocioData} barGap={4} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+                <Bar dataKey="Receita" fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
+                <Bar dataKey="Despesa" fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
+                <Bar dataKey="Lucro"   fill="#f59e0b" radius={[4,4,0,0]} {...ANIMATION} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ─────────────── CHART 6: Patrimônio ────────────────────────────────── */}
+      {patrimonioData.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
+            <div>
+              <h2 className="text-white font-semibold">Composição do Patrimônio</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Valor atual por categoria · Total: {format(patrimonioTotal)}</p>
+            </div>
+            <ChartTypePicker value={patrimonioType} onChange={setPatrimonioType} />
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            {patrimonioType === 'donut' || patrimonioType === 'pie' ? (
+              <PieChart>
+                <Pie data={patrimonioData}
+                  cx="50%" cy="50%"
+                  innerRadius={patrimonioType === 'donut' ? 65 : 0}
+                  outerRadius={105}
+                  paddingAngle={patrimonioType === 'donut' ? 3 : 0}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={true}
+                  {...ANIMATION}>
+                  {patrimonioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip content={<PieTooltip format={format} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
+              </PieChart>
+            ) : patrimonioType === 'radar' ? (
+              <RadarChart data={patrimonioData} cx="50%" cy="50%" outerRadius={100}>
+                <PolarGrid stroke={GRID_STROKE} />
+                <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
+                <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
+                <Radar name="Valor" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2} {...ANIMATION} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+              </RadarChart>
+            ) : (
+              <BarChart data={patrimonioData} barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
+                <Tooltip content={<CustomTooltip format={format} />} />
+                <Bar dataKey="value" name="Valor" radius={[6,6,0,0]} {...ANIMATION}>
+                  {patrimonioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Bar>
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {txs.length === 0 && cofres.length === 0 && negocios.length === 0 && (
+        <div className="text-center py-20 bg-gray-900 rounded-2xl border border-gray-800">
+          <BarChart2 size={40} className="text-gray-700 mx-auto mb-4" />
+          <h3 className="text-white font-bold text-lg mb-2">Sem dados para exibir</h3>
+          <p className="text-gray-500 text-sm max-w-sm mx-auto">
+            Adicione transações, cofres ou negócios para ver os gráficos aqui.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
