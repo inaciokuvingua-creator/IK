@@ -30,15 +30,21 @@ export type Negocio = {
 };
 
 export type PatrimonioItem = {
-  id: string;
-  user_id: string;
-  nome: string;
-  categoria: string;
-  valor_aquisicao: number;
-  valor_atual: number;
-  data_aquisicao: string | null;
-  descricao: string | null;
-  created_at: string;
+  id: string; user_id: string; nome: string; categoria: string;
+  valor_aquisicao: number; valor_atual: number;
+  data_aquisicao: string | null; descricao: string | null; created_at: string;
+  localizacao: string | null; imagem_url: string | null; status: string;
+  // Imóvel / Aluguel
+  imovel_tipo: string | null; imovel_area_m2: number | null; imovel_quartos: number | null;
+  imovel_arrendado: boolean; renda_mensal: number | null; despesa_mensal: number | null;
+  inquilino_nome: string | null; contrato_inicio: string | null; contrato_fim: string | null;
+  // Veículo
+  veiculo_tipo: string | null; veiculo_marca: string | null; veiculo_modelo: string | null;
+  veiculo_ano: number | null; veiculo_matricula: string | null; veiculo_km: number | null;
+  veiculo_combustivel: string | null; veiculo_gera_renda: boolean; veiculo_renda_diaria: number | null;
+  // Estúdio
+  studio_tipo: string | null; studio_capacidade: number | null; studio_equipamentos: string | null;
+  studio_disponivel: boolean; studio_preco_hora: number | null;
 };
 
 export type Transacao = {
