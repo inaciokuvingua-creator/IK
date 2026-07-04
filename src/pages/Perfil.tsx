@@ -5,6 +5,7 @@ import {
   Award, Clock, Instagram, Facebook, Youtube, Linkedin,
   X, ExternalLink, Upload, Trash2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useProfile, getTrialDaysLeft, isTrialExpired, type SocialLinks } from '../context/ProfileContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -43,6 +44,7 @@ function buildSocialUrl(key: SocialKey, value: string): string {
 }
 
 export default function Perfil() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { profile, updateProfile, loading } = useProfile();
   const [form, setForm] = useState<Record<string, string>>({});
@@ -78,8 +80,8 @@ export default function Perfil() {
       });
       setEditing(false);
       setAvatarPreview(null);
-      showToast(true, 'Perfil atualizado com sucesso');
-    } catch { showToast(false, 'Erro ao salvar'); }
+      showToast(true, t('perfil.perfilAtualizado'));
+    } catch { showToast(false, t('perfil.erroSalvar')); }
     setSaving(false);
   };
 
@@ -87,7 +89,7 @@ export default function Perfil() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { showToast(false, 'Imagem muito grande. Máximo 5 MB.'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast(false, t('perfil.imagemGrande')); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -106,7 +108,7 @@ export default function Perfil() {
       // Bust cache with timestamp
       const urlWithCache = `${publicUrl}?t=${Date.now()}`;
       await updateProfile({ avatar_url: urlWithCache });
-      showToast(true, 'Foto de perfil atualizada!');
+      showToast(true, t('perfil.fotoAtualizada'));
     } catch (e) { showToast(false, (e as Error).message); setAvatarPreview(null); }
     setAvatarUploading(false);
   };
@@ -118,7 +120,7 @@ export default function Perfil() {
       await supabase.storage.from('avatars').remove([`${user.id}/avatar.jpg`, `${user.id}/avatar.png`, `${user.id}/avatar.webp`]);
       await updateProfile({ avatar_url: null });
       setAvatarPreview(null);
-      showToast(true, 'Foto removida');
+      showToast(true, t('perfil.fotoRemovida'));
     } catch (e) { showToast(false, (e as Error).message); }
     setAvatarUploading(false);
   };
@@ -131,7 +133,7 @@ export default function Perfil() {
       const { error } = await supabase.from('verifications').insert({ tipo: verifType });
       if (error) throw error;
       setShowVerifModal(false);
-      showToast(true, 'Pedido enviado! Análise em até 48h.');
+      showToast(true, t('perfil.pedidoEnviado'));
     } catch (e) { showToast(false, (e as Error).message); }
     setVerifLoading(false);
   };
@@ -153,8 +155,8 @@ export default function Perfil() {
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-white">Meu Perfil</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Gerencie suas informações pessoais e conta</p>
+        <h1 className="text-2xl font-bold text-white">{t('perfil.title')}</h1>
+        <p className="text-gray-400 text-sm mt-0.5">{t('perfil.subtitle')}</p>
       </div>
 
       {toast && (
@@ -168,9 +170,9 @@ export default function Perfil() {
         <div className="flex items-start gap-3 bg-amber-950/40 border border-amber-700/50 rounded-xl p-4">
           <Clock size={16} className="text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-amber-300 font-semibold text-sm">Período de teste a terminar</p>
+            <p className="text-amber-300 font-semibold text-sm">{t('perfil.trialTerminando')}</p>
             <p className="text-amber-300/70 text-xs mt-0.5">
-              Restam <strong>{daysLeft} dia{daysLeft !== 1 ? 's' : ''}</strong> do seu teste gratuito. Faça upgrade para continuar com todos os recursos.
+              {t('perfil.trialTerminandoDesc', { n: daysLeft })}
             </p>
           </div>
           <Zap size={14} className="text-amber-400 shrink-0 mt-0.5" />
@@ -181,8 +183,8 @@ export default function Perfil() {
         <div className="flex items-start gap-3 bg-red-950/40 border border-red-700/50 rounded-xl p-4">
           <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-red-300 font-semibold text-sm">Período de teste expirado</p>
-            <p className="text-red-300/70 text-xs mt-0.5">O seu teste gratuito terminou. Faça upgrade para continuar a usar todos os recursos da plataforma.</p>
+            <p className="text-red-300 font-semibold text-sm">{t('perfil.trialExpirado')}</p>
+            <p className="text-red-300/70 text-xs mt-0.5">{t('perfil.trialExpiradoDesc')}</p>
           </div>
         </div>
       )}
@@ -217,7 +219,7 @@ export default function Perfil() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Camera size={14} className="text-white" />
-                <span className="text-white text-[9px] font-semibold">Alterar</span>
+                <span className="text-white text-[9px] font-semibold">{t('perfil.alterar')}</span>
               </div>
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileSelect} />
             </div>
@@ -227,18 +229,18 @@ export default function Perfil() {
               {profile.avatar_url && (
                 <button onClick={removeAvatar} disabled={avatarUploading}
                   className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-950/30 rounded-xl transition-colors"
-                  title="Remover foto">
+                  title={t('perfil.fotoRemovida')}>
                   <Trash2 size={14} />
                 </button>
               )}
               <button onClick={() => fileInputRef.current?.click()} disabled={avatarUploading}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-xl text-xs font-medium transition-colors"
-                title="Upload foto">
-                <Upload size={12} /> Foto
+                title={t('perfil.foto')}>
+                <Upload size={12} /> {t('perfil.foto')}
               </button>
               <button onClick={editing ? save : startEdit} disabled={saving}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${editing ? 'bg-emerald-500 hover:bg-emerald-400 text-white' : 'bg-gray-800 border border-gray-700 text-gray-300 hover:text-white hover:border-gray-600'}`}>
-                {editing ? <><Save size={14} /> {saving ? 'Salvando...' : 'Salvar'}</> : <><Camera size={14} /> Editar</>}
+                {editing ? <><Save size={14} /> {saving ? t('perfil.salvando') : t('perfil.salvar')}</> : <><Camera size={14} /> {t('perfil.editarPerfil')}</>}
               </button>
             </div>
           </div>
@@ -246,24 +248,24 @@ export default function Perfil() {
           {editing ? (
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Nome</label>
+                <label className="text-xs text-gray-500 mb-1 block">{t('perfil.nome')}</label>
                 <input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Bio</label>
+                <label className="text-xs text-gray-500 mb-1 block">{t('perfil.bio')}</label>
                 <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2}
-                  placeholder="Fala sobre você..."
+                  placeholder={t('perfil.bioPlaceholder')}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Telefone</label>
-                  <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+244..."
+                  <label className="text-xs text-gray-500 mb-1 block">{t('perfil.telefone')}</label>
+                  <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder={t('perfil.telefonePlaceholder')}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">País</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('perfil.pais')}</label>
                   <select value={form.country} onChange={e => setForm({ ...form, country: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
                     {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,7 +275,7 @@ export default function Perfil() {
 
               {/* Social links editing */}
               <div>
-                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wider">Redes Sociais</label>
+                <label className="text-xs text-gray-500 mb-2 block font-semibold uppercase tracking-wider">{t('perfil.redesSociais')}</label>
                 <div className="space-y-2">
                   {SOCIAL_META.map(({ key, label, icon: Icon, color, placeholder }) => (
                     <div key={key} className="flex items-center gap-2.5">
@@ -294,7 +296,7 @@ export default function Perfil() {
                 </div>
               </div>
 
-              <button onClick={() => setEditing(false)} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Cancelar</button>
+              <button onClick={() => setEditing(false)} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">{t('perfil.cancelar')}</button>
             </div>
           ) : (
             <div>
@@ -302,7 +304,7 @@ export default function Perfil() {
                 <h2 className="text-xl font-bold text-white">{profile.nome}</h2>
                 {profile.verified && (
                   <span className="flex items-center gap-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-medium">
-                    <CheckCircle size={11} /> Verificado
+                    <CheckCircle size={11} /> {t('perfil.verificado')}
                   </span>
                 )}
                 <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full border border-gray-700">{ROLE_LABELS[profile.role] ?? profile.role}</span>
@@ -311,7 +313,7 @@ export default function Perfil() {
               <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-2">
                 <span className="flex items-center gap-1"><Globe size={12} />{profile.country}</span>
                 {profile.phone && <span className="flex items-center gap-1"><Phone size={12} />{profile.phone}</span>}
-                <span className="flex items-center gap-1"><Clock size={12} />Desde {new Date(profile.created_at).toLocaleDateString('pt-AO', { month: 'short', year: 'numeric' })}</span>
+                <span className="flex items-center gap-1"><Clock size={12} />{t('perfil.membroDesde', { date: new Date(profile.created_at).toLocaleDateString('pt-AO', { month: 'short', year: 'numeric' }) })}</span>
               </div>
               <p className="text-gray-600 text-xs mt-1">{user?.email}</p>
 
@@ -352,7 +354,7 @@ export default function Perfil() {
           </div>
           {profile.plan_expires_at && (
             <div className="text-right">
-              <p className="text-gray-500 text-xs">Expira em</p>
+              <p className="text-gray-500 text-xs">{t('perfil.expiraEm')}</p>
               <p className="text-gray-300 text-sm font-medium">{new Date(profile.plan_expires_at).toLocaleDateString('pt-AO')}</p>
             </div>
           )}
@@ -362,9 +364,9 @@ export default function Perfil() {
         {profile.plan === 'free' && profile.trial_active && profile.trial_started_at && profile.trial_ends_at && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <div className="flex justify-between text-xs mb-2">
-              <span className="text-gray-400">Início do teste</span>
+              <span className="text-gray-400">{t('perfil.trialInicio')}</span>
               <span className={trialExpired ? 'text-red-400 font-semibold' : 'text-emerald-400 font-semibold'}>
-                {trialExpired ? 'Expirado' : `${daysLeft} dia${daysLeft !== 1 ? 's' : ''} restantes`}
+                {trialExpired ? t('perfil.trialExpiradoLabel') : t('perfil.diasRestantes', { n: `${daysLeft} dia${daysLeft !== 1 ? 's' : ''}` })}
               </span>
             </div>
             <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
@@ -381,10 +383,10 @@ export default function Perfil() {
               <span>{new Date(profile.trial_ends_at).toLocaleDateString('pt-AO')}</span>
             </div>
             {!trialExpired && (
-              <p className="text-gray-500 text-xs mt-3">Está a usar a versão de teste completa da IK Finance.</p>
+              <p className="text-gray-500 text-xs mt-3">{t('perfil.trialAtivo')}</p>
             )}
             {trialExpired && (
-              <p className="text-red-400/70 text-xs mt-2">O teste terminou. Selecione um plano para continuar.</p>
+              <p className="text-red-400/70 text-xs mt-2">{t('perfil.trialExpiradoNotice')}</p>
             )}
           </div>
         )}
@@ -393,13 +395,13 @@ export default function Perfil() {
           <div className="mt-4 pt-4 border-t border-white/10">
             {profile.plan === 'free' ? (
               <>
-                <p className="text-gray-400 text-xs mb-2">Faça upgrade para desbloquear todos os recursos</p>
+                <p className="text-gray-400 text-xs mb-2">{t('perfil.upgrade')}</p>
                 <a href="#planos" className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-lg transition-colors">
-                  <Zap size={12} /> Ver planos
+                  <Zap size={12} /> {t('perfil.verPlanos')}
                 </a>
               </>
             ) : (
-              <p className="text-gray-500 text-xs">Plano activo até {profile.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString('pt-AO') : '—'}</p>
+              <p className="text-gray-500 text-xs">{t('perfil.planoAtivo', { date: profile.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString('pt-AO') : '—' })}</p>
             )}
           </div>
         )}
@@ -409,23 +411,23 @@ export default function Perfil() {
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Award size={16} className="text-blue-400" />
-          <h3 className="font-semibold text-white text-sm">Verificação de Conta</h3>
+          <h3 className="font-semibold text-white text-sm">{t('perfil.verificacaoConta')}</h3>
         </div>
 
         {profile.verified ? (
           <div className="flex items-center gap-3 bg-blue-950/40 border border-blue-800/50 rounded-xl p-4">
             <CheckCircle size={20} className="text-blue-400 shrink-0" />
             <div>
-              <p className="text-white font-medium text-sm">Conta verificada</p>
-              <p className="text-blue-300 text-xs mt-0.5">Tipo: {profile.verification_type ?? '-'} · Selo visível em todo o ecossistema IK Finance</p>
+              <p className="text-white font-medium text-sm">{t('perfil.contaVerificada')}</p>
+              <p className="text-blue-300 text-xs mt-0.5">{t('perfil.tipoVerif', { type: profile.verification_type ?? '-' })}</p>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-gray-400 text-sm">Obtenha o selo de verificação e transmita mais credibilidade.</p>
+            <p className="text-gray-400 text-sm">{t('perfil.obterSelo')}</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(['user', 'creator', 'store', 'company'] as const).map((tipo) => {
-                const labels = { user: 'Pessoal', creator: 'Criador', store: 'Loja', company: 'Empresa' };
+                const labels = { user: t('perfil.verifTypes.0'), creator: t('perfil.verifTypes.1'), store: t('perfil.verifTypes.2'), company: t('perfil.verifTypes.3') };
                 const icons = { user: User, creator: Star, store: Globe, company: Building2 };
                 const Icon = icons[tipo];
                 return (
@@ -445,16 +447,16 @@ export default function Perfil() {
       {showVerifModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowVerifModal(false)}>
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-semibold mb-2">Solicitar Verificação</h3>
+            <h3 className="text-white font-semibold mb-2">{t('perfil.solicitarVerif')}</h3>
             <p className="text-gray-400 text-sm mb-4">
               Tipo: <span className="text-white font-medium capitalize">{verifType}</span><br />
-              Nossa equipa analisará o pedido em até 48 horas.
+              {t('perfil.analisaremos')}
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setShowVerifModal(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
+              <button onClick={() => setShowVerifModal(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">{t('perfil.cancelar')}</button>
               <button onClick={requestVerification} disabled={verifLoading}
                 className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                {verifLoading ? 'Enviando...' : 'Solicitar'}
+                {verifLoading ? t('perfil.enviando') : t('perfil.solicitar')}
               </button>
             </div>
           </div>

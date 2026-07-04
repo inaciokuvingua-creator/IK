@@ -3,14 +3,17 @@ import { useState } from 'react';
 import {
   Bell, BellOff, Mail, Smartphone, Check, X, Trash2,
   ShieldCheck, Clock, TrendingUp, Briefcase, Building2,
-  PiggyBank, Target, AlertTriangle, ChevronRight, Info, Sparkles, Lock
+  PiggyBank, Target, AlertTriangle, ChevronRight, Info, Sparkles, Lock, Languages
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { useAI } from '../context/AIContext';
 import { formatDate } from '../lib/format';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 export default function Configuracoes() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const {
     pushSupported, pushPermission, pushSubscribed,
@@ -20,7 +23,7 @@ export default function Configuracoes() {
   } = useNotifications();
 
   const { privacy, updatePrivacy } = useAI();
-  const [tab, setTab] = useState<'notificacoes' | 'historico' | 'conta' | 'ia'>('notificacoes');
+  const [tab, setTab] = useState<'notificacoes' | 'historico' | 'conta' | 'ia' | 'idioma'>('notificacoes');
   const [requesting, setRequesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -28,15 +31,15 @@ export default function Configuracoes() {
     if (pushSubscribed) {
       await unsubscribePush();
       await updatePrefs({ push_enabled: false });
-      setResult({ ok: true, msg: 'Notificações push desativadas.' });
+      setResult({ ok: true, msg: t('configuracoes.push.desativado') });
     } else {
       setRequesting(true);
       const ok = await requestPushPermission();
       if (ok) {
         await updatePrefs({ push_enabled: true });
-        setResult({ ok: true, msg: 'Notificações push ativadas com sucesso!' });
+        setResult({ ok: true, msg: t('configuracoes.push.ativadoOk') });
       } else {
-        setResult({ ok: false, msg: 'Permissão negada ou não suportada neste dispositivo.' });
+        setResult({ ok: false, msg: t('configuracoes.push.erroPerm') });
       }
       setRequesting(false);
     }
@@ -51,17 +54,18 @@ export default function Configuracoes() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-white">Configurações</h1>
+        <h1 className="text-2xl font-bold text-white">{t('configuracoes.title')}</h1>
         <p className="text-gray-400 text-sm mt-0.5">Preferências do app e notificações</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 flex-wrap">
         {([
-          ['notificacoes', 'Notificações', Bell],
-          ['historico', `Histórico${unreadCount > 0 ? ` (${unreadCount})` : ''}`, Clock],
-          ['conta', 'Conta', ShieldCheck],
-          ['ia', 'IK Finance AI', Sparkles],
+          ['notificacoes', t('configuracoes.tabs.notificacoes'), Bell],
+          ['historico', t('configuracoes.tabs.historico', { n: unreadCount > 0 ? unreadCount : '' }).replace(' ()', ''), Clock],
+          ['conta', t('configuracoes.tabs.conta'), ShieldCheck],
+          ['ia', t('configuracoes.tabs.ai'), Sparkles],
+          ['idioma', t('configuracoes.tabs.idioma'), Languages],
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
@@ -87,16 +91,16 @@ export default function Configuracoes() {
         <div className="space-y-4">
 
           {/* Push section */}
-          <Section title="Notificações Push" icon={Smartphone} subtitle="Receba alertas no celular e no navegador, mesmo sem abrir o app">
+          <Section title={t('configuracoes.push.title')} icon={Smartphone} subtitle={t('configuracoes.push.subtitle')}>
             {!pushSupported ? (
-              <InfoBanner icon={Info} text="Seu navegador não suporta notificações push." color="amber" />
+              <InfoBanner icon={Info} text={t('configuracoes.push.semSuporte')} color="amber" />
             ) : pushPermission === 'denied' ? (
-              <InfoBanner icon={BellOff} text="Permissão negada. Ative nas configurações do seu navegador/SO para ativar as notificações." color="red" />
+              <InfoBanner icon={BellOff} text={t('configuracoes.push.negado')} color="red" />
             ) : (
               <div className="space-y-3">
                 <ToggleRow
-                  label={pushSubscribed ? 'Push ativado neste dispositivo' : 'Ativar notificações push'}
-                  description={pushSubscribed ? 'Este dispositivo receberá alertas em tempo real' : 'Toque para ativar notificações push neste dispositivo'}
+                  label={pushSubscribed ? t('configuracoes.push.ativo') : t('configuracoes.push.ativar')}
+                  description={pushSubscribed ? t('configuracoes.push.ativoDesc') : t('configuracoes.push.ativarDesc')}
                   active={pushSubscribed}
                   loading={requesting}
                   onChange={handlePushToggle}
@@ -104,11 +108,11 @@ export default function Configuracoes() {
                 />
                 {pushSubscribed && (
                   <div className="ml-1 pl-4 border-l-2 border-gray-800 space-y-2 pt-1">
-                    <ToggleRow label="Transações" description="Ao criar, editar ou excluir movimentos" icon={TrendingUp} active={prefs?.on_transaction ?? true} onChange={() => toggle('on_transaction')} />
-                    <ToggleRow label="Cofres" description="Ao criar ou editar cofres" icon={PiggyBank} active={prefs?.on_cofre ?? true} onChange={() => toggle('on_cofre')} />
-                    <ToggleRow label="Negócios" description="Ao criar ou editar negócios" icon={Briefcase} active={prefs?.on_negocio ?? true} onChange={() => toggle('on_negocio')} />
-                    <ToggleRow label="Patrimônio" description="Ao registrar ativos" icon={Building2} active={prefs?.on_patrimonio ?? true} onChange={() => toggle('on_patrimonio')} />
-                    <ToggleRow label="Meta atingida" description="Quando um cofre atinge a meta definida" icon={Target} active={prefs?.on_meta_reached ?? true} onChange={() => toggle('on_meta_reached')} />
+                    <ToggleRow label={t('configuracoes.push.transacoes')} description={t('configuracoes.push.transacoesDesc')} icon={TrendingUp} active={prefs?.on_transaction ?? true} onChange={() => toggle('on_transaction')} />
+                    <ToggleRow label={t('configuracoes.push.cofres')} description={t('configuracoes.push.cofresDesc')} icon={PiggyBank} active={prefs?.on_cofre ?? true} onChange={() => toggle('on_cofre')} />
+                    <ToggleRow label={t('configuracoes.push.negocios')} description={t('configuracoes.push.negociosDesc')} icon={Briefcase} active={prefs?.on_negocio ?? true} onChange={() => toggle('on_negocio')} />
+                    <ToggleRow label={t('configuracoes.push.patrimonio')} description={t('configuracoes.push.patrimonioDesc')} icon={Building2} active={prefs?.on_patrimonio ?? true} onChange={() => toggle('on_patrimonio')} />
+                    <ToggleRow label={t('configuracoes.push.meta')} description={t('configuracoes.push.metaDesc')} icon={Target} active={prefs?.on_meta_reached ?? true} onChange={() => toggle('on_meta_reached')} />
                   </div>
                 )}
               </div>
@@ -116,20 +120,20 @@ export default function Configuracoes() {
           </Section>
 
           {/* Email section */}
-          <Section title="Notificações por E-mail" icon={Mail} subtitle={`Alertas enviados para ${user?.email ?? 'seu e-mail'}`}>
+          <Section title={t('configuracoes.email.title')} icon={Mail} subtitle={`Alertas enviados para ${user?.email ?? 'seu e-mail'}`}>
             <div className="space-y-3">
               <ToggleRow
-                label="Notificações por e-mail"
-                description="Receber alertas importantes no e-mail"
+                label={t('configuracoes.email.toggle')}
+                description={t('configuracoes.email.toggleDesc')}
                 active={prefs?.email_enabled ?? true}
                 onChange={() => toggle('email_enabled')}
                 accent
               />
               {prefs?.email_enabled && (
                 <div className="ml-1 pl-4 border-l-2 border-gray-800 space-y-2 pt-1">
-                  <ToggleRow label="Resumo diário" description="Receber um resumo financeiro diário por e-mail" icon={Clock} active={prefs?.daily_summary ?? false} onChange={() => toggle('daily_summary')} />
-                  <ToggleRow label="Movimentos" description="E-mail ao registrar transações importantes" icon={TrendingUp} active={prefs?.on_transaction ?? true} onChange={() => toggle('on_transaction')} />
-                  <ToggleRow label="Alertas de cofre" description="E-mail ao atingir metas de cofre" icon={Target} active={prefs?.on_meta_reached ?? true} onChange={() => toggle('on_meta_reached')} />
+                  <ToggleRow label={t('configuracoes.email.resumoDiario')} description={t('configuracoes.email.resumoDiarioDesc')} icon={Clock} active={prefs?.daily_summary ?? false} onChange={() => toggle('daily_summary')} />
+                  <ToggleRow label={t('configuracoes.email.movimentos')} description={t('configuracoes.email.movimentosDesc')} icon={TrendingUp} active={prefs?.on_transaction ?? true} onChange={() => toggle('on_transaction')} />
+                  <ToggleRow label={t('configuracoes.email.alertasCofre')} description={t('configuracoes.email.alertaCofreDesc')} icon={Target} active={prefs?.on_meta_reached ?? true} onChange={() => toggle('on_meta_reached')} />
                 </div>
               )}
             </div>
@@ -143,9 +147,9 @@ export default function Configuracoes() {
                 ['Push', 'Notificações instantâneas no celular/browser quando algo muda na sua conta. Funciona em background, mesmo sem o app aberto.'],
                 ['E-mail', 'Alertas enviados para o seu e-mail cadastrado. Ideal para resumos e histórico fora do app.'],
                 ['In-app', 'Notificações visíveis dentro do app, no histórico abaixo. Sempre ativas e armazenadas por 30 dias.'],
-              ].map(([t, d]) => (
-                <div key={t} className="flex gap-3">
-                  <div className="w-14 shrink-0 text-xs font-semibold text-emerald-400 pt-0.5">{t}</div>
+              ].map(([tl, d]) => (
+                <div key={tl} className="flex gap-3">
+                  <div className="w-14 shrink-0 text-xs font-semibold text-emerald-400 pt-0.5">{tl}</div>
                   <p className="text-gray-400 text-xs leading-relaxed">{d}</p>
                 </div>
               ))}
@@ -158,16 +162,16 @@ export default function Configuracoes() {
       {tab === 'historico' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-gray-400 text-sm">{notifications.length} notificações</p>
+            <p className="text-gray-400 text-sm">{t('configuracoes.historico.notificacoes', { n: notifications.length })}</p>
             <div className="flex gap-2">
               {unreadCount > 0 && (
                 <button onClick={markAllRead} className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-900/50 hover:border-emerald-800 px-3 py-1.5 rounded-lg transition-colors">
-                  <Check size={12} /> Marcar lidas
+                  <Check size={12} /> {t('configuracoes.historico.marcarLidas')}
                 </button>
               )}
               {notifications.length > 0 && (
                 <button onClick={clearLog} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 border border-gray-800 hover:border-red-900/50 px-3 py-1.5 rounded-lg transition-colors">
-                  <Trash2 size={12} /> Limpar
+                  <Trash2 size={12} /> {t('configuracoes.historico.limpar')}
                 </button>
               )}
             </div>
@@ -177,8 +181,8 @@ export default function Configuracoes() {
             {notifications.length === 0 ? (
               <div className="text-center py-12">
                 <Bell size={28} className="text-gray-700 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">Nenhuma notificação ainda</p>
-                <p className="text-gray-600 text-xs mt-1">As notificações aparecerão aqui quando forem enviadas</p>
+                <p className="text-gray-500 text-sm">{t('configuracoes.historico.nenhumaTitulo')}</p>
+                <p className="text-gray-600 text-xs mt-1">{t('configuracoes.historico.nenhumaDesc')}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-800/60">
@@ -204,7 +208,7 @@ export default function Configuracoes() {
       {/* ── CONTA ──────────────────────────────────────────────────────────── */}
       {tab === 'conta' && (
         <div className="space-y-4">
-          <Section title="Informações da Conta" icon={ShieldCheck} subtitle="Dados do seu perfil IK Finance">
+          <Section title={t('configuracoes.conta.title')} icon={ShieldCheck} subtitle={t('configuracoes.conta.subtitle')}>
             <div className="space-y-3">
               <div className="flex items-center gap-4 p-4 bg-gray-800/50 rounded-xl">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 font-bold text-lg">
@@ -212,26 +216,26 @@ export default function Configuracoes() {
                 </div>
                 <div>
                   <p className="text-white font-medium">{user?.email}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">Membro desde {user?.created_at ? formatDate(user.created_at.split('T')[0]) : '-'}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">{t('configuracoes.conta.membroDesde', { date: user?.created_at ? formatDate(user.created_at.split('T')[0]) : '-' })}</p>
                 </div>
               </div>
               <div className="p-4 bg-gray-800/30 rounded-xl space-y-2">
-                <Row label="Sessão" value="Ativa e segura" ok />
-                <Row label="Dados" value="Armazenados com criptografia" ok />
-                <Row label="Acesso" value="Disponível em qualquer dispositivo" ok />
+                <Row label={t('configuracoes.conta.sessao')} value={t('configuracoes.conta.sessaoDesc')} ok />
+                <Row label={t('configuracoes.conta.dados')} value={t('configuracoes.conta.dadosDesc')} ok />
+                <Row label={t('configuracoes.conta.acesso')} value={t('configuracoes.conta.acessoDesc')} ok />
               </div>
             </div>
           </Section>
 
-          <Section title="Acesso Universal" icon={ChevronRight} subtitle="Como acessar sua conta em qualquer lugar">
+          <Section title={t('configuracoes.conta.acessoUniversal')} icon={ChevronRight} subtitle={t('configuracoes.conta.acessoUniversalDesc')}>
             <div className="space-y-2.5">
               {[
                 ['Web', 'Acesse pelo navegador em qualquer computador ou tablet. Seus dados ficam na nuvem.'],
                 ['PWA (instalado)', 'Instale o app no celular ou desktop. Funciona offline com dados em cache.'],
                 ['Android / iOS', 'Use o guia em MOBILE_BUILD.md para compilar a versão nativa para as lojas.'],
-              ].map(([t, d]) => (
-                <div key={t} className="flex gap-3 p-3 bg-gray-800/30 rounded-xl">
-                  <div className="w-20 shrink-0 text-xs font-semibold text-blue-400 pt-0.5">{t}</div>
+              ].map(([tl, d]) => (
+                <div key={tl} className="flex gap-3 p-3 bg-gray-800/30 rounded-xl">
+                  <div className="w-20 shrink-0 text-xs font-semibold text-blue-400 pt-0.5">{tl}</div>
                   <p className="text-gray-400 text-xs leading-relaxed">{d}</p>
                 </div>
               ))}
@@ -242,16 +246,16 @@ export default function Configuracoes() {
 
       {tab === 'ia' && (
         <div className="space-y-4">
-          <Section title="IK Finance AI" icon={Sparkles} subtitle="Controle o assistente inteligente e seus acessos aos seus dados">
+          <Section title={t('configuracoes.ai.title')} icon={Sparkles} subtitle={t('configuracoes.ai.subtitle')}>
             <div className="space-y-4">
               <div className={`flex items-center gap-4 p-4 rounded-xl border ${privacy.enabled ? 'bg-emerald-950/20 border-emerald-800/40' : 'bg-gray-800/40 border-gray-700'}`}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${privacy.enabled ? 'bg-emerald-500/20' : 'bg-gray-700'}`}>
                   <Sparkles size={18} className={privacy.enabled ? 'text-emerald-400' : 'text-gray-500'} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-white font-semibold text-sm">IK Finance AI</p>
+                  <p className="text-white font-semibold text-sm">{t('configuracoes.ai.title')}</p>
                   <p className={`text-xs mt-0.5 font-medium ${privacy.enabled ? 'text-emerald-400' : 'text-gray-500'}`}>
-                    {privacy.enabled ? 'Ativo — botão flutuante disponível' : 'Desativado'}
+                    {privacy.enabled ? t('configuracoes.ai.ativo') : t('configuracoes.ai.desativado')}
                   </p>
                 </div>
                 <button
@@ -264,19 +268,19 @@ export default function Configuracoes() {
 
               <div className="space-y-3">
                 <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                  <Lock size={11} /> Permissões de Acesso aos Dados
+                  <Lock size={11} /> {t('configuracoes.ai.permissoes')}
                 </p>
                 {[
                   {
                     key: 'allowFinancialData' as const,
-                    label: 'Dados financeiros',
-                    desc: 'Permite à IA analisar saldos, transações, cofres e relatórios para dar sugestões personalizadas',
+                    label: t('configuracoes.ai.dadosFinanceiros'),
+                    desc: t('configuracoes.ai.dadosFinanceirosDesc'),
                     icon: TrendingUp,
                   },
                   {
                     key: 'allowBusinessData' as const,
-                    label: 'Dados empresariais',
-                    desc: 'Permite à IA analisar negócios, empresas e patrimônio',
+                    label: t('configuracoes.ai.dadosEmpresariais'),
+                    desc: t('configuracoes.ai.dadosEmpresariaisDesc'),
                     icon: Briefcase,
                   },
                 ].map(({ key, label, desc, icon: Icon }) => (
@@ -299,11 +303,22 @@ export default function Configuracoes() {
               <div className="flex items-start gap-3 bg-blue-950/30 border border-blue-800/30 rounded-xl p-3.5">
                 <Info size={14} className="text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-blue-300/80 text-xs leading-relaxed">
-                  A IA nunca acessa seus dados sem autorização explícita. Você pode revogar o acesso a qualquer momento. Os dados são processados de forma segura e nunca partilhados com terceiros.
+                  {t('configuracoes.ai.privacidade')}
                 </p>
               </div>
             </div>
           </Section>
+        </div>
+      )}
+
+      {/* ── IDIOMA ─────────────────────────────────────────────────────────── */}
+      {tab === 'idioma' && (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-white font-semibold">{t('configuracoes.idioma.title')}</h3>
+            <p className="text-gray-500 text-sm mt-1">{t('configuracoes.idioma.subtitle')}</p>
+          </div>
+          <LanguageSwitcher variant="settings" />
         </div>
       )}
     </div>
@@ -368,5 +383,3 @@ function Row({ label, value, ok }: { label: string; value: string; ok?: boolean 
     </div>
   );
 }
-
-

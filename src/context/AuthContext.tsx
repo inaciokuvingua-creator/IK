@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { changeLang, type LangCode } from '../i18n';
 
 type AuthContextType = {
   user: User | null;
@@ -13,6 +14,11 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+async function restoreLang(userId: string) {
+  const { data } = await supabase.from('user_profiles').select('idioma').eq('id', userId).maybeSingle();
+  if (data?.idioma) changeLang(data.idioma as LangCode);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -22,12 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) restoreLang(session.user.id);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) restoreLang(session.user.id);
     });
 
     return () => subscription.unsubscribe();

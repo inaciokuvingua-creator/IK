@@ -5,10 +5,12 @@ import {
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
   Users, ChevronRight,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES, type CurrencyCode } from '../context/CurrencyContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useProfile, getTrialDaysLeft, isTrialExpired } from '../context/ProfileContext';
+import LanguageSwitcher from './LanguageSwitcher';
 import type { Page } from '../App';
 
 type Props = {
@@ -17,32 +19,8 @@ type Props = {
   children: React.ReactNode;
 };
 
-type NavGroup = { label: string; items: { id: Page; label: string; icon: React.ElementType }[] };
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Finanças',
-    items: [
-      { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard },
-      { id: 'cofres',     label: 'Cofres',       icon: Vault },
-      { id: 'financeiro', label: 'Financeiro',   icon: Wallet },
-      { id: 'negocios',   label: 'Negócios',     icon: Briefcase },
-      { id: 'patrimonio', label: 'Patrimônio',   icon: BuildingIcon },
-      { id: 'relatorios', label: 'Relatórios',   icon: BarChart3 },
-    ],
-  },
-  {
-    label: 'Ecossistema',
-    items: [
-      { id: 'marketplace', label: 'Marketplace',  icon: ShoppingBag },
-      { id: 'minha-loja',  label: 'Minha Loja',   icon: Store },
-      { id: 'empresas',    label: 'Empresas',      icon: Users },
-      { id: 'chat',        label: 'Mensagens',     icon: MessageCircle },
-    ],
-  },
-];
-
 export default function Layout({ currentPage, onNavigate, children }: Props) {
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { currency, setCurrencyCode, ratesLoading, lastUpdated } = useCurrency();
   const { unreadCount, notifications, markAllRead } = useNotifications();
@@ -52,6 +30,29 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
   const [notifOpen, setNotifOpen] = useState(false);
   const currencyRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const NAV_GROUPS = [
+    {
+      label: t('nav.financas'),
+      items: [
+        { id: 'dashboard' as Page,  label: t('nav.dashboard'),   icon: LayoutDashboard },
+        { id: 'cofres' as Page,     label: t('nav.cofres'),       icon: Vault },
+        { id: 'financeiro' as Page, label: t('nav.financeiro'),   icon: Wallet },
+        { id: 'negocios' as Page,   label: t('nav.negocios'),     icon: Briefcase },
+        { id: 'patrimonio' as Page, label: t('nav.patrimonio'),   icon: BuildingIcon },
+        { id: 'relatorios' as Page, label: t('nav.relatorios'),   icon: BarChart3 },
+      ],
+    },
+    {
+      label: t('nav.ecossistema'),
+      items: [
+        { id: 'marketplace' as Page, label: t('nav.marketplace'),  icon: ShoppingBag },
+        { id: 'minha-loja' as Page,  label: t('nav.minhaLoja'),    icon: Store },
+        { id: 'empresas' as Page,    label: t('nav.empresas'),      icon: Users },
+        { id: 'chat' as Page,        label: t('nav.mensagens'),     icon: MessageCircle },
+      ],
+    },
+  ];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -98,7 +99,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
 
         {/* Currency selector */}
         <div className="px-3 pt-3" ref={currencyRef}>
-          <p className="text-xs text-gray-600 font-medium px-2 mb-1.5 uppercase tracking-wider">Moeda</p>
+          <p className="text-xs text-gray-600 font-medium px-2 mb-1.5 uppercase tracking-wider">{t('nav.moeda')}</p>
           <div className="relative">
             <button
               onClick={() => setCurrencyOpen(!currencyOpen)}
@@ -134,7 +135,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
                 {lastUpdated && (
                   <div className="px-3 py-2 border-t border-gray-700 flex items-center gap-1.5">
                     <RefreshCw size={10} className="text-gray-600" />
-                    <p className="text-gray-600 text-xs">Taxa: {lastUpdated.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-gray-600 text-xs">{t('nav.taxa')}: {lastUpdated.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 )}
               </div>
@@ -168,12 +169,15 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
           ))}
         </nav>
 
-        {/* Bottom: Account + Settings */}
+        {/* Bottom: Language + Account + Settings */}
         <div className="p-3 border-t border-gray-800 space-y-0.5">
+          <div className="px-1 pb-1">
+            <LanguageSwitcher variant="sidebar" />
+          </div>
           <button onClick={() => handleNavigate('planos')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'planos' ? 'bg-emerald-500/10 text-emerald-400' : trialExpired ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-950/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <CreditCard size={17} />
-            Planos
+            {t('nav.planos')}
             {inTrial && daysLeft <= 14 && (
               <span className="ml-auto text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-600/30 px-1.5 py-0.5 rounded-lg">{daysLeft}d</span>
             )}
@@ -187,13 +191,13 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
           <button onClick={() => handleNavigate('perfil')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'perfil' ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <User size={17} />
-            Perfil
+            {t('nav.perfil')}
             {profile?.verified && <span className="ml-auto text-blue-400 text-xs">✓</span>}
           </button>
           <button onClick={() => handleNavigate('configuracoes')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'configuracoes' ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <Settings size={17} />
-            Configurações
+            {t('nav.configuracoes')}
           </button>
 
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl mt-1">
@@ -207,7 +211,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
               <p className="text-xs text-gray-400 truncate">{profile?.nome || user?.email}</p>
               {profile && <p className={`text-[10px] capitalize font-medium ${PLAN_COLORS[profile.plan]}`}>{profile.plan}</p>}
             </div>
-            <button onClick={signOut} className="text-gray-500 hover:text-red-400 transition-colors shrink-0" title="Sair">
+            <button onClick={signOut} className="text-gray-500 hover:text-red-400 transition-colors shrink-0" title={t('nav.sair')}>
               <LogOut size={15} />
             </button>
           </div>
@@ -227,6 +231,8 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
             <span className="text-white font-bold text-sm">IK FINANCE</span>
           </div>
 
+          <LanguageSwitcher variant="compact" />
+
           {/* Mobile notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifOpen} className="relative p-1.5 text-gray-400 hover:text-white transition-colors">
@@ -241,12 +247,12 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
             {notifOpen && (
               <div className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                  <p className="text-white font-semibold text-sm">Notificações</p>
-                  <button onClick={() => handleNavigate('configuracoes')} className="text-xs text-emerald-400 hover:text-emerald-300">Configurar</button>
+                  <p className="text-white font-semibold text-sm">{t('nav.notificacoes')}</p>
+                  <button onClick={() => handleNavigate('configuracoes')} className="text-xs text-emerald-400 hover:text-emerald-300">{t('nav.configurar')}</button>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <p className="text-gray-500 text-xs text-center py-6">Sem notificações</p>
+                    <p className="text-gray-500 text-xs text-center py-6">{t('nav.semNotificacoes')}</p>
                   ) : (
                     notifications.slice(0, 8).map((n) => (
                       <div key={n.id} className={`flex gap-2.5 px-4 py-3 border-b border-gray-800/50 last:border-0 ${!n.lida ? 'bg-emerald-950/10' : ''}`}>

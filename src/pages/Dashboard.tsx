@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TrendingUp, TrendingDown, Wallet, Briefcase, Home,
   ArrowUpRight, ArrowDownRight, Plus, RefreshCw,
@@ -12,6 +13,7 @@ import { useCurrency } from '../context/CurrencyContext';
 type Props = { onNavigate: (page: string) => void };
 
 export default function Dashboard({ onNavigate }: Props) {
+  const { t } = useTranslation();
   const [cofres, setCofres] = useState<Cofre[]>([]);
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [patrimonio, setPatrimonio] = useState<PatrimonioItem[]>([]);
@@ -22,7 +24,7 @@ export default function Dashboard({ onNavigate }: Props) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchAll = async () => {
-    const [c, n, p, t] = await Promise.all([
+    const [c, n, p, tx] = await Promise.all([
       supabase.from('cofres').select('*').order('created_at', { ascending: false }),
       supabase.from('negocios').select('*').eq('ativo', true),
       supabase.from('patrimonio').select('*'),
@@ -31,7 +33,7 @@ export default function Dashboard({ onNavigate }: Props) {
     if (!c.error) setCofres(c.data ?? []);
     if (!n.error) setNegocios(n.data ?? []);
     if (!p.error) setPatrimonio(p.data ?? []);
-    if (!t.error) setTransacoes(t.data ?? []);
+    if (!tx.error) setTransacoes(tx.data ?? []);
     setLastSync(new Date());
     setLoading(false);
   };
@@ -58,9 +60,9 @@ export default function Dashboard({ onNavigate }: Props) {
   const saldoCofres = cofres.reduce((s, c) => s + c.saldo, 0);
 
   // Financeiro — transacoes sem cofre vinculado
-  const txLivres = transacoes.filter((t) => t.cofre_id === null);
-  const receitasFinanceiro = txLivres.filter((t) => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
-  const despesasFinanceiro = txLivres.filter((t) => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
+  const txLivres = transacoes.filter((tx) => tx.cofre_id === null);
+  const receitasFinanceiro = txLivres.filter((tx) => tx.tipo === 'entrada').reduce((s, tx) => s + tx.valor, 0);
+  const despesasFinanceiro = txLivres.filter((tx) => tx.tipo === 'saida').reduce((s, tx) => s + tx.valor, 0);
   const saldoFinanceiro = receitasFinanceiro - despesasFinanceiro;
 
   // Negócios
@@ -93,12 +95,12 @@ export default function Dashboard({ onNavigate }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Visão geral em tempo real</p>
+          <h1 className="text-2xl font-bold text-white">{t('dashboard.title')}</h1>
+          <p className="text-gray-400 text-sm mt-0.5">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-600">
           <RefreshCw size={11} />
-          <span>Atualizado às {lastSync.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+          <span>{t('dashboard.updatedAt', { time: lastSync.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) })}</span>
         </div>
       </div>
 
@@ -106,52 +108,52 @@ export default function Dashboard({ onNavigate }: Props) {
       <div className="bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-2">
           <div className={`w-2 h-2 rounded-full animate-pulse ${saldoTotalPositive ? 'bg-emerald-400' : 'bg-red-400'}`} />
-          <p className="text-gray-400 text-sm">Saldo Total da Conta</p>
+          <p className="text-gray-400 text-sm">{t('dashboard.saldoTotal')}</p>
         </div>
         <p className={`text-4xl font-bold tracking-tight mb-4 ${saldoTotalPositive ? 'text-white' : 'text-red-400'}`}>
           {format(saldoTotal)}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <MiniStat label="Em Cofres" value={format(saldoCofres)} positive />
-          <MiniStat label="Financeiro" value={format(saldoFinanceiro)} positive={saldoFinanceiro >= 0} />
-          <MiniStat label="Negócios" value={format(lucroNegocios)} positive={lucroNegocios >= 0} />
-          <MiniStat label="Patrimônio" value={format(totalPatrimonio)} positive />
+          <MiniStat label={t('dashboard.emCofres')} value={format(saldoCofres)} positive />
+          <MiniStat label={t('dashboard.financeiro')} value={format(saldoFinanceiro)} positive={saldoFinanceiro >= 0} />
+          <MiniStat label={t('dashboard.negocios')} value={format(lucroNegocios)} positive={lucroNegocios >= 0} />
+          <MiniStat label={t('dashboard.patrimonio')} value={format(totalPatrimonio)} positive />
         </div>
       </div>
 
       {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Receitas" value={format(receitasTotal)} icon={TrendingUp} color="emerald" sub="Financeiro + Negócios" />
-        <KpiCard label="Total Despesas" value={format(despesasTotal)} icon={TrendingDown} color="red" sub={`Saldo: ${format(receitasTotal - despesasTotal)}`} />
-        <KpiCard label="Investimentos" value={format(totalInvestimentos)} icon={BarChart3} color="blue" sub={`${patrimonio.filter(p => p.categoria === 'investimento' || p.categoria === 'cripto').length} ativos`} />
-        <KpiCard label="Negócios Ativos" value={format(lucroNegocios)} icon={Briefcase} color={lucroNegocios >= 0 ? 'teal' : 'red'} sub={`${negocios.length} negócio${negocios.length !== 1 ? 's' : ''} · lucro mensal`} />
+        <KpiCard label={t('dashboard.totalReceitas')} value={format(receitasTotal)} icon={TrendingUp} color="emerald" sub={t('dashboard.financAndNegocios')} />
+        <KpiCard label={t('dashboard.totalDespesas')} value={format(despesasTotal)} icon={TrendingDown} color="red" sub={`Saldo: ${format(receitasTotal - despesasTotal)}`} />
+        <KpiCard label={t('dashboard.investimentos')} value={format(totalInvestimentos)} icon={BarChart3} color="blue" sub={`${patrimonio.filter(p => p.categoria === 'investimento' || p.categoria === 'cripto').length} ativos`} />
+        <KpiCard label={t('dashboard.negociosAtivos')} value={format(lucroNegocios)} icon={Briefcase} color={lucroNegocios >= 0 ? 'teal' : 'red'} sub={`${negocios.length} negócio${negocios.length !== 1 ? 's' : ''} · lucro mensal`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent transactions */}
         <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-white">Últimas Transações</h2>
+            <h2 className="font-semibold text-white">{t('dashboard.ultTrans')}</h2>
             <button onClick={() => onNavigate('financeiro')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-              Ver todas
+              {t('dashboard.verTodas')}
             </button>
           </div>
 
           {transacoes.length === 0 ? (
-            <EmptyState message="Nenhuma transação ainda" action="Adicionar transação" onAction={() => onNavigate('financeiro')} />
+            <EmptyState message={t('dashboard.nenhumaTrans')} action={t('dashboard.adicionarTrans')} onAction={() => onNavigate('financeiro')} />
           ) : (
             <div className="space-y-1">
-              {transacoes.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-800/50 transition-colors">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${t.tipo === 'entrada' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'}`}>
-                    {t.tipo === 'entrada' ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
+              {transacoes.map((tx) => (
+                <div key={tx.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-800/50 transition-colors">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${tx.tipo === 'entrada' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'}`}>
+                    {tx.tipo === 'entrada' ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{t.descricao || t.categoria}</p>
-                    <p className="text-gray-500 text-xs">{formatDate(t.data_transacao)} · {t.categoria}</p>
+                    <p className="text-white text-sm font-medium truncate">{tx.descricao || tx.categoria}</p>
+                    <p className="text-gray-500 text-xs">{formatDate(tx.data_transacao)} · {tx.categoria}</p>
                   </div>
-                  <span className={`text-sm font-semibold shrink-0 ${t.tipo === 'entrada' ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {t.tipo === 'entrada' ? '+' : '-'}{format(t.valor)}
+                  <span className={`text-sm font-semibold shrink-0 ${tx.tipo === 'entrada' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {tx.tipo === 'entrada' ? '+' : '-'}{format(tx.valor)}
                   </span>
                 </div>
               ))}
@@ -166,14 +168,14 @@ export default function Dashboard({ onNavigate }: Props) {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <PiggyBank size={15} className="text-emerald-400" />
-                <h2 className="font-semibold text-white text-sm">Cofres</h2>
+                <h2 className="font-semibold text-white text-sm">{t('dashboard.cofres')}</h2>
               </div>
               <button onClick={() => onNavigate('cofres')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
-                <Plus size={12} /> Novo
+                <Plus size={12} /> {t('dashboard.novo')}
               </button>
             </div>
             {cofres.length === 0 ? (
-              <EmptyState message="Nenhum cofre criado" action="Criar cofre" onAction={() => onNavigate('cofres')} />
+              <EmptyState message={t('dashboard.nenhumCofre')} action={t('dashboard.criarCofre')} onAction={() => onNavigate('cofres')} />
             ) : (
               <div className="space-y-2">
                 {cofres.slice(0, 4).map((c) => (
@@ -186,7 +188,7 @@ export default function Dashboard({ onNavigate }: Props) {
                   </div>
                 ))}
                 {cofres.length > 4 && (
-                  <button onClick={() => onNavigate('cofres')} className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1">+{cofres.length - 4} mais</button>
+                  <button onClick={() => onNavigate('cofres')} className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1">{t('dashboard.maisItens', { n: cofres.length - 4 })}</button>
                 )}
               </div>
             )}
@@ -197,12 +199,12 @@ export default function Dashboard({ onNavigate }: Props) {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Home size={15} className="text-blue-400" />
-                <h2 className="font-semibold text-white text-sm">Patrimônio</h2>
+                <h2 className="font-semibold text-white text-sm">{t('dashboard.patrimoniTitle')}</h2>
               </div>
-              <button onClick={() => onNavigate('patrimonio')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">Gerir</button>
+              <button onClick={() => onNavigate('patrimonio')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">{t('dashboard.gerir')}</button>
             </div>
             {patrimonio.length === 0 ? (
-              <EmptyState message="Nenhum ativo" action="Adicionar ativo" onAction={() => onNavigate('patrimonio')} />
+              <EmptyState message={t('dashboard.nenhumAtivo')} action={t('dashboard.adicionarAtivo')} onAction={() => onNavigate('patrimonio')} />
             ) : (
               <div className="space-y-2">
                 {patrimonio.slice(0, 3).map((p) => (
@@ -215,7 +217,7 @@ export default function Dashboard({ onNavigate }: Props) {
                   </div>
                 ))}
                 {patrimonio.length > 3 && (
-                  <button onClick={() => onNavigate('patrimonio')} className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1">+{patrimonio.length - 3} mais</button>
+                  <button onClick={() => onNavigate('patrimonio')} className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1">{t('dashboard.maisItens', { n: patrimonio.length - 3 })}</button>
                 )}
               </div>
             )}
@@ -227,8 +229,8 @@ export default function Dashboard({ onNavigate }: Props) {
       {negocios.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-white">Negócios Ativos</h2>
-            <button onClick={() => onNavigate('negocios')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">Gerenciar</button>
+            <h2 className="font-semibold text-white">{t('dashboard.negociosAtivosTitle')}</h2>
+            <button onClick={() => onNavigate('negocios')} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">{t('dashboard.gerenciar')}</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {negocios.slice(0, 3).map((n) => {

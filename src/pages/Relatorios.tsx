@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -26,17 +27,6 @@ type Patrimonio = { id: string; nome: string; categoria: string; valor_aquisicao
 
 type ChartType = 'area' | 'bar' | 'line' | 'composed' | 'pie' | 'donut' | 'radar';
 
-const CHART_TYPES: { id: ChartType; label: string; icon: React.ElementType }[] = [
-  { id: 'area',     label: 'Área',      icon: Activity   },
-  { id: 'bar',      label: 'Barras',    icon: BarChart2  },
-  { id: 'line',     label: 'Linha',     icon: TrendingUp },
-  { id: 'composed', label: 'Composto',  icon: Layers     },
-  { id: 'pie',      label: 'Pizza',     icon: PieIcon    },
-  { id: 'donut',    label: 'Rosquinha', icon: PieIcon    },
-  { id: 'radar',    label: 'Radar',     icon: LayoutGrid },
-];
-
-const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const PALETTE = ['#10b981','#ef4444','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4','#a78bfa'];
 
 // ── Tooltip customizado ───────────────────────────────────────────────────────
@@ -88,10 +78,10 @@ function KpiCard({ label, value, delta, color }: { label: string; value: string;
 }
 
 // ── Chart type selector ────────────────────────────────────────────────────────
-function ChartTypePicker({ value, onChange }: { value: ChartType; onChange: (t: ChartType) => void }) {
+function ChartTypePicker({ value, onChange, chartTypes }: { value: ChartType; onChange: (t: ChartType) => void; chartTypes: { id: ChartType; label: string; icon: React.ElementType }[] }) {
   return (
     <div className="flex items-center gap-1 bg-gray-800/60 border border-gray-700 rounded-xl p-1 flex-wrap">
-      {CHART_TYPES.map(({ id, label, icon: Icon }) => (
+      {chartTypes.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
           onClick={() => onChange(id)}
@@ -111,8 +101,21 @@ function ChartTypePicker({ value, onChange }: { value: ChartType; onChange: (t: 
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Relatorios() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { format } = useCurrency();
+
+  const CHART_TYPES: { id: ChartType; label: string; icon: React.ElementType }[] = [
+    { id: 'area',     label: t('relatorios.chartTypes.area'),     icon: Activity   },
+    { id: 'bar',      label: t('relatorios.chartTypes.bar'),      icon: BarChart2  },
+    { id: 'line',     label: t('relatorios.chartTypes.line'),     icon: TrendingUp },
+    { id: 'composed', label: t('relatorios.chartTypes.composed'), icon: Layers     },
+    { id: 'pie',      label: t('relatorios.chartTypes.pie'),      icon: PieIcon    },
+    { id: 'donut',    label: t('relatorios.chartTypes.donut'),    icon: PieIcon    },
+    { id: 'radar',    label: t('relatorios.chartTypes.radar'),    icon: LayoutGrid },
+  ];
+
+  const MONTHS = t('relatorios.months', { returnObjects: true }) as string[];
 
   const [txs, setTxs]             = useState<Tx[]>([]);
   const [cofres, setCofres]        = useState<Cofre[]>([]);
@@ -136,13 +139,13 @@ export default function Relatorios() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [t, c, n, p] = await Promise.all([
+    const [tx, c, n, p] = await Promise.all([
       supabase.from('transacoes').select('*').eq('user_id', user.id).order('data_transacao'),
       supabase.from('cofres').select('id,nome,saldo,cor').eq('user_id', user.id),
       supabase.from('negocios').select('*').eq('user_id', user.id),
       supabase.from('patrimonio').select('*').eq('user_id', user.id),
     ]);
-    setTxs(t.data ?? []);
+    setTxs(tx.data ?? []);
     setCofres(c.data ?? []);
     setNegocios(n.data ?? []);
     setPatrimonio(p.data ?? []);
@@ -186,11 +189,11 @@ export default function Relatorios() {
         const d = new Date(tx.data_transacao);
         return d.getFullYear() === year && d.getMonth() === i;
       });
-      const entradas = monthTxs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
-      const saidas   = monthTxs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
-      return { mes: m, Entradas: entradas, Saídas: saidas, Saldo: entradas - saidas };
+      const entradas = monthTxs.filter(tx => tx.tipo === 'entrada').reduce((s, tx) => s + tx.valor, 0);
+      const saidas   = monthTxs.filter(tx => tx.tipo === 'saida').reduce((s, tx) => s + tx.valor, 0);
+      return { mes: m, [t('relatorios.entradas')]: entradas, [t('relatorios.saidas')]: saidas, [t('relatorios.saldo')]: entradas - saidas };
     });
-  }, [txs, year]);
+  }, [txs, year, MONTHS, t]);
 
   // Category breakdown
   const byCategoria = useMemo(() => {
@@ -200,16 +203,16 @@ export default function Relatorios() {
       map[tx.categoria][tx.tipo] += tx.valor;
     });
     return Object.entries(map)
-      .map(([cat, v]) => ({ name: cat, Entradas: v.entrada, Saídas: v.saida, Total: v.entrada + v.saida }))
+      .map(([cat, v]) => ({ name: cat, [t('relatorios.entradas')]: v.entrada, [t('relatorios.saidas')]: v.saida, Total: v.entrada + v.saida }))
       .sort((a, b) => b.Total - a.Total)
       .slice(0, 8);
-  }, [filtered]);
+  }, [filtered, t]);
 
   // Pie data for saidas by category
   const pieSaidas = useMemo(() => {
     const map: Record<string, number> = {};
-    filtered.filter(t => t.tipo === 'saida').forEach(t => {
-      map[t.categoria] = (map[t.categoria] ?? 0) + t.valor;
+    filtered.filter(tx => tx.tipo === 'saida').forEach(tx => {
+      map[tx.categoria] = (map[tx.categoria] ?? 0) + tx.valor;
     });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [filtered]);
@@ -218,10 +221,10 @@ export default function Relatorios() {
   const negocioData = useMemo(() =>
     negocios.filter(n => n.ativo).map(n => ({
       name: n.nome.length > 14 ? n.nome.slice(0, 13) + '…' : n.nome,
-      Receita: n.receita_mensal,
-      Despesa: n.despesa_mensal,
-      Lucro:   n.receita_mensal - n.despesa_mensal,
-    })), [negocios]);
+      [t('relatorios.receita')]: n.receita_mensal,
+      [t('relatorios.despesa')]: n.despesa_mensal,
+      [t('relatorios.lucro')]:   n.receita_mensal - n.despesa_mensal,
+    })), [negocios, t]);
 
   // Patrimônio by category
   const patrimonioData = useMemo(() => {
@@ -239,11 +242,11 @@ export default function Relatorios() {
         const td = new Date(tx.data_transacao);
         return td.getFullYear() === d.getFullYear() && td.getMonth() === d.getMonth();
       });
-      const ent = monthTxs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
-      const sai = monthTxs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
-      return { subject: MONTHS[d.getMonth()], Entradas: ent, Saídas: sai };
+      const ent = monthTxs.filter(tx => tx.tipo === 'entrada').reduce((s, tx) => s + tx.valor, 0);
+      const sai = monthTxs.filter(tx => tx.tipo === 'saida').reduce((s, tx) => s + tx.valor, 0);
+      return { subject: MONTHS[d.getMonth()], [t('relatorios.entradas')]: ent, [t('relatorios.saidas')]: sai };
     });
-  }, [txs]);
+  }, [txs, MONTHS, t]);
 
   // KPI deltas (current vs previous month)
   const { kpiTotals, delta } = useMemo(() => {
@@ -252,16 +255,16 @@ export default function Relatorios() {
     const pm = cm === 0 ? 11 : cm - 1;
     const py = cm === 0 ? cy - 1 : cy;
 
-    const curr = txs.filter(t => { const d = new Date(t.data_transacao); return d.getMonth() === cm && d.getFullYear() === cy; });
-    const prev = txs.filter(t => { const d = new Date(t.data_transacao); return d.getMonth() === pm && d.getFullYear() === py; });
+    const curr = txs.filter(tx => { const d = new Date(tx.data_transacao); return d.getMonth() === cm && d.getFullYear() === cy; });
+    const prev = txs.filter(tx => { const d = new Date(tx.data_transacao); return d.getMonth() === pm && d.getFullYear() === py; });
 
-    const sum = (arr: Tx[], tipo: string) => arr.filter(t => t.tipo === tipo).reduce((s, t) => s + t.valor, 0);
+    const sum = (arr: Tx[], tipo: string) => arr.filter(tx => tx.tipo === tipo).reduce((s, tx) => s + tx.valor, 0);
     const pct = (a: number, b: number) => b === 0 ? 0 : ((a - b) / b) * 100;
 
     const entCurr = sum(curr, 'entrada'), entPrev = sum(prev, 'entrada');
     const saiCurr = sum(curr, 'saida'),   saiPrev = sum(prev, 'saida');
-    const totEnt  = txs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
-    const totSai  = txs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
+    const totEnt  = txs.filter(tx => tx.tipo === 'entrada').reduce((s, tx) => s + tx.valor, 0);
+    const totSai  = txs.filter(tx => tx.tipo === 'saida').reduce((s, tx) => s + tx.valor, 0);
 
     return {
       kpiTotals: { entradas: totEnt, saidas: totSai, saldo: totEnt - totSai, entCurr, saiCurr },
@@ -282,17 +285,17 @@ export default function Relatorios() {
   // ── Cumulative balance line ────────────────────────────────────────────────
   const cumulativeLine = useMemo(() => {
     let running = 0;
-    const yearTxs = txs.filter(t => new Date(t.data_transacao).getFullYear() === year);
+    const yearTxs = txs.filter(tx => new Date(tx.data_transacao).getFullYear() === year);
     const byDay: Record<string, number> = {};
-    yearTxs.forEach(t => {
-      const day = t.data_transacao.slice(0, 10);
-      byDay[day] = (byDay[day] ?? 0) + (t.tipo === 'entrada' ? t.valor : -t.valor);
+    yearTxs.forEach(tx => {
+      const day = tx.data_transacao.slice(0, 10);
+      byDay[day] = (byDay[day] ?? 0) + (tx.tipo === 'entrada' ? tx.valor : -tx.valor);
     });
-    return Object.entries(byDay).sort().map(([date, delta]) => {
-      running += delta;
-      return { date: date.slice(5), Saldo: running };
+    return Object.entries(byDay).sort().map(([date, d]) => {
+      running += d;
+      return { date: date.slice(5), [t('relatorios.saldo')]: running };
     });
-  }, [txs, year]);
+  }, [txs, year, t]);
 
   // ── Cofres data ────────────────────────────────────────────────────────────
   const cofresData = useMemo(() =>
@@ -302,6 +305,15 @@ export default function Relatorios() {
   const AXIS_STYLE = { fill: '#6b7280', fontSize: 11 };
   const GRID_STROKE = '#1f2937';
   const ANIMATION = { isAnimationActive: true, animationDuration: 800, animationEasing: 'ease-out' as const };
+
+  // Translated series names (used in chart dataKeys)
+  const ENT = t('relatorios.entradas');
+  const SAI = t('relatorios.saidas');
+  const SAL = t('relatorios.saldo');
+  const REC = t('relatorios.receita');
+  const DES = t('relatorios.despesa');
+  const LUC = t('relatorios.lucro');
+  const VAL = t('relatorios.valor');
 
   if (loading) return (
     <div className="space-y-4 animate-pulse">
@@ -319,19 +331,21 @@ export default function Relatorios() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <BarChart2 size={22} className="text-emerald-400" /> Relatórios
+            <BarChart2 size={22} className="text-emerald-400" /> {t('relatorios.title')}
           </h1>
           <p className="text-gray-400 text-sm mt-0.5 flex items-center gap-1.5">
             {realtime
-              ? <><Wifi size={11} className="text-emerald-400" /> Dados em tempo real</>
-              : <><WifiOff size={11} className="text-red-400" /> Reconectando...</>
+              ? <><Wifi size={11} className="text-emerald-400" /> {t('relatorios.dadosTempoReal')}</>
+              : <><WifiOff size={11} className="text-red-400" /> {t('relatorios.reconectando')}</>
             }
             <span className="text-gray-600 mx-1">·</span>
-            <span className="text-gray-600 text-xs">Atualizado {lastUpdate.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            <span className="text-gray-600 text-xs">
+              {t('relatorios.atualizado', { time: lastUpdate.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) })}
+            </span>
           </p>
         </div>
         <button onClick={load} className="flex items-center gap-2 text-sm text-gray-400 border border-gray-700 hover:border-gray-600 hover:text-white px-4 py-2 rounded-xl transition-colors">
-          <RefreshCw size={14} /> Atualizar
+          <RefreshCw size={14} /> {t('relatorios.atualizar')}
         </button>
       </div>
 
@@ -360,26 +374,26 @@ export default function Relatorios() {
           </select>
         )}
         <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
-          <Filter size={11} /> {filtered.length} transações
+          <Filter size={11} /> {filtered.length} {t('relatorios.filtros')}
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Entradas" value={format(kpiTotals.entradas)} delta={delta.entradas} color="text-emerald-400" />
-        <KpiCard label="Total Saídas"   value={format(kpiTotals.saidas)}   delta={delta.saidas}   color="text-red-400"     />
-        <KpiCard label="Saldo Líquido"  value={format(kpiTotals.saldo)}    delta={delta.saldo}    color={kpiTotals.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-        <KpiCard label="Cofres"         value={format(cofresTotal)}         color="text-blue-400"  />
+        <KpiCard label={t('relatorios.totalEntradas')} value={format(kpiTotals.entradas)} delta={delta.entradas} color="text-emerald-400" />
+        <KpiCard label={t('relatorios.totalSaidas')}   value={format(kpiTotals.saidas)}   delta={delta.saidas}   color="text-red-400"     />
+        <KpiCard label={t('relatorios.saldoLiquido')}  value={format(kpiTotals.saldo)}    delta={delta.saldo}    color={kpiTotals.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+        <KpiCard label={t('relatorios.cofres')}        value={format(cofresTotal)}         color="text-blue-400"  />
       </div>
 
       {/* ─────────────── CHART 1: Monthly Cashflow ─────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
           <div>
-            <h2 className="text-white font-semibold">Fluxo de Caixa Mensal — {year}</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Entradas vs saídas por mês</p>
+            <h2 className="text-white font-semibold">{t('relatorios.fluxoCaixaMensal')} — {year}</h2>
+            <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.fluxoSub')}</p>
           </div>
-          <ChartTypePicker value={cashflowType} onChange={setCashflowType} />
+          <ChartTypePicker value={cashflowType} onChange={setCashflowType} chartTypes={CHART_TYPES} />
         </div>
         <ResponsiveContainer width="100%" height={300}>
           {cashflowType === 'area' ? (
@@ -399,8 +413,8 @@ export default function Relatorios() {
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
               <Tooltip content={<CustomTooltip format={format} />} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-              <Area type="monotone" dataKey="Entradas" stroke="#10b981" fill="url(#gEnt)" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
-              <Area type="monotone" dataKey="Saídas"   stroke="#ef4444" fill="url(#gSai)" strokeWidth={2} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Area type="monotone" dataKey={ENT} stroke="#10b981" fill="url(#gEnt)" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Area type="monotone" dataKey={SAI} stroke="#ef4444" fill="url(#gSai)" strokeWidth={2} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
             </AreaChart>
           ) : cashflowType === 'bar' ? (
             <BarChart data={monthlyCashflow} barGap={4} barCategoryGap="25%">
@@ -409,8 +423,8 @@ export default function Relatorios() {
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
               <Tooltip content={<CustomTooltip format={format} />} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-              <Bar dataKey="Entradas" fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
-              <Bar dataKey="Saídas"   fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
+              <Bar dataKey={ENT} fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
+              <Bar dataKey={SAI} fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
             </BarChart>
           ) : cashflowType === 'line' ? (
             <LineChart data={monthlyCashflow}>
@@ -419,9 +433,9 @@ export default function Relatorios() {
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
               <Tooltip content={<CustomTooltip format={format} />} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-              <Line type="monotone" dataKey="Entradas" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
-              <Line type="monotone" dataKey="Saídas"   stroke="#ef4444" strokeWidth={2.5} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
-              <Line type="monotone" dataKey="Saldo"    stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 3" dot={false} {...ANIMATION} />
+              <Line type="monotone" dataKey={ENT} stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Line type="monotone" dataKey={SAI} stroke="#ef4444" strokeWidth={2.5} dot={{ fill: '#ef4444', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Line type="monotone" dataKey={SAL} stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 3" dot={false} {...ANIMATION} />
               <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 4" />
             </LineChart>
           ) : cashflowType === 'composed' ? (
@@ -431,13 +445,13 @@ export default function Relatorios() {
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
               <Tooltip content={<CustomTooltip format={format} />} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-              <Bar dataKey="Entradas" fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
-              <Bar dataKey="Saídas"   fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
-              <Line type="monotone" dataKey="Saldo" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: '#f59e0b', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
+              <Bar dataKey={ENT} fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
+              <Bar dataKey={SAI} fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.8} {...ANIMATION} />
+              <Line type="monotone" dataKey={SAL} stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: '#f59e0b', r: 3 }} activeDot={{ r: 5 }} {...ANIMATION} />
             </ComposedChart>
           ) : cashflowType === 'pie' ? (
             <PieChart>
-              <Pie data={[{ name: 'Entradas', value: kpiTotals.entradas }, { name: 'Saídas', value: kpiTotals.saidas }]}
+              <Pie data={[{ name: ENT, value: kpiTotals.entradas }, { name: SAI, value: kpiTotals.saidas }]}
                 cx="50%" cy="50%" outerRadius={110} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 labelLine={false} {...ANIMATION}>
                 <Cell fill="#10b981" /><Cell fill="#ef4444" />
@@ -447,7 +461,7 @@ export default function Relatorios() {
             </PieChart>
           ) : cashflowType === 'donut' ? (
             <PieChart>
-              <Pie data={[{ name: 'Entradas', value: kpiTotals.entradas }, { name: 'Saídas', value: kpiTotals.saidas }]}
+              <Pie data={[{ name: ENT, value: kpiTotals.entradas }, { name: SAI, value: kpiTotals.saidas }]}
                 cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" paddingAngle={3} {...ANIMATION}>
                 <Cell fill="#10b981" /><Cell fill="#ef4444" />
               </Pie>
@@ -459,8 +473,8 @@ export default function Relatorios() {
               <PolarGrid stroke={GRID_STROKE} />
               <PolarAngleAxis dataKey="subject" tick={AXIS_STYLE} />
               <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
-              <Radar name="Entradas" dataKey="Entradas" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
-              <Radar name="Saídas"   dataKey="Saídas"   stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+              <Radar name={ENT} dataKey={ENT} stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+              <Radar name={SAI} dataKey={SAI} stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
               <Tooltip content={<CustomTooltip format={format} />} />
             </RadarChart>
@@ -472,8 +486,8 @@ export default function Relatorios() {
       {cumulativeLine.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="mb-5">
-            <h2 className="text-white font-semibold">Saldo Acumulado — {year}</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Evolução do saldo ao longo do tempo</p>
+            <h2 className="text-white font-semibold">{t('relatorios.saldoAcumulado')} — {year}</h2>
+            <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.saldoAcumSub')}</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={cumulativeLine}>
@@ -488,7 +502,7 @@ export default function Relatorios() {
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
               <Tooltip content={<CustomTooltip format={format} />} />
               <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 4" label={{ value: 'Zero', fill: '#6b7280', fontSize: 10 }} />
-              <Area type="monotone" dataKey="Saldo" stroke="#3b82f6" fill="url(#gSaldo)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#3b82f6' }} {...ANIMATION} />
+              <Area type="monotone" dataKey={SAL} stroke="#3b82f6" fill="url(#gSaldo)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#3b82f6' }} {...ANIMATION} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -501,10 +515,10 @@ export default function Relatorios() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
             <div>
-              <h2 className="text-white font-semibold">Por Categoria</h2>
-              <p className="text-gray-500 text-xs mt-0.5">Distribuição por tipo de gasto</p>
+              <h2 className="text-white font-semibold">{t('relatorios.porCategoria')}</h2>
+              <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.catSub')}</p>
             </div>
-            <ChartTypePicker value={catType} onChange={setCatType} />
+            <ChartTypePicker value={catType} onChange={setCatType} chartTypes={CHART_TYPES} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
             {catType === 'pie' ? (
@@ -528,8 +542,8 @@ export default function Relatorios() {
                 <PolarGrid stroke={GRID_STROKE} />
                 <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
                 <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
-                <Radar name="Saídas" dataKey="Saídas" stroke="#ef4444" fill="#ef4444" fillOpacity={0.25} {...ANIMATION} />
-                <Radar name="Entradas" dataKey="Entradas" stroke="#10b981" fill="#10b981" fillOpacity={0.2} {...ANIMATION} />
+                <Radar name={SAI} dataKey={SAI} stroke="#ef4444" fill="#ef4444" fillOpacity={0.25} {...ANIMATION} />
+                <Radar name={ENT} dataKey={ENT} stroke="#10b981" fill="#10b981" fillOpacity={0.2} {...ANIMATION} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
                 <Tooltip content={<CustomTooltip format={format} />} />
               </RadarChart>
@@ -545,7 +559,7 @@ export default function Relatorios() {
                 <XAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 9 }} axisLine={false} tickLine={false} />
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
-                <Area type="monotone" dataKey="Saídas" stroke="#ef4444" fill="url(#gCatS)" strokeWidth={2} {...ANIMATION} />
+                <Area type="monotone" dataKey={SAI} stroke="#ef4444" fill="url(#gCatS)" strokeWidth={2} {...ANIMATION} />
               </AreaChart>
             ) : catType === 'line' ? (
               <LineChart data={byCategoria}>
@@ -554,8 +568,8 @@ export default function Relatorios() {
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-                <Line type="monotone" dataKey="Entradas" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
-                <Line type="monotone" dataKey="Saídas"   stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
+                <Line type="monotone" dataKey={ENT} stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
+                <Line type="monotone" dataKey={SAI} stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} {...ANIMATION} />
               </LineChart>
             ) : (
               <BarChart data={byCategoria} layout={catType === 'composed' ? 'horizontal' : 'vertical'} barCategoryGap="20%">
@@ -564,8 +578,8 @@ export default function Relatorios() {
                 <YAxis type="category" dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-                <Bar dataKey="Saídas"   fill="#ef4444" radius={[0,4,4,0]} {...ANIMATION} />
-                <Bar dataKey="Entradas" fill="#10b981" radius={[0,4,4,0]} {...ANIMATION} />
+                <Bar dataKey={SAI} fill="#ef4444" radius={[0,4,4,0]} {...ANIMATION} />
+                <Bar dataKey={ENT} fill="#10b981" radius={[0,4,4,0]} {...ANIMATION} />
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -575,8 +589,8 @@ export default function Relatorios() {
         {cofresData.length > 0 && (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
             <div className="mb-5">
-              <h2 className="text-white font-semibold">Saldo por Cofre</h2>
-              <p className="text-gray-500 text-xs mt-0.5">Distribuição de saldo entre cofres</p>
+              <h2 className="text-white font-semibold">{t('relatorios.saldoPorCofre')}</h2>
+              <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.cofreSub')}</p>
             </div>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -609,10 +623,10 @@ export default function Relatorios() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
             <div>
-              <h2 className="text-white font-semibold">Desempenho dos Negócios</h2>
-              <p className="text-gray-500 text-xs mt-0.5">Receita, despesa e lucro mensal por negócio</p>
+              <h2 className="text-white font-semibold">{t('relatorios.desempenhoNegocios')}</h2>
+              <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.negocioSub')}</p>
             </div>
-            <ChartTypePicker value={negocioType} onChange={setNegocioType} />
+            <ChartTypePicker value={negocioType} onChange={setNegocioType} chartTypes={CHART_TYPES} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
             {negocioType === 'radar' ? (
@@ -620,15 +634,15 @@ export default function Relatorios() {
                 <PolarGrid stroke={GRID_STROKE} />
                 <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
                 <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
-                <Radar name="Receita" dataKey="Receita" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
-                <Radar name="Despesa" dataKey="Despesa" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
-                <Radar name="Lucro"   dataKey="Lucro"   stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Radar name={REC} dataKey={REC} stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Radar name={DES} dataKey={DES} stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
+                <Radar name={LUC} dataKey={LUC} stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2} {...ANIMATION} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
                 <Tooltip content={<CustomTooltip format={format} />} />
               </RadarChart>
             ) : negocioType === 'pie' ? (
               <PieChart>
-                <Pie data={negocioData.map(n => ({ name: n.name, value: n.Lucro }))}
+                <Pie data={negocioData.map(n => ({ name: n.name, value: n[LUC] }))}
                   cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
                   {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Pie>
@@ -636,7 +650,7 @@ export default function Relatorios() {
               </PieChart>
             ) : negocioType === 'donut' ? (
               <PieChart>
-                <Pie data={negocioData.map(n => ({ name: n.name, value: Math.max(0, n.Lucro) }))}
+                <Pie data={negocioData.map(n => ({ name: n.name, value: Math.max(0, n[LUC]) }))}
                   cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2} dataKey="value" {...ANIMATION}>
                   {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Pie>
@@ -650,9 +664,9 @@ export default function Relatorios() {
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-                <Line type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
-                <Line type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
-                <Line type="monotone" dataKey="Lucro"   stroke="#f59e0b" strokeWidth={2}   dot={{ r: 4 }} strokeDasharray="5 3" {...ANIMATION} />
+                <Line type="monotone" dataKey={REC} stroke="#10b981" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+                <Line type="monotone" dataKey={DES} stroke="#ef4444" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+                <Line type="monotone" dataKey={LUC} stroke="#f59e0b" strokeWidth={2}   dot={{ r: 4 }} strokeDasharray="5 3" {...ANIMATION} />
               </LineChart>
             ) : negocioType === 'area' ? (
               <AreaChart data={negocioData}>
@@ -669,8 +683,8 @@ export default function Relatorios() {
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-                <Area type="monotone" dataKey="Receita" stroke="#10b981" fill="url(#gRec)" strokeWidth={2} {...ANIMATION} />
-                <Area type="monotone" dataKey="Despesa" stroke="#ef4444" fill="url(#gDes)" strokeWidth={2} {...ANIMATION} />
+                <Area type="monotone" dataKey={REC} stroke="#10b981" fill="url(#gRec)" strokeWidth={2} {...ANIMATION} />
+                <Area type="monotone" dataKey={DES} stroke="#ef4444" fill="url(#gDes)" strokeWidth={2} {...ANIMATION} />
               </AreaChart>
             ) : negocioType === 'composed' ? (
               <ComposedChart data={negocioData}>
@@ -679,9 +693,9 @@ export default function Relatorios() {
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-                <Bar dataKey="Receita" fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
-                <Bar dataKey="Despesa" fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
-                <Line type="monotone" dataKey="Lucro" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
+                <Bar dataKey={REC} fill="#10b981" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
+                <Bar dataKey={DES} fill="#ef4444" radius={[4,4,0,0]} fillOpacity={0.85} {...ANIMATION} />
+                <Line type="monotone" dataKey={LUC} stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4 }} {...ANIMATION} />
               </ComposedChart>
             ) : (
               <BarChart data={negocioData} barGap={4} barCategoryGap="25%">
@@ -690,9 +704,9 @@ export default function Relatorios() {
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} />
-                <Bar dataKey="Receita" fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
-                <Bar dataKey="Despesa" fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
-                <Bar dataKey="Lucro"   fill="#f59e0b" radius={[4,4,0,0]} {...ANIMATION} />
+                <Bar dataKey={REC} fill="#10b981" radius={[4,4,0,0]} {...ANIMATION} />
+                <Bar dataKey={DES} fill="#ef4444" radius={[4,4,0,0]} {...ANIMATION} />
+                <Bar dataKey={LUC} fill="#f59e0b" radius={[4,4,0,0]} {...ANIMATION} />
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -704,10 +718,10 @@ export default function Relatorios() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
             <div>
-              <h2 className="text-white font-semibold">Composição do Patrimônio</h2>
-              <p className="text-gray-500 text-xs mt-0.5">Valor atual por categoria · Total: {format(patrimonioTotal)}</p>
+              <h2 className="text-white font-semibold">{t('relatorios.composicaoPatrimonio')}</h2>
+              <p className="text-gray-500 text-xs mt-0.5">{t('relatorios.patrimonioSub', { val: format(patrimonioTotal) })}</p>
             </div>
-            <ChartTypePicker value={patrimonioType} onChange={setPatrimonioType} />
+            <ChartTypePicker value={patrimonioType} onChange={setPatrimonioType} chartTypes={CHART_TYPES} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
             {patrimonioType === 'donut' || patrimonioType === 'pie' ? (
@@ -731,7 +745,7 @@ export default function Relatorios() {
                 <PolarGrid stroke={GRID_STROKE} />
                 <PolarAngleAxis dataKey="name" tick={{ ...AXIS_STYLE, fontSize: 10 }} />
                 <PolarRadiusAxis tick={AXIS_STYLE} tickFormatter={fmtCompact} />
-                <Radar name="Valor" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2} {...ANIMATION} />
+                <Radar name={VAL} dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2} {...ANIMATION} />
                 <Tooltip content={<CustomTooltip format={format} />} />
               </RadarChart>
             ) : (
@@ -740,7 +754,7 @@ export default function Relatorios() {
                 <XAxis dataKey="name" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtCompact} width={80} />
                 <Tooltip content={<CustomTooltip format={format} />} />
-                <Bar dataKey="value" name="Valor" radius={[6,6,0,0]} {...ANIMATION}>
+                <Bar dataKey="value" name={VAL} radius={[6,6,0,0]} {...ANIMATION}>
                   {patrimonioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Bar>
               </BarChart>
@@ -753,9 +767,9 @@ export default function Relatorios() {
       {txs.length === 0 && cofres.length === 0 && negocios.length === 0 && (
         <div className="text-center py-20 bg-gray-900 rounded-2xl border border-gray-800">
           <BarChart2 size={40} className="text-gray-700 mx-auto mb-4" />
-          <h3 className="text-white font-bold text-lg mb-2">Sem dados para exibir</h3>
+          <h3 className="text-white font-bold text-lg mb-2">{t('relatorios.semDados')}</h3>
           <p className="text-gray-500 text-sm max-w-sm mx-auto">
-            Adicione transações, cofres ou negócios para ver os gráficos aqui.
+            {t('relatorios.semDadosSub')}
           </p>
         </div>
       )}

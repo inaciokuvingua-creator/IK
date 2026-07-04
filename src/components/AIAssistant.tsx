@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Sparkles, X, Send, ChevronDown, RotateCcw,
   TrendingUp, Store, Building2, BarChart3, Lock, Info,
@@ -54,6 +55,7 @@ const QUICK_PROMPTS: Record<AiContext, string[]> = {
 };
 
 export default function AIAssistant({ financialData, currentPage = 'dashboard' }: Props) {
+  const { t } = useTranslation();
   const { sendMessage, loading, error, privacy, updatePrivacy } = useAI();
   const { profile } = useProfile();
   const [open, setOpen] = useState(false);
@@ -173,7 +175,7 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
               <Sparkles size={15} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-sm leading-tight">IK Finance AI</p>
+              <p className="text-white font-semibold text-sm leading-tight">{t('ai.titulo')}</p>
               {!minimized && (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
@@ -326,7 +328,7 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
-                    placeholder="Pergunte ao IK Finance AI..."
+                    placeholder={t('ai.placeholder')}
                     disabled={loading || !privacy.enabled}
                     className="flex-1 bg-transparent text-white text-sm px-3.5 py-3 focus:outline-none placeholder-gray-600 disabled:opacity-40"
                   />

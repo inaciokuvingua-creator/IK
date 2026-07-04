@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Plus, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown,
   X, TrendingUp, AlertTriangle, Pencil, Trash2,
@@ -16,6 +17,7 @@ type TxForm = { tipo: 'entrada' | 'saida'; categoria: string; valor: string; dat
 const emptyForm = (): TxForm => ({ tipo: 'entrada', categoria: '', valor: '', data_transacao: new Date().toISOString().split('T')[0] });
 
 export default function Financeiro() {
+  const { t } = useTranslation();
   const { format } = useCurrency();
   const notify = useNotifyAction();
   const [movimentos, setMovimentos] = useState<Transacao[]>([]);
@@ -128,14 +130,14 @@ export default function Financeiro() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Controle Financeiro</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Receitas, despesas e saúde financeira</p>
+          <h1 className="text-2xl font-bold text-white">{t('financeiro.title')}</h1>
+          <p className="text-gray-400 text-sm mt-0.5">{t('financeiro.subtitle')}</p>
         </div>
         <button
           onClick={openNew}
           className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
         >
-          <Plus size={16} /> Novo Movimento
+          <Plus size={16} /> {t('financeiro.novoMovimento')}
         </button>
       </div>
 
@@ -144,21 +146,21 @@ export default function Financeiro() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
             <Wallet size={16} className="text-emerald-400" />
-            <p className="text-gray-400 text-xs">Saldo Atual</p>
+            <p className="text-gray-400 text-xs">{t('financeiro.saldoAtual')}</p>
           </div>
           <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-white' : 'text-red-400'}`}>{format(saldo)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
             <ArrowUpCircle size={16} className="text-emerald-400" />
-            <p className="text-gray-400 text-xs">Total Receitas</p>
+            <p className="text-gray-400 text-xs">{t('financeiro.totalReceitas')}</p>
           </div>
           <p className="text-2xl font-bold text-emerald-400">{format(receitas)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
             <ArrowDownCircle size={16} className="text-red-400" />
-            <p className="text-gray-400 text-xs">Total Despesas</p>
+            <p className="text-gray-400 text-xs">{t('financeiro.totalDespesas')}</p>
           </div>
           <p className="text-2xl font-bold text-red-400">{format(despesas)}</p>
         </div>
@@ -169,11 +171,11 @@ export default function Financeiro() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp size={16} className="text-emerald-400" />
-            <h2 className="font-semibold text-white">Análise Automática</h2>
+            <h2 className="font-semibold text-white">{t('financeiro.analiseAuto')}</h2>
           </div>
           <div className="mb-5">
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-400">Saúde Financeira</span>
+              <span className="text-gray-400">{t('financeiro.saudeFinanceira')}</span>
               <span className={`font-bold text-${healthColor}-400`}>{saudeFinanceira}%</span>
             </div>
             <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
@@ -185,15 +187,15 @@ export default function Financeiro() {
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
-              <p className="text-sm text-gray-300">Pode gastar com segurança</p>
+              <p className="text-sm text-gray-300">{t('financeiro.podeGastar')}</p>
               <span className="text-emerald-400 font-bold text-sm">{format(limiteSeguro)}</span>
             </div>
             <div className={`flex items-start gap-2 p-3 rounded-xl ${despesas > receitas * 0.7 ? 'bg-red-950/40 border border-red-900/40' : 'bg-emerald-950/40 border border-emerald-900/40'}`}>
               <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${despesas > receitas * 0.7 ? 'text-red-400' : 'text-emerald-400'}`} />
               <p className={`text-xs leading-relaxed ${despesas > receitas * 0.7 ? 'text-red-300' : 'text-emerald-300'}`}>
                 {despesas > receitas * 0.7
-                  ? 'Atenção: suas despesas estão acima de 70% da receita. Reduza gastos.'
-                  : 'Ótimo! Seus gastos estão dentro do limite recomendado. Guarde 30% da renda.'}
+                  ? t('financeiro.alertaAlto')
+                  : t('financeiro.alertaOk')}
               </p>
             </div>
           </div>
@@ -201,9 +203,9 @@ export default function Financeiro() {
 
         {/* Categories */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <h2 className="font-semibold text-white mb-5">Despesas por Categoria</h2>
+          <h2 className="font-semibold text-white mb-5">{t('financeiro.despCat')}</h2>
           {topCats.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-6">Nenhuma despesa registrada</p>
+            <p className="text-gray-500 text-sm text-center py-6">{t('financeiro.nenhumaDespesa')}</p>
           ) : (
             <div className="space-y-3">
               {topCats.map(([cat, valor]) => (
@@ -225,15 +227,15 @@ export default function Financeiro() {
       {/* History */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
         <h2 className="font-semibold text-white mb-4">
-          Histórico de Movimentos
+          {t('financeiro.historico')}
           <span className="text-gray-500 font-normal text-sm ml-2">({movimentos.length})</span>
         </h2>
 
         {movimentos.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-gray-500 text-sm mb-3">Nenhum movimento registrado</p>
+            <p className="text-gray-500 text-sm mb-3">{t('financeiro.nenhumMovimento')}</p>
             <button onClick={openNew} className="text-xs text-emerald-400 border border-emerald-900/50 px-3 py-1.5 rounded-lg hover:border-emerald-800 transition-colors">
-              Adicionar primeiro movimento
+              {t('financeiro.addPrimeiro')}
             </button>
           </div>
         ) : (
@@ -255,7 +257,7 @@ export default function Financeiro() {
                   <button
                     onClick={() => openEdit(m)}
                     className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    title="Editar"
+                    title={t('financeiro.editarMov')}
                   >
                     <Pencil size={13} />
                   </button>
@@ -279,33 +281,33 @@ export default function Financeiro() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{editing ? 'Editar Movimento' : 'Novo Movimento'}</h3>
+              <h3 className="text-white font-semibold">{editing ? t('financeiro.editarMov') : t('financeiro.novoMov')}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Tipo</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('financeiro.tipo')}</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['entrada', 'saida'] as const).map((t) => (
+                  {(['entrada', 'saida'] as const).map((tp) => (
                     <button
-                      key={t}
-                      onClick={() => setForm({ ...form, tipo: t, categoria: '' })}
-                      className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${form.tipo === t ? (t === 'entrada' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white') : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                      key={tp}
+                      onClick={() => setForm({ ...form, tipo: tp, categoria: '' })}
+                      className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${form.tipo === tp ? (tp === 'entrada' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white') : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                     >
-                      {t === 'entrada' ? 'Receita' : 'Despesa'}
+                      {tp === 'entrada' ? t('financeiro.receita') : t('financeiro.despesa')}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Categoria</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('financeiro.categoria')}</label>
                 <div className="relative">
                   <select
                     value={form.categoria}
                     onChange={(e) => setForm({ ...form, categoria: e.target.value })}
                     className="input appearance-none pr-9"
                   >
-                    <option value="">Selecionar...</option>
+                    <option value="">{t('financeiro.selecionar')}</option>
                     {(form.tipo === 'entrada' ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA).map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -314,7 +316,7 @@ export default function Financeiro() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Valor (na moeda base)</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('financeiro.valor')}</label>
                 <input
                   type="number"
                   value={form.valor}
@@ -326,7 +328,7 @@ export default function Financeiro() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Data</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('financeiro.data')}</label>
                 <input
                   type="date"
                   value={form.data_transacao}
@@ -336,9 +338,9 @@ export default function Financeiro() {
               </div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <div className="flex gap-3 pt-1">
-                <button onClick={() => setShowModal(false)} className="flex-1 border border-gray-700 text-gray-300 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition-colors">Cancelar</button>
+                <button onClick={() => setShowModal(false)} className="flex-1 border border-gray-700 text-gray-300 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition-colors">{t('financeiro.cancelar')}</button>
                 <button onClick={save} disabled={saving} className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-                  {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Adicionar'}
+                  {saving ? t('financeiro.salvando') : editing ? t('financeiro.salvarAlteracoes') : t('financeiro.adicionar')}
                 </button>
               </div>
             </div>

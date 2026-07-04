@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TrendingUp, Eye, EyeOff, Mail, Lock, AlertCircle, MapPin, Quote, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
+  const { t } = useTranslation();
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -38,16 +40,16 @@ export default function Login() {
         {/* Hero */}
         <div className="px-12 pt-12 pb-8">
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
-            Controle total<br />das suas finanças
+            {t('auth.controlTotal')}<br />{t('auth.dasFinancas')}
           </h1>
           <p className="text-gray-400 text-base leading-relaxed mb-8">
-            Gerencie cofres, negócios e patrimônio em um só lugar. Visão completa da sua saúde financeira.
+            {t('auth.heroSubtext')}
           </p>
           <div className="space-y-3">
             {[
-              { icon: '🏦', title: 'Cofres inteligentes', desc: 'Organize seu dinheiro em múltiplas contas com metas' },
-              { icon: '📊', title: 'Análise de negócios', desc: 'Acompanhe receitas e despesas por negócio' },
-              { icon: '🏠', title: 'Controle de patrimônio', desc: 'Monitore seus ativos e investimentos' },
+              { icon: '🏦', title: t('auth.feature1Title'), desc: t('auth.feature1Desc') },
+              { icon: '📊', title: t('auth.feature2Title'), desc: t('auth.feature2Desc') },
+              { icon: '🏠', title: t('auth.feature3Title'), desc: t('auth.feature3Desc') },
             ].map((item) => (
               <div key={item.title} className="flex items-start gap-4">
                 <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center text-lg shrink-0">
@@ -67,7 +69,7 @@ export default function Login() {
 
         {/* ── Creator section ──────────────────────────────────────────────── */}
         <div className="px-12 py-8 flex-1">
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-6">Sobre o Criador</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-6">{t('auth.creatorTitle')}</p>
 
           {/* Avatar + name */}
           <div className="flex items-center gap-4 mb-6">
@@ -78,7 +80,7 @@ export default function Login() {
               <p className="text-white font-bold text-base leading-tight">Inácio Kuvingua Ulundo</p>
               <div className="flex items-center gap-1.5 mt-1">
                 <MapPin size={11} className="text-emerald-400" />
-                <span className="text-emerald-400 text-xs font-medium">Huambo, Angola</span>
+                <span className="text-emerald-400 text-xs font-medium">{t('auth.creatorLocation')}</span>
               </div>
             </div>
           </div>
@@ -106,7 +108,7 @@ export default function Login() {
 
           {/* Contact */}
           <div className="space-y-2.5">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-3">Contacto</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-3">{t('auth.contacto')}</p>
             <a
               href="https://wa.me/244943339350"
               target="_blank"
@@ -139,8 +141,8 @@ export default function Login() {
         {/* Footer */}
         <div className="px-12 py-6 border-t border-gray-800">
           <p className="text-gray-600 text-xs leading-relaxed">
-            © {new Date().getFullYear()} IK FINANCE · Todos os direitos reservados.<br />
-            Criado e desenvolvido por <span className="text-gray-500 font-medium">Inácio Kuvingua Ulundo</span>.
+            © {new Date().getFullYear()} IK FINANCE · {t('auth.footer')}<br />
+            {t('auth.createdBy')} <span className="text-gray-500 font-medium">Inácio Kuvingua Ulundo</span>.
           </p>
         </div>
       </div>
@@ -170,16 +172,16 @@ export default function Login() {
 
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-white mb-1">
-                {mode === 'login' ? 'Entrar na conta' : 'Criar conta'}
+                {mode === 'login' ? t('auth.loginTitle') : t('auth.signupTitle')}
               </h2>
               <p className="text-gray-400 text-sm">
-                {mode === 'login' ? 'Bem-vindo de volta ao IK FINANCE' : 'Comece a controlar suas finanças'}
+                {mode === 'login' ? t('auth.welcomeBack') : t('auth.startControl')}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">E-mail</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('auth.email')}</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
@@ -187,14 +189,14 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="seu@email.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl py-3 pl-10 pr-4 text-sm placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Senha</label>
+                <label className="block text-sm text-gray-400 mb-1.5">{t('auth.password')}</label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
@@ -202,7 +204,7 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    placeholder="••••••••"
+                    placeholder={t('auth.passwordPlaceholder')}
                     className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl py-3 pl-10 pr-11 text-sm placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                   <button
@@ -227,17 +229,17 @@ export default function Login() {
                 disabled={loading}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-900 disabled:text-emerald-600 text-white font-semibold rounded-xl py-3 text-sm transition-colors mt-2"
               >
-                {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+                {loading ? t('auth.loading') : mode === 'login' ? t('auth.login') : t('auth.signup')}
               </button>
             </form>
 
             <p className="text-center text-sm text-gray-500 mt-6">
-              {mode === 'login' ? 'Não tem uma conta?' : 'Já tem uma conta?'}{' '}
+              {mode === 'login' ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
               <button
                 onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(null); }}
                 className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
               >
-                {mode === 'login' ? 'Criar conta' : 'Entrar'}
+                {mode === 'login' ? t('auth.signup') : t('auth.login')}
               </button>
             </p>
 
@@ -251,7 +253,7 @@ export default function Login() {
                   <p className="text-white text-sm font-semibold">Inácio Kuvingua Ulundo</p>
                   <div className="flex items-center gap-1 mt-0.5">
                     <MapPin size={10} className="text-emerald-400" />
-                    <span className="text-emerald-400 text-xs">Huambo, Angola</span>
+                    <span className="text-emerald-400 text-xs">{t('auth.creatorLocation')}</span>
                   </div>
                 </div>
               </div>
@@ -278,7 +280,7 @@ export default function Login() {
               </div>
 
               <p className="text-center text-gray-700 text-xs">
-                © {new Date().getFullYear()} IK FINANCE · Criado por Inácio Kuvingua Ulundo
+                © {new Date().getFullYear()} IK FINANCE · {t('auth.createdBy')} Inácio Kuvingua Ulundo
               </p>
             </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Plus, Pencil, Trash2, X, TrendingUp, TrendingDown, Home, Car,
   Music2, Briefcase, ChevronDown, MapPin, Users, Zap, BarChart2,
@@ -16,17 +17,17 @@ import { useAuth } from '../context/AuthContext';
 // ── Category config ──────────────────────────────────────────────────────────
 type CatId = 'imovel' | 'aluguel' | 'veiculo' | 'taxi' | 'studio' | 'investimento' | 'cripto' | 'arte' | 'equipamento' | 'outros';
 
-const CAT_META: Record<CatId, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
-  imovel:      { label: 'Imóvel',       icon: Home,      color: 'text-blue-400',    bg: 'bg-blue-950/40',    border: 'border-blue-800/50' },
-  aluguel:     { label: 'Aluguel',      icon: Building2, color: 'text-amber-400',   bg: 'bg-amber-950/40',   border: 'border-amber-800/50' },
-  veiculo:     { label: 'Veículo',      icon: Car,       color: 'text-emerald-400', bg: 'bg-emerald-950/40', border: 'border-emerald-800/50' },
-  taxi:        { label: 'Táxi',         icon: Car,       color: 'text-yellow-400',  bg: 'bg-yellow-950/40',  border: 'border-yellow-800/50' },
-  studio:      { label: 'Estúdio',      icon: Music2,    color: 'text-purple-400',  bg: 'bg-purple-950/40',  border: 'border-purple-800/50' },
-  investimento:{ label: 'Investimento', icon: BarChart2, color: 'text-teal-400',    bg: 'bg-teal-950/40',    border: 'border-teal-800/50' },
-  cripto:      { label: 'Cripto',       icon: Zap,       color: 'text-orange-400',  bg: 'bg-orange-950/40',  border: 'border-orange-800/50' },
-  arte:        { label: 'Arte',         icon: Camera,    color: 'text-pink-400',    bg: 'bg-pink-950/40',    border: 'border-pink-800/50' },
-  equipamento: { label: 'Equipamento',  icon: Wrench,    color: 'text-gray-400',    bg: 'bg-gray-800/60',    border: 'border-gray-700' },
-  outros:      { label: 'Outros',       icon: Briefcase, color: 'text-gray-400',    bg: 'bg-gray-800/60',    border: 'border-gray-700' },
+const CAT_META: Record<CatId, { icon: React.ElementType; color: string; bg: string; border: string }> = {
+  imovel:      { icon: Home,      color: 'text-blue-400',    bg: 'bg-blue-950/40',    border: 'border-blue-800/50' },
+  aluguel:     { icon: Building2, color: 'text-amber-400',   bg: 'bg-amber-950/40',   border: 'border-amber-800/50' },
+  veiculo:     { icon: Car,       color: 'text-emerald-400', bg: 'bg-emerald-950/40', border: 'border-emerald-800/50' },
+  taxi:        { icon: Car,       color: 'text-yellow-400',  bg: 'bg-yellow-950/40',  border: 'border-yellow-800/50' },
+  studio:      { icon: Music2,    color: 'text-purple-400',  bg: 'bg-purple-950/40',  border: 'border-purple-800/50' },
+  investimento:{ icon: BarChart2, color: 'text-teal-400',    bg: 'bg-teal-950/40',    border: 'border-teal-800/50' },
+  cripto:      { icon: Zap,       color: 'text-orange-400',  bg: 'bg-orange-950/40',  border: 'border-orange-800/50' },
+  arte:        { icon: Camera,    color: 'text-pink-400',    bg: 'bg-pink-950/40',    border: 'border-pink-800/50' },
+  equipamento: { icon: Wrench,    color: 'text-gray-400',    bg: 'bg-gray-800/60',    border: 'border-gray-700' },
+  outros:      { icon: Briefcase, color: 'text-gray-400',    bg: 'bg-gray-800/60',    border: 'border-gray-700' },
 };
 const CATEGORIAS = Object.keys(CAT_META) as CatId[];
 
@@ -160,6 +161,7 @@ function Badge({ children, color }: { children: React.ReactNode; color: string }
 function AssetCard({ item, onEdit, onRemove, format }: {
   item: PatrimonioItem; onEdit: () => void; onRemove: () => void; format: (v: number) => string;
 }) {
+  const { t } = useTranslation();
   const cat = (item.categoria as CatId) in CAT_META ? item.categoria as CatId : 'outros';
   const meta = CAT_META[cat];
   const Icon = meta.icon;
@@ -184,20 +186,20 @@ function AssetCard({ item, onEdit, onRemove, format }: {
         {/* Badges overlay */}
         <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
           <Badge color={`${meta.color} ${meta.bg} border-current`}>
-            <Icon size={9} /> {meta.label}
+            <Icon size={9} /> {t(`patrimonio.cats.${cat}`)}
           </Badge>
           {item.status !== 'ativo' && (
             <Badge color="text-gray-400 bg-gray-800/80 border-gray-700">{item.status}</Badge>
           )}
           {isImovel && item.imovel_arrendado && (
-            <Badge color="text-emerald-400 bg-emerald-950/80 border-emerald-700">Arrendado</Badge>
+            <Badge color="text-emerald-400 bg-emerald-950/80 border-emerald-700">{t('patrimonio.arrendado')}</Badge>
           )}
           {isVeiculo && item.veiculo_gera_renda && (
-            <Badge color="text-yellow-400 bg-yellow-950/80 border-yellow-700">Gera renda</Badge>
+            <Badge color="text-yellow-400 bg-yellow-950/80 border-yellow-700">{t('patrimonio.geraRenda')}</Badge>
           )}
           {isStudio && (
             <Badge color={item.studio_disponivel ? 'text-emerald-400 bg-emerald-950/80 border-emerald-700' : 'text-red-400 bg-red-950/80 border-red-700'}>
-              {item.studio_disponivel ? 'Disponível' : 'Ocupado'}
+              {item.studio_disponivel ? t('patrimonio.disponivel') : t('patrimonio.ocupado')}
             </Badge>
           )}
         </div>
@@ -225,18 +227,18 @@ function AssetCard({ item, onEdit, onRemove, format }: {
         {/* Values */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="bg-gray-800/60 rounded-xl p-2.5">
-            <p className="text-gray-600 text-[10px] mb-0.5">Aquisição</p>
+            <p className="text-gray-600 text-[10px] mb-0.5">{t('patrimonio.valorAquisicaoShort')}</p>
             <p className="text-gray-300 text-xs font-semibold">{format(item.valor_aquisicao)}</p>
           </div>
           <div className="bg-gray-800/60 rounded-xl p-2.5">
-            <p className="text-gray-600 text-[10px] mb-0.5">Atual</p>
+            <p className="text-gray-600 text-[10px] mb-0.5">{t('patrimonio.valorAtualShort')}</p>
             <p className="text-white text-xs font-bold">{format(item.valor_atual)}</p>
           </div>
         </div>
 
         {/* Variação */}
         <div className={`flex items-center justify-between px-2.5 py-2 rounded-xl ${variacao >= 0 ? 'bg-emerald-950/40 border border-emerald-900/50' : 'bg-red-950/40 border border-red-900/50'}`}>
-          <span className="text-gray-500 text-[10px]">Valorização</span>
+          <span className="text-gray-500 text-[10px]">{t('patrimonio.valorizacao')}</span>
           <span className={`flex items-center gap-1 text-xs font-bold ${variacao >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {variacao >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
             {formatPercent(variacao)}
@@ -248,19 +250,19 @@ function AssetCard({ item, onEdit, onRemove, format }: {
           <div className="mt-3 space-y-1.5">
             {item.renda_mensal ? (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500 flex items-center gap-1"><DollarSign size={10} />Renda mensal</span>
+                <span className="text-gray-500 flex items-center gap-1"><DollarSign size={10} />{t('patrimonio.rendaMensal')}</span>
                 <span className="text-emerald-400 font-semibold">{format(item.renda_mensal)}</span>
               </div>
             ) : null}
             {item.despesa_mensal ? (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Despesa mensal</span>
+                <span className="text-gray-500">{t('patrimonio.despesaMensal')}</span>
                 <span className="text-red-400 font-semibold">{format(item.despesa_mensal)}</span>
               </div>
             ) : null}
             {lucroMensal !== null && (
               <div className={`flex justify-between text-xs font-bold border-t border-gray-800 pt-1.5 mt-1`}>
-                <span className="text-gray-400">Lucro líquido/mês</span>
+                <span className="text-gray-400">{t('patrimonio.lucroLiquidoMes')}</span>
                 <span className={lucroMensal >= 0 ? 'text-emerald-400' : 'text-red-400'}>{format(lucroMensal)}</span>
               </div>
             )}
@@ -281,19 +283,19 @@ function AssetCard({ item, onEdit, onRemove, format }: {
           <div className="mt-3 space-y-1.5">
             {item.veiculo_matricula && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Matrícula</span>
+                <span className="text-gray-500">{t('patrimonio.matricula')}</span>
                 <span className="text-gray-300 font-mono">{item.veiculo_matricula}</span>
               </div>
             )}
             {item.veiculo_km ? (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Quilometragem</span>
+                <span className="text-gray-500">{t('patrimonio.km')}</span>
                 <span className="text-gray-300">{Number(item.veiculo_km).toLocaleString()} km</span>
               </div>
             ) : null}
             {item.veiculo_gera_renda && item.veiculo_renda_diaria ? (
               <div className="flex justify-between text-xs font-bold border-t border-gray-800 pt-1.5">
-                <span className="text-gray-400 flex items-center gap-1"><DollarSign size={10} />Renda/dia</span>
+                <span className="text-gray-400 flex items-center gap-1"><DollarSign size={10} />{t('patrimonio.rendaDiaria')}</span>
                 <span className="text-yellow-400">{format(item.veiculo_renda_diaria)}</span>
               </div>
             ) : null}
@@ -304,13 +306,13 @@ function AssetCard({ item, onEdit, onRemove, format }: {
           <div className="mt-3 space-y-1.5">
             {item.studio_capacidade ? (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500 flex items-center gap-1"><Users size={10} />Capacidade</span>
+                <span className="text-gray-500 flex items-center gap-1"><Users size={10} />{t('patrimonio.capacidade')}</span>
                 <span className="text-gray-300">{item.studio_capacidade} pessoas</span>
               </div>
             ) : null}
             {item.studio_preco_hora ? (
               <div className="flex justify-between text-xs font-bold border-t border-gray-800 pt-1.5">
-                <span className="text-gray-400 flex items-center gap-1"><DollarSign size={10} />Preço/hora</span>
+                <span className="text-gray-400 flex items-center gap-1"><DollarSign size={10} />{t('patrimonio.precoHora')}</span>
                 <span className="text-purple-400">{format(item.studio_preco_hora)}</span>
               </div>
             ) : null}
@@ -331,6 +333,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Patrimonio() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [items, setItems]       = useState<PatrimonioItem[]>([]);
   const { format }              = useCurrency();
@@ -364,7 +367,7 @@ export default function Patrimonio() {
 
   const save = async () => {
     setError(null);
-    if (!form.nome.trim()) { setError('Nome é obrigatório'); return; }
+    if (!form.nome.trim()) { setError(t('patrimonio.nomeObrigatorio')); return; }
     setSaving(true);
     const payload = formToPayload(form);
     const q = editing
@@ -379,7 +382,7 @@ export default function Patrimonio() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Excluir este ativo?')) return;
+    if (!confirm(t('patrimonio.confirmarExcluir'))) return;
     const item = items.find(i => i.id === id);
     await supabase.from('patrimonio').delete().eq('id', id);
     await loadItems();
@@ -409,27 +412,27 @@ export default function Patrimonio() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Patrimônio</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Imóveis, veículos, estúdios e investimentos</p>
+          <h1 className="text-2xl font-bold text-white">{t('patrimonio.title')}</h1>
+          <p className="text-gray-400 text-sm mt-0.5">{t('patrimonio.subtitle')}</p>
         </div>
         <button onClick={openNew}
           className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
-          <Plus size={16} /> Novo Ativo
+          <Plus size={16} /> {t('patrimonio.novoAtivo')}
         </button>
       </div>
 
       {/* KPI bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-1">Valor de Aquisição</p>
+          <p className="text-gray-500 text-xs mb-1">{t('patrimonio.valorAquisicao')}</p>
           <p className="text-lg font-bold text-white">{format(totalAquisicao)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-1">Valor Atual</p>
+          <p className="text-gray-500 text-xs mb-1">{t('patrimonio.valorAtual')}</p>
           <p className="text-lg font-bold text-white">{format(totalAtual)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-1">Valorização Total</p>
+          <p className="text-gray-500 text-xs mb-1">{t('patrimonio.valorizacaoTotal')}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             {variacaoTotal >= 0
               ? <TrendingUp size={14} className="text-emerald-400" />
@@ -438,9 +441,9 @@ export default function Patrimonio() {
           </div>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-1">Renda Passiva/mês</p>
+          <p className="text-gray-500 text-xs mb-1">{t('patrimonio.rendaPassiva')}</p>
           <p className="text-lg font-bold text-amber-400">{format(rendaMensalTotal)}</p>
-          <p className="text-gray-600 text-[10px] mt-0.5">Aluguéis + táxi/transporte</p>
+          <p className="text-gray-600 text-[10px] mt-0.5">{t('patrimonio.aluguelTransporte')}</p>
         </div>
       </div>
 
@@ -449,7 +452,7 @@ export default function Patrimonio() {
         <button
           onClick={() => setFilterCat('todos')}
           className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${filterCat === 'todos' ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-white'}`}>
-          Todos ({items.length})
+          {t('patrimonio.todos')} ({items.length})
         </button>
         {usedCats.map(cat => {
           const meta = CAT_META[cat] ?? CAT_META.outros;
@@ -458,7 +461,7 @@ export default function Patrimonio() {
           return (
             <button key={cat} onClick={() => setFilterCat(cat)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${filterCat === cat ? `${meta.bg} ${meta.border} ${meta.color}` : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-white'}`}>
-              <Icon size={11} /> {meta.label} ({count})
+              <Icon size={11} /> {t(`patrimonio.cats.${cat}`)} ({count})
             </button>
           );
         })}
@@ -468,11 +471,11 @@ export default function Patrimonio() {
       {visible.length === 0 ? (
         <div className="text-center py-16 bg-gray-900 border border-gray-800 rounded-2xl">
           <Briefcase size={36} className="text-gray-700 mx-auto mb-3" />
-          <p className="text-gray-400 font-medium">Nenhum ativo encontrado</p>
-          <p className="text-gray-600 text-sm mt-1">Adicione imóveis, veículos, estúdios e mais</p>
+          <p className="text-gray-400 font-medium">{t('patrimonio.nenhumAtivo')}</p>
+          <p className="text-gray-600 text-sm mt-1">{t('patrimonio.adicionarDesc')}</p>
           <button onClick={openNew}
             className="mt-5 inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
-            <Plus size={15} /> Adicionar Ativo
+            <Plus size={15} /> {t('patrimonio.adicionarAtivo')}
           </button>
         </div>
       ) : (
@@ -491,14 +494,14 @@ export default function Patrimonio() {
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10">
-              <h3 className="text-white font-semibold">{editing ? 'Editar Ativo' : 'Novo Ativo'}</h3>
+              <h3 className="text-white font-semibold">{editing ? t('patrimonio.editarAtivo') : t('patrimonio.novoAtivo')}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300 p-1"><X size={18} /></button>
             </div>
 
             <div className="p-6 space-y-5">
               {/* Category selector */}
               <div>
-                <label className={labelCls}>Tipo de ativo</label>
+                <label className={labelCls}>{t('patrimonio.tipoAtivo')}</label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {CATEGORIAS.map(cat => {
                     const meta = CAT_META[cat];
@@ -508,7 +511,7 @@ export default function Patrimonio() {
                         onClick={() => sf({ categoria: cat })}
                         className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-xs font-medium transition-all ${form.categoria === cat ? `${meta.bg} ${meta.border} ${meta.color}` : 'bg-gray-800/40 border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}`}>
                         <Icon size={16} />
-                        <span className="leading-tight text-center">{meta.label}</span>
+                        <span className="leading-tight text-center">{t(`patrimonio.cats.${cat}`)}</span>
                       </button>
                     );
                   })}
@@ -517,7 +520,7 @@ export default function Patrimonio() {
 
               {/* Image */}
               <div>
-                <label className={labelCls}>Foto do ativo</label>
+                <label className={labelCls}>{t('patrimonio.fotoAtivo')}</label>
                 <ImageUpload
                   bucket="store-assets"
                   path={`${user?.id}/patrimonio/${editing?.id ?? 'new'}`}
@@ -528,50 +531,50 @@ export default function Patrimonio() {
               </div>
 
               {/* Base fields */}
-              <Field label="Nome *">
+              <Field label={t('patrimonio.nome')}>
                 <input value={form.nome} onChange={e => sf({ nome: e.target.value })}
                   className={inputCls} placeholder={isImovel ? 'Ex: Casa em Miramar' : isVeiculo ? 'Ex: Toyota Hilux 2020' : isStudio ? 'Ex: Estúdio K1' : 'Nome do ativo'} />
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Valor de aquisição">
+                <Field label={t('patrimonio.aquisicao')}>
                   <input type="number" value={form.valor_aquisicao} onChange={e => sf({ valor_aquisicao: e.target.value })} className={inputCls} min="0" />
                 </Field>
-                <Field label="Valor atual">
+                <Field label={t('patrimonio.atual')}>
                   <input type="number" value={form.valor_atual} onChange={e => sf({ valor_atual: e.target.value })} className={inputCls} min="0" />
                 </Field>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Data de aquisição">
+                <Field label={t('patrimonio.dataAquisicao')}>
                   <input type="date" value={form.data_aquisicao} onChange={e => sf({ data_aquisicao: e.target.value })} className={inputCls} />
                 </Field>
-                <Field label="Status">
+                <Field label={t('patrimonio.status')}>
                   <select value={form.status} onChange={e => sf({ status: e.target.value })} className={inputCls}>
                     {['ativo','inativo','vendido','arrendado','em manutenção'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </Field>
               </div>
 
-              <Field label="Localização">
+              <Field label={t('patrimonio.localizacao')}>
                 <input value={form.localizacao} onChange={e => sf({ localizacao: e.target.value })}
-                  className={inputCls} placeholder="Bairro, cidade ou endereço" />
+                  className={inputCls} placeholder={t('patrimonio.localizacaoPlaceholder')} />
               </Field>
 
               {/* ── IMÓVEL / ALUGUEL fields ── */}
               {isImovel && (
                 <div className="space-y-3 pt-2 border-t border-gray-800">
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Home size={12} /> Detalhes do Imóvel</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Home size={12} /> {t('patrimonio.detalhesImovel')}</p>
                   <div className="grid grid-cols-3 gap-3">
-                    <Field label="Tipo">
+                    <Field label={t('patrimonio.imovelTipo')}>
                       <select value={form.imovel_tipo} onChange={e => sf({ imovel_tipo: e.target.value })} className={inputCls}>
                         {IMOVEL_TIPOS.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                       </select>
                     </Field>
-                    <Field label="Área (m²)">
+                    <Field label={t('patrimonio.areaM2')}>
                       <input type="number" value={form.imovel_area_m2} onChange={e => sf({ imovel_area_m2: e.target.value })} className={inputCls} placeholder="120" />
                     </Field>
-                    <Field label="Quartos">
+                    <Field label={t('patrimonio.quartos')}>
                       <input type="number" value={form.imovel_quartos} onChange={e => sf({ imovel_quartos: e.target.value })} className={inputCls} placeholder="3" min="0" />
                     </Field>
                   </div>
@@ -582,29 +585,29 @@ export default function Patrimonio() {
                         className={`w-9 h-5 rounded-full transition-colors relative ${form.imovel_arrendado ? 'bg-emerald-500' : 'bg-gray-700'}`}>
                         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.imovel_arrendado ? 'translate-x-4' : 'translate-x-0.5'}`} />
                       </div>
-                      <span className="text-sm text-gray-300">Arrendado / alugado</span>
+                      <span className="text-sm text-gray-300">{t('patrimonio.arrendado')}</span>
                     </label>
                   </div>
 
                   {form.imovel_arrendado && (
                     <div className="space-y-3 p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-xl">
-                      <p className="text-xs text-emerald-400 font-semibold">Dados de arrendamento</p>
+                      <p className="text-xs text-emerald-400 font-semibold">{t('patrimonio.dadosArrendamento')}</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="Renda mensal">
+                        <Field label={t('patrimonio.rendaMensal')}>
                           <input type="number" value={form.renda_mensal} onChange={e => sf({ renda_mensal: e.target.value })} className={inputCls} placeholder="0" />
                         </Field>
-                        <Field label="Despesa mensal">
+                        <Field label={t('patrimonio.despesaMensal')}>
                           <input type="number" value={form.despesa_mensal} onChange={e => sf({ despesa_mensal: e.target.value })} className={inputCls} placeholder="0" />
                         </Field>
                       </div>
-                      <Field label="Nome do inquilino">
+                      <Field label={t('patrimonio.inquilinoNome')}>
                         <input value={form.inquilino_nome} onChange={e => sf({ inquilino_nome: e.target.value })} className={inputCls} placeholder="Nome completo" />
                       </Field>
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="Início do contrato">
+                        <Field label={t('patrimonio.contratoInicio')}>
                           <input type="date" value={form.contrato_inicio} onChange={e => sf({ contrato_inicio: e.target.value })} className={inputCls} />
                         </Field>
-                        <Field label="Fim do contrato">
+                        <Field label={t('patrimonio.contratoFim')}>
                           <input type="date" value={form.contrato_fim} onChange={e => sf({ contrato_fim: e.target.value })} className={inputCls} />
                         </Field>
                       </div>
@@ -616,35 +619,35 @@ export default function Patrimonio() {
               {/* ── VEÍCULO / TÁXI fields ── */}
               {isVeiculo && (
                 <div className="space-y-3 pt-2 border-t border-gray-800">
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Car size={12} /> Detalhes do Veículo</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Car size={12} /> {t('patrimonio.detalhesVeiculo')}</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Tipo">
+                    <Field label={t('patrimonio.veiculoTipo')}>
                       <select value={form.veiculo_tipo} onChange={e => sf({ veiculo_tipo: e.target.value })} className={inputCls}>
                         {VEICULO_TIPOS.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                       </select>
                     </Field>
-                    <Field label="Combustível">
+                    <Field label={t('patrimonio.combustivel')}>
                       <select value={form.veiculo_combustivel} onChange={e => sf({ veiculo_combustivel: e.target.value })} className={inputCls}>
                         {COMBUSTIVEIS.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                       </select>
                     </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Marca">
+                    <Field label={t('patrimonio.marca')}>
                       <input value={form.veiculo_marca} onChange={e => sf({ veiculo_marca: e.target.value })} className={inputCls} placeholder="Toyota, Hyundai…" />
                     </Field>
-                    <Field label="Modelo">
+                    <Field label={t('patrimonio.modelo')}>
                       <input value={form.veiculo_modelo} onChange={e => sf({ veiculo_modelo: e.target.value })} className={inputCls} placeholder="Hilux, Tucson…" />
                     </Field>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <Field label="Ano">
+                    <Field label={t('patrimonio.ano')}>
                       <input type="number" value={form.veiculo_ano} onChange={e => sf({ veiculo_ano: e.target.value })} className={inputCls} placeholder="2020" />
                     </Field>
-                    <Field label="Matrícula">
+                    <Field label={t('patrimonio.matricula')}>
                       <input value={form.veiculo_matricula} onChange={e => sf({ veiculo_matricula: e.target.value })} className={inputCls} placeholder="LD-00-00-AO" />
                     </Field>
-                    <Field label="Quilometragem">
+                    <Field label={t('patrimonio.km')}>
                       <input type="number" value={form.veiculo_km} onChange={e => sf({ veiculo_km: e.target.value })} className={inputCls} placeholder="45000" />
                     </Field>
                   </div>
@@ -655,13 +658,13 @@ export default function Patrimonio() {
                         className={`w-9 h-5 rounded-full transition-colors relative ${form.veiculo_gera_renda ? 'bg-yellow-500' : 'bg-gray-700'}`}>
                         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.veiculo_gera_renda ? 'translate-x-4' : 'translate-x-0.5'}`} />
                       </div>
-                      <span className="text-sm text-gray-300">Gera renda (táxi, transporte…)</span>
+                      <span className="text-sm text-gray-300">{t('patrimonio.geraRenda')}</span>
                     </label>
                   </div>
 
                   {form.veiculo_gera_renda && (
                     <div className="p-4 bg-yellow-950/20 border border-yellow-900/40 rounded-xl">
-                      <Field label="Renda média por dia">
+                      <Field label={t('patrimonio.rendaDiaria')}>
                         <input type="number" value={form.veiculo_renda_diaria} onChange={e => sf({ veiculo_renda_diaria: e.target.value })} className={inputCls} placeholder="0" />
                       </Field>
                     </div>
@@ -672,23 +675,23 @@ export default function Patrimonio() {
               {/* ── ESTÚDIO fields ── */}
               {isStudio && (
                 <div className="space-y-3 pt-2 border-t border-gray-800">
-                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Music2 size={12} /> Detalhes do Estúdio</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-2"><Music2 size={12} /> {t('patrimonio.detalhesStudio')}</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Tipo de estúdio">
+                    <Field label={t('patrimonio.studioTipo')}>
                       <select value={form.studio_tipo} onChange={e => sf({ studio_tipo: e.target.value })} className={inputCls}>
                         {STUDIO_TIPOS.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                       </select>
                     </Field>
-                    <Field label="Capacidade (pessoas)">
+                    <Field label={t('patrimonio.capacidade')}>
                       <input type="number" value={form.studio_capacidade} onChange={e => sf({ studio_capacidade: e.target.value })} className={inputCls} placeholder="10" min="0" />
                     </Field>
                   </div>
-                  <Field label="Preço por hora">
+                  <Field label={t('patrimonio.precoHora')}>
                     <input type="number" value={form.studio_preco_hora} onChange={e => sf({ studio_preco_hora: e.target.value })} className={inputCls} placeholder="0" />
                   </Field>
-                  <Field label="Equipamentos disponíveis">
+                  <Field label={t('patrimonio.equipamentos')}>
                     <textarea value={form.studio_equipamentos} onChange={e => sf({ studio_equipamentos: e.target.value })} rows={2}
-                      className={`${inputCls} resize-none`} placeholder="Mesa de mistura, microfones, câmeras…" />
+                      className={`${inputCls} resize-none`} placeholder={t('patrimonio.equipamentosPlaceholder')} />
                   </Field>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -696,16 +699,16 @@ export default function Patrimonio() {
                         className={`w-9 h-5 rounded-full transition-colors relative ${form.studio_disponivel ? 'bg-emerald-500' : 'bg-red-600'}`}>
                         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.studio_disponivel ? 'translate-x-4' : 'translate-x-0.5'}`} />
                       </div>
-                      <span className="text-sm text-gray-300">{form.studio_disponivel ? 'Disponível para reserva' : 'Indisponível / Ocupado'}</span>
+                      <span className="text-sm text-gray-300">{form.studio_disponivel ? t('patrimonio.disponivel') : t('patrimonio.ocupado')}</span>
                     </label>
                   </div>
                 </div>
               )}
 
               {/* Descrição */}
-              <Field label="Notas adicionais">
+              <Field label={t('patrimonio.notasAdicionais')}>
                 <textarea value={form.descricao} onChange={e => sf({ descricao: e.target.value })} rows={2}
-                  className={`${inputCls} resize-none`} placeholder="Observações, detalhes extras…" />
+                  className={`${inputCls} resize-none`} placeholder={t('patrimonio.notasPlaceholder')} />
               </Field>
 
               {error && (
@@ -716,11 +719,11 @@ export default function Patrimonio() {
             <div className="sticky bottom-0 bg-gray-900 border-t border-gray-800 px-6 py-4 flex gap-3">
               <button onClick={() => setShowModal(false)}
                 className="flex-1 border border-gray-700 text-gray-300 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition-colors">
-                Cancelar
+                {t('patrimonio.cancelar')}
               </button>
               <button onClick={save} disabled={saving}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-                {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Adicionar ativo'}
+                {saving ? t('patrimonio.salvando') : editing ? t('patrimonio.salvarAlteracoes') : t('patrimonio.adicionarAtivo')}
               </button>
             </div>
           </div>
