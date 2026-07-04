@@ -115,7 +115,10 @@ export default function Relatorios() {
     { id: 'radar',    label: t('relatorios.chartTypes.radar'),    icon: LayoutGrid },
   ];
 
-  const MONTHS = t('relatorios.months', { returnObjects: true }) as string[];
+  const MONTHS_RAW = t('relatorios.months', { returnObjects: true });
+  const MONTHS: string[] = Array.isArray(MONTHS_RAW)
+    ? MONTHS_RAW
+    : ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   const [txs, setTxs]             = useState<Tx[]>([]);
   const [cofres, setCofres]        = useState<Cofre[]>([]);

@@ -88,21 +88,21 @@ export default function HomePage({ onGetStarted }: Props) {
               color: 'emerald',
               title: t('home.f1Title'),
               desc: t('home.f1Desc'),
-              items: t('home.f1Items', { returnObjects: true }) as string[],
+              items: ['Saldo em tempo real', 'Cores e ícones personalizados', 'Histórico de transações'],
             },
             {
               icon: Briefcase,
               color: 'blue',
               title: t('home.f2Title'),
               desc: t('home.f2Desc'),
-              items: t('home.f2Items', { returnObjects: true }) as string[],
+              items: ['Receita e despesa mensal', 'Categorização', 'Margem de lucro'],
             },
             {
               icon: Home,
               color: 'amber',
               title: t('home.f3Title'),
               desc: t('home.f3Desc'),
-              items: t('home.f3Items', { returnObjects: true }) as string[],
+              items: ['Valor de aquisição e atual', 'Categorias de ativo', 'Variação percentual'],
             },
           ].map(({ icon: Icon, color, title, desc, items }) => {
             const colorMap: Record<string, string> = {

@@ -193,7 +193,10 @@ export default function MinhaLoja() {
             {t('minhaLoja.lojaDesc')}
           </p>
           <div className="flex flex-wrap justify-center gap-3 mb-8 text-xs text-gray-600">
-            {(t('minhaLoja.features', { returnObjects: true }) as string[]).map(f => (
+            {(Array.isArray(t('minhaLoja.features', { returnObjects: true }))
+              ? t('minhaLoja.features', { returnObjects: true }) as string[]
+              : ['95% para você','Entrega automática','Clientes globais','Pagamentos seguros']
+            ).map(f => (
               <span key={f} className="flex items-center gap-1"><Check size={11} className="text-emerald-500" />{f}</span>
             ))}
           </div>
