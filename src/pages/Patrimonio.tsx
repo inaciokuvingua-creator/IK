@@ -408,7 +408,7 @@ export default function Patrimonio() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 anim-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -416,7 +416,7 @@ export default function Patrimonio() {
           <p className="text-gray-400 text-sm mt-0.5">{t('patrimonio.subtitle')}</p>
         </div>
         <button onClick={openNew}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors btn-liquid btn-ripple">
           <Plus size={16} /> {t('patrimonio.novoAtivo')}
         </button>
       </div>

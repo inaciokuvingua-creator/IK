@@ -326,7 +326,7 @@ export default function Relatorios() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 anim-page">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>

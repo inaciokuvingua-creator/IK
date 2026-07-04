@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAI } from '../context/AIContext';
 import { formatDate } from '../lib/format';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import AnimationSettings from '../components/AnimationSettings';
 
 export default function Configuracoes() {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export default function Configuracoes() {
   } = useNotifications();
 
   const { privacy, updatePrivacy } = useAI();
-  const [tab, setTab] = useState<'notificacoes' | 'historico' | 'conta' | 'ia' | 'idioma'>('notificacoes');
+  const [tab, setTab] = useState<'notificacoes' | 'historico' | 'conta' | 'ia' | 'idioma' | 'animacoes'>('notificacoes');
   const [requesting, setRequesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -66,6 +67,7 @@ export default function Configuracoes() {
           ['conta', t('configuracoes.tabs.conta'), ShieldCheck],
           ['ia', t('configuracoes.tabs.ai'), Sparkles],
           ['idioma', t('configuracoes.tabs.idioma'), Languages],
+          ['animacoes', t('configuracoes.tabs.animacoes', { defaultValue: 'Animações' }), Sparkles],
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
@@ -321,6 +323,9 @@ export default function Configuracoes() {
           <LanguageSwitcher variant="settings" />
         </div>
       )}
+
+      {/* ── ANIMAÇÕES ──────────────────────────────────────────────────────── */}
+      {tab === 'animacoes' && <AnimationSettings />}
     </div>
   );
 }

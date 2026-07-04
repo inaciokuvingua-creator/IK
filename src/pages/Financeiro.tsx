@@ -127,7 +127,7 @@ export default function Financeiro() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 anim-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{t('financeiro.title')}</h1>
@@ -135,7 +135,7 @@ export default function Financeiro() {
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors btn-liquid btn-ripple"
         >
           <Plus size={16} /> {t('financeiro.novoMovimento')}
         </button>

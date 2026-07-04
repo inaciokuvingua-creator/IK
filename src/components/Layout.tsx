@@ -153,7 +153,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
                   <button
                     key={id}
                     onClick={() => handleNavigate(id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === id ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover-lift ${currentPage === id ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
                   >
                     <Icon size={17} />
                     {label}

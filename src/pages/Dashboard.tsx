@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAnimation } from '../context/AnimationContext';
 import { useTranslation } from 'react-i18next';
 import {
   TrendingUp, TrendingDown, Wallet, Briefcase, Home,
@@ -14,6 +15,7 @@ type Props = { onNavigate: (page: string) => void };
 
 export default function Dashboard({ onNavigate }: Props) {
   const { t } = useTranslation();
+  const { entryClass, kpiClass, cardClass } = useAnimation();
   const [cofres, setCofres] = useState<Cofre[]>([]);
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [patrimonio, setPatrimonio] = useState<PatrimonioItem[]>([]);
@@ -91,7 +93,7 @@ export default function Dashboard({ onNavigate }: Props) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${entryClass()}`}>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -274,7 +276,7 @@ function KpiCard({ label, value, icon: Icon, color, sub }: { label: string; valu
     red: 'bg-red-950 text-red-400',
   };
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+    <div className="kpi-card">
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${colorMap[color]}`}>
         <Icon size={17} />
       </div>

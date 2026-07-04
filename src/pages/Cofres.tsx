@@ -178,13 +178,13 @@ export default function Cofres() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 anim-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{t('cofres.title')}</h1>
           <p className="text-gray-400 text-sm mt-0.5">{t('cofres.subtitle')}</p>
         </div>
-        <button onClick={openNewCofre} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+        <button onClick={openNewCofre} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors btn-liquid btn-ripple">
           <Plus size={16} /> {t('cofres.novoCofre')}
         </button>
       </div>

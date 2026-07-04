@@ -4,8 +4,10 @@ import { CurrencyProvider } from './context/CurrencyContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ProfileProvider } from './context/ProfileContext';
 import { AIProvider } from './context/AIContext';
+import { AnimationProvider } from './context/AnimationContext';
 import Layout from './components/Layout';
 import AIAssistant from './components/AIAssistant';
+import SeasonalOverlay from './components/SeasonalOverlay';
 import Login from './pages/Login';
 import HomePage from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -52,6 +54,7 @@ function AppContent() {
 
   return (
     <>
+      <SeasonalOverlay />
       <Layout currentPage={page} onNavigate={setPage}>
         {page === 'dashboard'   && <Dashboard onNavigate={navigate} />}
         {page === 'cofres'      && <Cofres />}
@@ -78,11 +81,13 @@ export default function App() {
       <CurrencyProvider>
         <NotificationProvider>
           <ProfileProvider>
-            <AIProvider>
-              <PWAManager />
-              <AppContent />
-              <InstallPrompt />
-            </AIProvider>
+            <AnimationProvider>
+              <AIProvider>
+                <PWAManager />
+                <AppContent />
+                <InstallPrompt />
+              </AIProvider>
+            </AnimationProvider>
           </ProfileProvider>
         </NotificationProvider>
       </CurrencyProvider>
