@@ -25,6 +25,7 @@ import Planos from './pages/Planos';
 import Chat from './pages/Chat';
 import InstallPrompt from './components/InstallPrompt';
 import PWAManager from './components/PWAManager';
+import FloatingCalculator from './components/FloatingCalculator';
 
 export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
@@ -71,6 +72,7 @@ function AppContent() {
         {page === 'chat'        && <Chat />}
       </Layout>
       <AIAssistant currentPage={page} />
+      <FloatingCalculator />
     </>
   );
 }
