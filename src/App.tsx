@@ -65,8 +65,8 @@ function AppContent() {
         {page === 'configuracoes' && <Configuracoes />}
         {page === 'perfil'      && <Perfil />}
         {page === 'empresas'    && <Empresas />}
-        {page === 'marketplace' && <Marketplace />}
-        {page === 'minha-loja'  && <MinhaLoja />}
+        {page === 'marketplace' && <Marketplace onNavigate={navigate} />}
+        {page === 'minha-loja'  && <MinhaLoja onNavigate={navigate} />}
         {page === 'planos'      && <Planos />}
         {page === 'chat'        && <Chat />}
       </Layout>

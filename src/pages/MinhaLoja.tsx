@@ -1,502 +1,893 @@
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Store, Plus, Package, Pencil, Trash2, X, AlertCircle,
-  Check, Eye, EyeOff, CheckCircle, Download, Tag, Image,
+  Plus, Edit3, Trash2, Package, Store, Upload, X, Check,
+  BarChart2, ShoppingBag, Download, MessageCircle, Eye,
+  RefreshCw, Star, AlertTriangle, CheckCircle, XCircle,
+  Paperclip, ChevronDown, ChevronUp, RotateCcw, Clock,
+  DollarSign, Users, FileText, Image as ImageIcon, Music,
+  Film, Archive,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAnimation } from '../context/AnimationContext';
 import ImageUpload from '../components/ImageUpload';
 import FileUpload from '../components/FileUpload';
 
-type MyStore = {
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Store = {
   id: string; owner_id: string; slug: string; nome: string;
-  descricao: string | null; categoria: string; verified: boolean; ativo: boolean;
-  rating: number; total_sales: number; logo_url: string | null; banner_url: string | null;
-  created_at: string;
+  descricao: string | null; logo_url: string | null; banner_url: string | null;
+  categoria: string; verified: boolean; ativo: boolean;
+  rating: number; total_sales: number; avg_rating: number; review_count: number;
+  localizacao: string | null; whatsapp: string | null; email_contato: string | null;
+  deleted_at: string | null;
 };
+
 type Product = {
-  id: string; store_id: string; nome: string; descricao: string | null;
-  preco: number; moeda: string; tipo: 'digital' | 'physical'; categoria: string;
-  ativo: boolean; destaque: boolean; total_vendas: number;
-  imagem_url: string | null; arquivo_url: string | null;
-  created_at: string;
+  id: string; store_id: string; owner_id: string; nome: string;
+  descricao: string | null; preco: number; moeda: string;
+  tipo: 'digital' | 'physical'; categoria: string; subcategoria: string | null;
+  marca: string | null; imagem_url: string | null; arquivo_url: string | null;
+  estoque: number | null; ativo: boolean; destaque: boolean;
+  total_vendas: number; total_views: number; avg_rating: number; review_count: number;
+  disponibilidade: string; localizacao: string | null;
+  peso: number | null; transportadora: string | null; tempo_entrega: string | null;
+  formatos: string[] | null; tags: string[] | null;
+  deleted_at: string | null; created_at: string;
 };
 
-const CATS_STORE = ['geral','música','tecnologia','moda','educação','arte','outros'];
-const CATS_PRODUCT = ['música','beats','instrumentais','cursos','livros','pdfs','templates','arquivos','produtos','outros'];
+type Order = {
+  id: string; buyer_id: string; store_id: string; product_id: string;
+  quantidade: number; preco_unitario: number; total: number; moeda: string;
+  status: string; notes: string | null; proof_url: string | null;
+  approved_at: string | null; download_released: boolean;
+  conversation_id: string | null; created_at: string;
+  products?: { nome: string; imagem_url: string | null; tipo: string; arquivo_url: string | null };
+  profiles?: { nome: string; avatar_url: string | null };
+  order_proofs?: { id: string; url: string; name: string | null; created_at: string }[];
+};
 
-const emptyStore = () => ({ nome: '', slug: '', descricao: '', categoria: 'geral' });
-const emptyProduct = () => ({
-  nome: '', descricao: '', preco: '', moeda: 'AOA',
-  tipo: 'digital' as const, categoria: 'outros',
-  imagem_url: '' as string | null,
-  arquivo_url: '' as string | null,
-  arquivo_nome: '' as string | null,
-});
+type DownloadToken = {
+  id: string; order_id: string; product_id: string; buyer_id: string;
+  token: string; expires_at: string | null; max_downloads: number;
+  download_count: number; revoked: boolean; created_at: string;
+  products?: { nome: string };
+  profiles?: { nome: string };
+};
 
-export default function MinhaLoja() {
-  const { t } = useTranslation();
-  const { user } = useAuth();
+const CATS = ['software','musica','ebooks','cursos','templates','fotos','videos','dados','fisico','outro'];
+const CAT_LABELS: Record<string, string> = {
+  software: 'Software', musica: 'Música', ebooks: 'E-Books',
+  cursos: 'Cursos', templates: 'Templates', fotos: 'Fotos/Arte',
+  videos: 'Vídeos', dados: 'Dados', fisico: 'Físico', outro: 'Outro',
+};
+const FORMATS = ['PDF','DOCX','XLSX','PPTX','MP3','WAV','MP4','ZIP','APK','EXE','PSD','AI','SVG','PNG','JPG'];
+
+function fmt(n: number) {
+  if (n >= 1000000) return `${(n/1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n/1000).toFixed(1)}K`;
+  return String(n);
+}
+
+// ── Delete Confirm Modal ───────────────────────────────────────────────────────
+function ConfirmDelete({ label, onConfirm, onCancel, type = 'item' }: {
+  label: string; onConfirm: ()=>void; onCancel: ()=>void; type?: string;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm p-6 anim-modal" onClick={e=>e.stopPropagation()}>
+        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle size={22} className="text-red-400"/>
+        </div>
+        <h3 className="text-white font-bold text-center mb-2">Eliminar {type}?</h3>
+        <p className="text-gray-400 text-sm text-center mb-6">
+          <span className="text-white font-medium">"{label}"</span> será movido para a lixeira.
+          Pode restaurar nos próximos 30 dias.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl hover:bg-gray-800 text-sm transition-colors">Cancelar</button>
+          <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-500 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Release Download Modal ────────────────────────────────────────────────────
+function ReleaseDownloadModal({ order, onRelease, onClose }: {
+  order: Order; onRelease: (orderId: string, expiryDays: number, maxDownloads: number)=>void; onClose: ()=>void;
+}) {
+  const [expiryDays, setExpiryDays] = useState(30);
+  const [maxDl, setMaxDl]           = useState(3);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm p-6 anim-modal" onClick={e=>e.stopPropagation()}>
+        <h3 className="text-white font-bold mb-5">Liberar Download</h3>
+        <p className="text-gray-400 text-sm mb-5">Produto: <span className="text-white">{(order.products as any)?.nome}</span></p>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1.5">Validade (dias)</label>
+            <select value={expiryDays} onChange={e=>setExpiryDays(+e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none">
+              {[7,14,30,60,90,365,0].map(d=><option key={d} value={d}>{d===0?'Sem expiração':`${d} dias`}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1.5">Máximo de downloads</label>
+            <select value={maxDl} onChange={e=>setMaxDl(+e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none">
+              {[1,2,3,5,10,20,0].map(d=><option key={d} value={d}>{d===0?'Ilimitado':`${d} downloads`}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl hover:bg-gray-800 text-sm transition-colors">Cancelar</button>
+          <button onClick={()=>onRelease(order.id, expiryDays, maxDl)} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-semibold btn-liquid btn-ripple transition-colors">
+            <Download size={14} className="inline mr-1.5"/> Liberar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main MinhaLoja ─────────────────────────────────────────────────────────────
+export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>void }) {
+  const { user }   = useAuth();
   const { format } = useCurrency();
-  const [store, setStore] = useState<MyStore | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showStoreModal, setShowStoreModal] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false);
+  const { entryClass } = useAnimation();
+
+  const [store, setStore]           = useState<Store | null>(null);
+  const [products, setProducts]     = useState<Product[]>([]);
+  const [trash, setTrash]           = useState<Product[]>([]);
+  const [orders, setOrders]         = useState<Order[]>([]);
+  const [tokens, setTokens]         = useState<DownloadToken[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [tab, setTab]               = useState<'overview'|'products'|'orders'|'downloads'|'trash'>('overview');
+
+  // Forms
+  const [showStoreForm, setShowStoreForm] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [storeForm, setStoreForm] = useState(emptyStore());
-  const [storeLogo, setStoreLogo] = useState<string | null>(null);
-  const [productForm, setProductForm] = useState(emptyProduct());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [deleteTarget, setDeleteTarget]     = useState<{id:string;nome:string;type:'product'|'store'} | null>(null);
+  const [releaseOrder, setReleaseOrder]     = useState<Order | null>(null);
+  const [expandedOrder, setExpandedOrder]   = useState<string | null>(null);
 
-  const showToast = (ok: boolean, msg: string) => {
-    setToast({ ok, msg });
-    setTimeout(() => setToast(null), 3500);
-  };
+  // Store form
+  const [sNome, setSNome]     = useState('');
+  const [sDesc, setSDesc]     = useState('');
+  const [sSlug, setSSlug]     = useState('');
+  const [sCat, setSCat]       = useState('geral');
+  const [sLogo, setSLogo]     = useState('');
+  const [sBanner, setSBanner] = useState('');
+  const [sLocal, setSLocal]   = useState('');
+  const [sWA, setSWA]         = useState('');
+  const [sEmail, setSEmail]   = useState('');
+  const [savingStore, setSavingStore] = useState(false);
 
-  const load = async () => {
+  // Product form
+  const [pNome, setPNome]     = useState('');
+  const [pDesc, setPDesc]     = useState('');
+  const [pPreco, setPPreco]   = useState('');
+  const [pTipo, setPTipo]     = useState<'digital'|'physical'>('digital');
+  const [pCat, setPCat]       = useState('software');
+  const [pSub, setPSub]       = useState('');
+  const [pMarca, setPMarca]   = useState('');
+  const [pImg, setPImg]       = useState('');
+  const [pArq, setPArq]       = useState('');
+  const [pEstoque, setPEstoque] = useState('');
+  const [pDisp, setPDisp]     = useState('disponivel');
+  const [pLocal, setPLocal]   = useState('');
+  const [pPeso, setPPeso]     = useState('');
+  const [pTrans, setPTrans]   = useState('');
+  const [pEntrega, setPEntrega] = useState('');
+  const [pFormatos, setPFormatos] = useState<string[]>([]);
+  const [pTags, setPTags]     = useState('');
+  const [pDestaque, setPDestaque] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+
+  // ── Load ────────────────────────────────────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
-    const { data } = await supabase.from('stores').select('*').eq('owner_id', user!.id).maybeSingle();
-    setStore(data);
-    if (data) {
-      const { data: prods } = await supabase
-        .from('products').select('*').eq('store_id', data.id)
-        .order('created_at', { ascending: false });
-      setProducts(prods ?? []);
+    const { data: storeData } = await supabase.from('stores').select('*').eq('owner_id', user.id).is('deleted_at', null).maybeSingle();
+    setStore(storeData as Store ?? null);
+
+    if (storeData) {
+      const [prods, trashProds, ordsData, toks] = await Promise.all([
+        supabase.from('products').select('*').eq('store_id', storeData.id).is('deleted_at', null).order('created_at',{ascending:false}),
+        supabase.from('products').select('*').eq('store_id', storeData.id).not('deleted_at','is',null).order('deleted_at',{ascending:false}),
+        supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo,arquivo_url), profiles:buyer_id(nome,avatar_url), order_proofs(id,url,name,created_at)').eq('store_id', storeData.id).order('created_at',{ascending:false}),
+        supabase.from('download_tokens').select('*, products:product_id(nome), profiles:buyer_id(nome)').in('product_id', (await supabase.from('products').select('id').eq('store_id',storeData.id)).data?.map(p=>p.id) ?? []).order('created_at',{ascending:false}),
+      ]);
+      setProducts(prods.data as Product[] ?? []);
+      setTrash(trashProds.data as Product[] ?? []);
+      setOrders(ordsData.data as Order[] ?? []);
+      setTokens(toks.data as DownloadToken[] ?? []);
     }
     setLoading(false);
-  };
+  }, [user]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  const openCreateStore = () => {
+  // Realtime orders
+  useEffect(() => {
+    if (!store) return;
+    const ch = supabase.channel('seller:' + store.id)
+      .on('postgres_changes',{event:'*',schema:'public',table:'orders',filter:`store_id=eq.${store.id}`}, loadAll)
+      .on('postgres_changes',{event:'*',schema:'public',table:'order_proofs'}, loadAll)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [store?.id, loadAll]);
+
+  // ── Store CRUD ───────────────────────────────────────────────────────────────
+  const openStoreForm = () => {
     if (store) {
-      setStoreForm({ nome: store.nome, slug: store.slug, descricao: store.descricao ?? '', categoria: store.categoria });
-      setStoreLogo(store.logo_url);
+      setSNome(store.nome); setSDesc(store.descricao??''); setSSlug(store.slug);
+      setSCat(store.categoria); setSLogo(store.logo_url??''); setSBanner(store.banner_url??'');
+      setSLocal(store.localizacao??''); setSWA(store.whatsapp??''); setSEmail(store.email_contato??'');
     } else {
-      setStoreForm(emptyStore());
-      setStoreLogo(null);
+      setSNome(''); setSDesc(''); setSSlug(''); setSCat('geral'); setSLogo(''); setSBanner('');
+      setSLocal(''); setSWA(''); setSEmail('');
     }
-    setShowStoreModal(true);
+    setShowStoreForm(true);
   };
 
   const saveStore = async () => {
-    setError(null); setSaving(true);
-    const slug = storeForm.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-    const payload = {
-      nome: storeForm.nome, slug,
-      descricao: storeForm.descricao || null,
-      categoria: storeForm.categoria,
-      logo_url: storeLogo,
-    };
-    const { error: err } = store
-      ? await supabase.from('stores').update(payload).eq('id', store.id)
-      : await supabase.from('stores').insert({ ...payload, owner_id: user!.id });
-    if (err) { setError(err.message); setSaving(false); return; }
-    setSaving(false); setShowStoreModal(false);
-    showToast(true, store ? t('minhaLoja.lojaAtualizada') : t('minhaLoja.lojaCriada'));
-    await load();
+    if (!user || !sNome.trim() || !sSlug.trim()) return;
+    setSavingStore(true);
+    const slug = sSlug.toLowerCase().replace(/[^a-z0-9-]/g,'-');
+    const payload = { nome: sNome, descricao: sDesc||null, slug, categoria: sCat, logo_url: sLogo||null, banner_url: sBanner||null, localizacao: sLocal||null, whatsapp: sWA||null, email_contato: sEmail||null };
+    if (store) {
+      await supabase.from('stores').update(payload).eq('id', store.id);
+    } else {
+      await supabase.from('stores').insert({ ...payload, owner_id: user.id });
+    }
+    await loadAll();
+    setShowStoreForm(false);
+    setSavingStore(false);
   };
 
-  const openCreateProduct = () => {
-    setEditingProduct(null);
-    setProductForm(emptyProduct());
-    setShowProductModal(true);
+  const deleteStore = async () => {
+    if (!store) return;
+    await supabase.from('stores').update({ deleted_at: new Date().toISOString(), ativo: false }).eq('id', store.id);
+    setStore(null); setDeleteTarget(null);
+    await loadAll();
   };
 
-  const openEditProduct = (p: Product) => {
-    setEditingProduct(p);
-    setProductForm({
-      nome: p.nome, descricao: p.descricao ?? '',
-      preco: String(p.preco), moeda: p.moeda,
-      tipo: p.tipo, categoria: p.categoria,
-      imagem_url: p.imagem_url,
-      arquivo_url: p.arquivo_url,
-      arquivo_nome: p.arquivo_url ? p.arquivo_url.split('/').pop() ?? null : null,
-    });
-    setShowProductModal(true);
+  // ── Product CRUD ─────────────────────────────────────────────────────────────
+  const openProductForm = (p?: Product) => {
+    if (p) {
+      setEditingProduct(p);
+      setPNome(p.nome); setPDesc(p.descricao??''); setPPreco(String(p.preco));
+      setPTipo(p.tipo); setPCat(p.categoria); setPSub(p.subcategoria??'');
+      setPMarca(p.marca??''); setPImg(p.imagem_url??''); setPArq(p.arquivo_url??'');
+      setPEstoque(p.estoque!=null?String(p.estoque):''); setPDisp(p.disponibilidade);
+      setPLocal(p.localizacao??''); setPPeso(p.peso!=null?String(p.peso):'');
+      setPTrans(p.transportadora??''); setPEntrega(p.tempo_entrega??'');
+      setPFormatos(p.formatos??[]); setPTags((p.tags??[]).join(', '));
+      setPDestaque(p.destaque);
+    } else {
+      setEditingProduct(null);
+      setPNome(''); setPDesc(''); setPPreco(''); setPTipo('digital'); setPCat('software');
+      setPSub(''); setPMarca(''); setPImg(''); setPArq(''); setPEstoque('');
+      setPDisp('disponivel'); setPLocal(''); setPPeso(''); setPTrans(''); setPEntrega('');
+      setPFormatos([]); setPTags(''); setPDestaque(false);
+    }
+    setShowProductForm(true);
   };
 
   const saveProduct = async () => {
-    if (!store) return;
-    setError(null); setSaving(true);
+    if (!user || !store || !pNome.trim() || !pPreco) return;
+    setSavingProduct(true);
     const payload = {
-      store_id: store.id, owner_id: user!.id,
-      nome: productForm.nome,
-      descricao: productForm.descricao || null,
-      preco: parseFloat(productForm.preco) || 0,
-      moeda: productForm.moeda,
-      tipo: productForm.tipo,
-      categoria: productForm.categoria,
-      imagem_url: productForm.imagem_url || null,
-      arquivo_url: productForm.arquivo_url || null,
+      store_id: store.id,
+      nome: pNome.trim(), descricao: pDesc||null,
+      preco: parseFloat(pPreco), tipo: pTipo,
+      categoria: pCat, subcategoria: pSub||null,
+      marca: pMarca||null, imagem_url: pImg||null, arquivo_url: pArq||null,
+      estoque: pEstoque ? parseInt(pEstoque) : null,
+      disponibilidade: pDisp, localizacao: pLocal||null,
+      peso: pPeso ? parseFloat(pPeso) : null,
+      transportadora: pTrans||null, tempo_entrega: pEntrega||null,
+      formatos: pFormatos.length ? pFormatos : null,
+      tags: pTags.split(',').map(t=>t.trim()).filter(Boolean) || null,
+      destaque: pDestaque,
     };
-    const { error: err } = editingProduct
-      ? await supabase.from('products').update(payload).eq('id', editingProduct.id)
-      : await supabase.from('products').insert(payload);
-    if (err) { setError(err.message); setSaving(false); return; }
-    setSaving(false); setShowProductModal(false);
-    showToast(true, editingProduct ? t('minhaLoja.produtoAtualizado') : t('minhaLoja.produtoCriado'));
-    await load();
+    if (editingProduct) {
+      await supabase.from('products').update(payload).eq('id', editingProduct.id);
+    } else {
+      await supabase.from('products').insert({ ...payload, owner_id: user.id });
+    }
+    // Audit
+    await supabase.from('marketplace_audit').insert({
+      entity_type: 'product', action: editingProduct ? 'update' : 'create',
+      details: { nome: pNome }
+    });
+    await loadAll();
+    setShowProductForm(false);
+    setSavingProduct(false);
   };
 
-  const deleteProduct = async (id: string) => {
-    if (!confirm(t('minhaLoja.excluirProduto'))) return;
+  const softDeleteProduct = async (id: string) => {
+    await supabase.from('products').update({ deleted_at: new Date().toISOString(), ativo: false }).eq('id', id);
+    await supabase.from('marketplace_audit').insert({ entity_type:'product', action:'soft_delete', entity_id: id, details: {} });
+    setDeleteTarget(null);
+    await loadAll();
+  };
+
+  const restoreProduct = async (id: string) => {
+    await supabase.from('products').update({ deleted_at: null, ativo: true }).eq('id', id);
+    await loadAll();
+  };
+
+  const permanentDelete = async (id: string) => {
     await supabase.from('products').delete().eq('id', id);
-    setProducts(p => p.filter(x => x.id !== id));
-    showToast(true, t('minhaLoja.produtoExcluido'));
+    await loadAll();
   };
 
-  const toggleActive = async (p: Product) => {
-    await supabase.from('products').update({ ativo: !p.ativo }).eq('id', p.id);
-    setProducts(prev => prev.map(x => x.id === p.id ? { ...x, ativo: !x.ativo } : x));
+  // ── Order management ──────────────────────────────────────────────────────────
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    const patch: any = { status };
+    if (status === 'delivered') patch.approved_at = new Date().toISOString();
+    await supabase.from('orders').update(patch).eq('id', orderId);
+    setOrders(prev => prev.map(o => o.id===orderId ? {...o,...patch} : o));
+    // Audit
+    await supabase.from('marketplace_audit').insert({ entity_type:'order', action:`status_${status}`, entity_id: orderId, details:{} });
+  };
+
+  const releaseDownload = async (orderId: string, expiryDays: number, maxDownloads: number) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order || !user) return;
+    const expiresAt = expiryDays > 0 ? new Date(Date.now() + expiryDays*86400000).toISOString() : null;
+    await supabase.from('download_tokens').insert({
+      order_id: orderId,
+      product_id: order.product_id,
+      buyer_id: order.buyer_id,
+      expires_at: expiresAt,
+      max_downloads: maxDownloads || 999999,
+      released_by: user.id,
+    });
+    await supabase.from('orders').update({ download_released: true, status: 'delivered' }).eq('id', orderId);
+    // Audit
+    await supabase.from('marketplace_audit').insert({ entity_type:'download', action:'released', entity_id: orderId, details: {expiryDays, maxDownloads} });
+    setReleaseOrder(null);
+    await loadAll();
+  };
+
+  // ── Stats ─────────────────────────────────────────────────────────────────────
+  const stats = {
+    totalRevenue: orders.filter(o=>o.status==='delivered'||o.status==='paid').reduce((s,o)=>s+o.total,0),
+    pendingOrders: orders.filter(o=>o.status==='pending').length,
+    paidOrders: orders.filter(o=>o.status==='paid').length,
+    deliveredOrders: orders.filter(o=>o.status==='delivered').length,
+    totalProducts: products.length,
+    totalViews: products.reduce((s,p)=>s+(p.total_views||0),0),
+    activeDownloads: tokens.filter(t=>!t.revoked).length,
+  };
+
+  const statusBadge = (s: string) => {
+    const cfg: Record<string,[string,string]> = {
+      pending:   ['bg-amber-500/20 text-amber-400','Pendente'],
+      paid:      ['bg-blue-500/20 text-blue-400','Pago'],
+      delivered: ['bg-emerald-500/20 text-emerald-400','Entregue'],
+      cancelled: ['bg-red-500/20 text-red-400','Cancelado'],
+    };
+    const [cls, lbl] = cfg[s] ?? ['bg-gray-700 text-gray-400', s];
+    return <span className={`${cls} text-xs font-medium px-2.5 py-1 rounded-full`}>{lbl}</span>;
   };
 
   if (loading) return (
-    <div className="space-y-4 animate-pulse">
-      <div className="h-8 bg-gray-900 rounded-xl w-48" />
-      <div className="h-40 bg-gray-900 rounded-2xl border border-gray-800" />
+    <div className="flex items-center justify-center py-16">
+      <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"/>
+    </div>
+  );
+
+  // ── No store yet ───────────────────────────────────────────────────────────
+  if (!store && !showStoreForm) return (
+    <div className={`space-y-6 ${entryClass()}`}>
+      <h1 className="text-white text-2xl font-bold">Minha Loja</h1>
+      <div className="text-center py-20">
+        <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-5">
+          <Store size={28} className="text-gray-600"/>
+        </div>
+        <p className="text-white font-bold text-xl mb-2">Crie a sua loja</p>
+        <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">Venda produtos digitais e físicos para todo o ecossistema IK Finance. 95% das vendas vai diretamente para si.</p>
+        <button onClick={openStoreForm} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl btn-liquid btn-ripple transition-colors">
+          <Plus size={18}/> Criar Loja
+        </button>
+      </div>
     </div>
   );
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className={`space-y-5 ${entryClass()}`}>
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white">{t('minhaLoja.title')}</h1>
-          <p className="text-gray-400 text-sm mt-0.5">{t('minhaLoja.subtitle')}</p>
+          <h1 className="text-white text-2xl font-bold">Minha Loja</h1>
+          {store && <p className="text-gray-500 text-sm mt-0.5">{store.nome} · {store.slug}</p>}
         </div>
         {store && (
-          <button onClick={openCreateProduct}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
-            <Plus size={16} /> {t('minhaLoja.novoProduto')}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={openStoreForm} className="flex items-center gap-1.5 text-sm bg-gray-800 border border-gray-700 text-gray-300 hover:text-white px-3.5 py-2 rounded-xl transition-colors">
+              <Edit3 size={14}/> Editar Loja
+            </button>
+            <button onClick={() => openProductForm()} className="flex items-center gap-1.5 text-sm bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-3.5 py-2 rounded-xl btn-liquid btn-ripple transition-colors">
+              <Plus size={14}/> Novo Produto
+            </button>
+          </div>
         )}
       </div>
 
-      {toast && (
-        <div className={`flex items-center gap-2 p-3.5 rounded-xl border text-sm ${toast.ok ? 'bg-emerald-950/50 border-emerald-800 text-emerald-300' : 'bg-red-950/50 border-red-800 text-red-300'}`}>
-          {toast.ok ? <Check size={15} /> : <AlertCircle size={15} />} {toast.msg}
+      {/* ── Tabs ── */}
+      {store && (
+        <div className="flex gap-1 overflow-x-auto bg-gray-900 border border-gray-800 rounded-2xl p-1">
+          {(['overview','products','orders','downloads','trash'] as const).map(t=>(
+            <button key={t} onClick={()=>setTab(t)}
+              className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl transition-colors ${tab===t?'bg-emerald-500 text-white':'text-gray-400 hover:text-gray-200'}`}>
+              {t==='overview'?'Visão Geral':t==='products'?`Produtos (${products.length})`:t==='orders'?`Pedidos (${orders.length})`:t==='downloads'?'Downloads':`Lixeira (${trash.length})`}
+            </button>
+          ))}
         </div>
       )}
 
-      {!store ? (
-        <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
-          <Store size={40} className="text-gray-700 mx-auto mb-4" />
-          <h3 className="text-white font-bold text-lg mb-2">{t('minhaLoja.lojaTitle')}</h3>
-          <p className="text-gray-500 text-sm max-w-sm mx-auto mb-6">
-            {t('minhaLoja.lojaDesc')}
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 mb-8 text-xs text-gray-600">
-            {(Array.isArray(t('minhaLoja.features', { returnObjects: true }))
-              ? t('minhaLoja.features', { returnObjects: true }) as string[]
-              : ['95% para você','Entrega automática','Clientes globais','Pagamentos seguros']
-            ).map(f => (
-              <span key={f} className="flex items-center gap-1"><Check size={11} className="text-emerald-500" />{f}</span>
+      {/* ── Overview ── */}
+      {tab === 'overview' && store && (
+        <div className="space-y-5">
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { icon: DollarSign, label: 'Receita Total',    value: format(stats.totalRevenue),      color: 'emerald' },
+              { icon: ShoppingBag,label: 'Pedidos Pendentes',value: String(stats.pendingOrders),     color: 'amber'   },
+              { icon: Package,    label: 'Produtos',         value: String(stats.totalProducts),     color: 'blue'    },
+              { icon: Eye,        label: 'Visualizações',    value: fmt(stats.totalViews),            color: 'purple'  },
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="kpi-card">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${color==='emerald'?'bg-emerald-950 text-emerald-400':color==='amber'?'bg-amber-950 text-amber-400':color==='blue'?'bg-blue-950 text-blue-400':'bg-purple-950 text-purple-400'}`}>
+                  <Icon size={16}/>
+                </div>
+                <p className="text-xl font-bold text-white">{value}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{label}</p>
+              </div>
             ))}
           </div>
-          <button onClick={openCreateStore}
-            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors">
-            <Store size={16} /> {t('minhaLoja.criarLoja')}
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* Store header */}
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-            <div className="h-20 bg-gradient-to-r from-emerald-900/40 to-teal-900/30 relative">
-              {store.banner_url && <img src={store.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
+
+          {/* Recent orders preview */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold">Pedidos Recentes</h3>
+              <button onClick={()=>setTab('orders')} className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors">Ver todos</button>
             </div>
-            <div className="px-6 pb-5 -mt-6">
-              <div className="flex items-end justify-between mb-3">
-                <div className="w-16 h-16 rounded-2xl border-4 border-gray-900 overflow-hidden bg-gray-800 flex items-center justify-center shrink-0">
-                  {store.logo_url
-                    ? <img src={store.logo_url} alt="" className="w-full h-full object-cover" />
-                    : <span className="text-white font-bold text-2xl">{store.nome[0]?.toUpperCase()}</span>
-                  }
+            {orders.slice(0,4).length === 0
+              ? <p className="text-gray-600 text-sm text-center py-4">Sem pedidos ainda</p>
+              : orders.slice(0,4).map(o => (
+                <div key={o.id} className="flex items-center gap-3 py-2.5 border-b border-gray-800 last:border-0">
+                  <div className="w-8 h-8 rounded-xl bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-300 shrink-0">
+                    {(o.profiles as any)?.nome?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-xs font-medium truncate">{(o.products as any)?.nome}</p>
+                    <p className="text-gray-500 text-xs">{(o.profiles as any)?.nome ?? 'Comprador'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white text-xs font-bold">{format(o.total)}</p>
+                    {statusBadge(o.status)}
+                  </div>
                 </div>
-                <button onClick={openCreateStore}
-                  className="flex items-center gap-2 text-sm text-gray-400 border border-gray-700 px-3 py-2 rounded-xl hover:bg-gray-800 transition-colors">
-                  <Pencil size={13} /> {t('minhaLoja.editarLoja')}
-                </button>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-white font-bold text-lg">{store.nome}</h3>
-                {store.verified && <CheckCircle size={15} className="text-blue-400" />}
-              </div>
-              <p className="text-gray-500 text-sm">ikfinance.com/{store.slug}</p>
-              {store.descricao && <p className="text-gray-400 text-sm mt-2">{store.descricao}</p>}
-              <div className="flex gap-5 mt-3 pt-3 border-t border-gray-800">
-                <div className="text-center">
-                  <p className="text-white font-bold text-lg">{products.filter(p => p.ativo).length}</p>
-                  <p className="text-gray-500 text-xs">{t('minhaLoja.ativos')}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-white font-bold text-lg">{products.reduce((s, p) => s + p.total_vendas, 0)}</p>
-                  <p className="text-gray-500 text-xs">{t('minhaLoja.vendas')}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-white font-bold text-lg">{store.rating.toFixed(1)}</p>
-                  <p className="text-gray-500 text-xs">{t('minhaLoja.avaliacao')}</p>
-                </div>
-              </div>
-            </div>
+              ))
+            }
           </div>
 
-          {/* Products */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-white font-semibold">{t('minhaLoja.produtos')} ({products.length})</h3>
-              <button onClick={openCreateProduct}
-                className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
-                <Plus size={14} /> {t('minhaLoja.adicionar')}
-              </button>
+          {/* Top products */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold">Produtos</h3>
+              <button onClick={()=>setTab('products')} className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors">Gerir</button>
             </div>
-
-            {products.length === 0 ? (
-              <div className="text-center py-10 bg-gray-900 rounded-2xl border border-gray-800">
-                <Package size={28} className="text-gray-700 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">{t('minhaLoja.nenhumProduto')}</p>
-                <p className="text-gray-600 text-xs mt-1">{t('minhaLoja.nenhumProdutoDesc')}</p>
+            {products.slice(0,5).map(p => (
+              <div key={p.id} className="flex items-center gap-3 py-2.5 border-b border-gray-800 last:border-0">
+                {p.imagem_url
+                  ? <img src={p.imagem_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0"/>
+                  : <div className="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center shrink-0"><Package size={15} className="text-gray-500"/></div>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-medium truncate">{p.nome}</p>
+                  <p className="text-gray-500 text-xs">{fmt(p.total_views||0)} vis · {p.total_vendas} vendas</p>
+                </div>
+                <p className="text-white text-xs font-bold shrink-0">{format(p.preco)}</p>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {products.map(p => (
-                  <div key={p.id}
-                    className="flex items-center gap-4 p-4 bg-gray-900 border border-gray-800 rounded-2xl hover:border-gray-700 transition-colors">
-                    {/* Thumbnail */}
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-800 shrink-0 flex items-center justify-center">
-                      {p.imagem_url
-                        ? <img src={p.imagem_url} alt="" className="w-full h-full object-cover" />
-                        : p.tipo === 'digital'
-                          ? <Download size={17} className="text-blue-400" />
-                          : <Package size={17} className="text-orange-400" />
-                      }
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Products tab ── */}
+      {tab === 'products' && (
+        <div className="space-y-3">
+          {products.length === 0 && (
+            <div className="text-center py-12">
+              <Package size={32} className="text-gray-600 mx-auto mb-3"/>
+              <p className="text-gray-500 text-sm">Sem produtos. Adicione o primeiro!</p>
+            </div>
+          )}
+          {products.map(p => (
+            <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center gap-4 hover-lift">
+              {p.imagem_url
+                ? <img src={p.imagem_url} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0"/>
+                : <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center shrink-0"><Package size={22} className="text-gray-600"/></div>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-white font-semibold text-sm truncate">{p.nome}</p>
+                  {p.destaque && <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">Destaque</span>}
+                  {!p.ativo && <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">Inativo</span>}
+                </div>
+                <p className="text-gray-500 text-xs mt-0.5">{CAT_LABELS[p.categoria] ?? p.categoria} · {p.tipo === 'digital' ? 'Digital' : 'Físico'}</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-emerald-400 text-sm font-bold">{format(p.preco)}</span>
+                  <span className="text-gray-600 text-xs">{fmt(p.total_views||0)} vis</span>
+                  <span className="text-gray-600 text-xs">{p.total_vendas} vendas</span>
+                  {p.avg_rating > 0 && <span className="text-amber-400 text-xs">★{p.avg_rating.toFixed(1)}</span>}
+                </div>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={()=>openProductForm(p)} className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors"><Edit3 size={13}/></button>
+                <button onClick={()=>setDeleteTarget({id:p.id,nome:p.nome,type:'product'})} className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors"><Trash2 size={13}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Orders tab ── */}
+      {tab === 'orders' && (
+        <div className="space-y-3">
+          {orders.length === 0 && <p className="text-gray-600 text-sm text-center py-12">Sem pedidos ainda</p>}
+          {orders.map(o => (
+            <div key={o.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+              <div className="p-4 flex items-start gap-3 cursor-pointer" onClick={()=>setExpandedOrder(expandedOrder===o.id?null:o.id)}>
+                <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center text-sm font-bold text-gray-300 shrink-0">
+                  {(o.profiles as any)?.nome?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="text-white text-sm font-semibold">{(o.profiles as any)?.nome ?? 'Comprador'}</p>
+                      <p className="text-gray-500 text-xs">{(o.products as any)?.nome}</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-white font-medium text-sm truncate">{p.nome}</p>
-                        {!p.ativo && <span className="text-xs text-gray-600 border border-gray-700 px-1.5 py-0.5 rounded-full">{t('minhaLoja.inativo')}</span>}
-                        {p.destaque && <span className="text-xs text-amber-400 bg-amber-950/50 border border-amber-800/50 px-1.5 py-0.5 rounded-full">{t('minhaLoja.destaque')}</span>}
-                        {p.arquivo_url && <span className="text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Download size={9} />{t('minhaLoja.ficheiro')}</span>}
-                      </div>
-                      <p className="text-gray-500 text-xs capitalize mt-0.5">
-                        {p.categoria} · {p.tipo === 'digital' ? t('minhaLoja.digital') : t('minhaLoja.fisico')} · {p.total_vendas} {t('minhaLoja.vendas')}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-emerald-400 font-bold text-sm">{format(p.preco)}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => toggleActive(p)}
-                        className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
-                        {p.ativo ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                      <button onClick={() => openEditProduct(p)}
-                        className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => deleteProduct(p.id)}
-                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-xl transition-colors">
-                        <Trash2 size={14} />
-                      </button>
+                    <div className="text-right flex items-center gap-2">
+                      <p className="text-white text-sm font-bold">{format(o.total)}</p>
+                      {statusBadge(o.status)}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── Store modal ── */}
-      {showStoreModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowStoreModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{store ? t('minhaLoja.editarLoja') : t('minhaLoja.criarLoja')}</h3>
-              <button onClick={() => setShowStoreModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Logo upload */}
-              <div>
-                <label className="text-xs text-gray-500 mb-2 block">{t('minhaLoja.logoLoja')}</label>
-                <ImageUpload
-                  bucket="store-assets"
-                  path={`${user!.id}/logo`}
-                  currentUrl={storeLogo}
-                  onUploaded={(url) => setStoreLogo(url)}
-                  shape="square"
-                  size="md"
-                  placeholder="Logo"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.nomeLoja')}</label>
-                <input value={storeForm.nome}
-                  onChange={e => setStoreForm({ ...storeForm, nome: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-') })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.urlLoja')}</label>
-                <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-                  <span className="px-3 text-gray-500 text-xs border-r border-gray-700 py-2.5">ikfinance.com/</span>
-                  <input value={storeForm.slug}
-                    onChange={e => setStoreForm({ ...storeForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    className="flex-1 bg-transparent text-white px-3 py-2.5 text-sm focus:outline-none" />
+                  <p className="text-gray-600 text-xs mt-1">{new Date(o.created_at).toLocaleDateString('pt-AO',{day:'2-digit',month:'short',year:'numeric'})}</p>
                 </div>
+                {expandedOrder === o.id ? <ChevronUp size={16} className="text-gray-500 shrink-0 mt-1"/> : <ChevronDown size={16} className="text-gray-500 shrink-0 mt-1"/>}
               </div>
 
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.categoria')}</label>
-                <select value={storeForm.categoria}
-                  onChange={e => setStoreForm({ ...storeForm, categoria: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
-                  {CATS_STORE.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
-                </select>
-              </div>
+              {/* Expanded order details */}
+              {expandedOrder === o.id && (
+                <div className="border-t border-gray-800 p-4 space-y-3">
+                  {/* Proof images */}
+                  {o.order_proofs && o.order_proofs.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider">Comprovativos enviados</p>
+                      <div className="flex flex-wrap gap-2">
+                        {o.order_proofs.map(pr => (
+                          <a key={pr.id} href={pr.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 hover:border-gray-600 transition-colors">
+                            <FileText size={14} className="text-gray-400"/>
+                            <span className="text-gray-300 text-xs">{pr.name ?? 'Comprovativo'}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.descricao')}</label>
-                <textarea value={storeForm.descricao}
-                  onChange={e => setStoreForm({ ...storeForm, descricao: e.target.value })}
-                  rows={2}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none" />
-              </div>
-
-              {error && <p className="text-red-400 text-sm flex items-center gap-1.5"><AlertCircle size={14} />{error}</p>}
-            </div>
-
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowStoreModal(false)}
-                className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">
-                {t('minhaLoja.cancelar')}
-              </button>
-              <button onClick={saveStore} disabled={saving || !storeForm.nome}
-                className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-                {saving ? t('minhaLoja.salvando') : store ? t('minhaLoja.salvar') : t('minhaLoja.criarLoja')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Product modal ── */}
-      {showProductModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowProductModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{editingProduct ? t('minhaLoja.editarProduto') : t('minhaLoja.novoProduto')}</h3>
-              <button onClick={() => setShowProductModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Product image */}
-              <div>
-                <label className="text-xs text-gray-500 mb-2 block">{t('minhaLoja.imagemProduto')}</label>
-                <ImageUpload
-                  bucket="product-images"
-                  path={`${user!.id}/${editingProduct?.id ?? 'new'}`}
-                  currentUrl={productForm.imagem_url}
-                  onUploaded={(url) => setProductForm(f => ({ ...f, imagem_url: url }))}
-                  shape="square"
-                  size="lg"
-                  placeholder="Imagem"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.nomeProduto')}</label>
-                <input value={productForm.nome}
-                  onChange={e => setProductForm({ ...productForm, nome: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.tipo')}</label>
-                  <select value={productForm.tipo}
-                    onChange={e => setProductForm({ ...productForm, tipo: e.target.value as 'digital' | 'physical' })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
-                    <option value="digital">{t('minhaLoja.digital')}</option>
-                    <option value="physical">{t('minhaLoja.fisico')}</option>
-                  </select>
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2">
+                    {o.status === 'paid' && (
+                      <>
+                        <button onClick={()=>updateOrderStatus(o.id,'delivered')}
+                          className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-3 py-1.5 rounded-xl transition-colors">
+                          <CheckCircle size={12}/> Aprovar Pagamento
+                        </button>
+                        <button onClick={()=>updateOrderStatus(o.id,'cancelled')}
+                          className="flex items-center gap-1.5 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1.5 rounded-xl transition-colors">
+                          <XCircle size={12}/> Rejeitar
+                        </button>
+                        <button onClick={()=>updateOrderStatus(o.id,'pending')}
+                          className="flex items-center gap-1.5 text-xs bg-gray-700 text-gray-400 hover:bg-gray-600 px-3 py-1.5 rounded-xl transition-colors">
+                          <RefreshCw size={12}/> Pedir Novo Comprovativo
+                        </button>
+                      </>
+                    )}
+                    {(o.status === 'delivered' || o.status === 'paid') && !o.download_released && (o.products as any)?.tipo === 'digital' && (
+                      <button onClick={()=>setReleaseOrder(o)}
+                        className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-3 py-1.5 rounded-xl transition-colors">
+                        <Download size={12}/> Liberar Download
+                      </button>
+                    )}
+                    {o.download_released && (
+                      <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-xl">
+                        <CheckCircle size={12}/> Download liberado
+                      </span>
+                    )}
+                    {o.conversation_id && (
+                      <button onClick={()=>onNavigate?.('chat')}
+                        className="flex items-center gap-1.5 text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 px-3 py-1.5 rounded-xl transition-colors">
+                        <MessageCircle size={12}/> Abrir Chat
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.categoria')}</label>
-                  <select value={productForm.categoria}
-                    onChange={e => setProductForm({ ...productForm, categoria: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
-                    {CATS_PRODUCT.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.preco')}</label>
-                  <input type="number" value={productForm.preco}
-                    onChange={e => setProductForm({ ...productForm, preco: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.moeda')}</label>
-                  <select value={productForm.moeda}
-                    onChange={e => setProductForm({ ...productForm, moeda: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors">
-                    {['AOA','USD','EUR','BRL','GBP'].map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">{t('minhaLoja.descricao')}</label>
-                <textarea value={productForm.descricao ?? ''}
-                  onChange={e => setProductForm({ ...productForm, descricao: e.target.value })}
-                  rows={2}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none" />
-              </div>
-
-              {/* File upload for digital products */}
-              {productForm.tipo === 'digital' && (
-                <FileUpload
-                  bucket="product-files"
-                  path={`${user!.id}/${editingProduct?.id ?? 'new'}`}
-                  currentUrl={productForm.arquivo_url}
-                  currentName={productForm.arquivo_nome}
-                  onUploaded={(url, name) => setProductForm(f => ({ ...f, arquivo_url: url, arquivo_nome: name }))}
-                  maxMb={100}
-                  label={t('minhaLoja.ficheiroLabel')}
-                />
               )}
-
-              {error && <p className="text-red-400 text-sm flex items-center gap-1.5"><AlertCircle size={14} />{error}</p>}
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowProductModal(false)}
-                className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">
-                {t('minhaLoja.cancelar')}
-              </button>
-              <button onClick={saveProduct} disabled={saving || !productForm.nome || !productForm.preco}
-                className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-                {saving ? t('minhaLoja.salvando') : editingProduct ? t('minhaLoja.salvar') : t('minhaLoja.criarProduto')}
-              </button>
+      {/* ── Downloads tab ── */}
+      {tab === 'downloads' && (
+        <div className="space-y-3">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left text-xs text-gray-500 font-semibold px-4 py-3">Produto</th>
+                    <th className="text-left text-xs text-gray-500 font-semibold px-4 py-3">Comprador</th>
+                    <th className="text-center text-xs text-gray-500 font-semibold px-4 py-3">Downloads</th>
+                    <th className="text-left text-xs text-gray-500 font-semibold px-4 py-3">Expira</th>
+                    <th className="text-center text-xs text-gray-500 font-semibold px-4 py-3">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tokens.length === 0 && (
+                    <tr><td colSpan={5} className="text-center text-gray-600 py-8 text-sm">Sem tokens emitidos</td></tr>
+                  )}
+                  {tokens.map(tk => {
+                    const expired = tk.expires_at && new Date(tk.expires_at) < new Date();
+                    const status = tk.revoked ? 'Revogado' : expired ? 'Expirado' : tk.download_count >= tk.max_downloads ? 'Esgotado' : 'Ativo';
+                    const stColor = status==='Ativo'?'text-emerald-400':status==='Revogado'||status==='Esgotado'?'text-red-400':'text-amber-400';
+                    return (
+                      <tr key={tk.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                        <td className="px-4 py-3 text-white text-xs">{(tk.products as any)?.nome ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">{(tk.profiles as any)?.nome ?? '—'}</td>
+                        <td className="px-4 py-3 text-center text-gray-300 text-xs">{tk.download_count}/{tk.max_downloads === 999999 ? '∞' : tk.max_downloads}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">{tk.expires_at ? new Date(tk.expires_at).toLocaleDateString() : '—'}</td>
+                        <td className="px-4 py-3 text-center"><span className={`text-xs font-medium ${stColor}`}>{status}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Trash tab ── */}
+      {tab === 'trash' && (
+        <div className="space-y-3">
+          {trash.length === 0 && <p className="text-gray-600 text-sm text-center py-12">Lixeira vazia</p>}
+          {trash.map(p => (
+            <div key={p.id} className="bg-gray-900 border border-gray-700 border-dashed rounded-2xl p-4 flex items-center gap-4 opacity-70">
+              <div className="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center shrink-0">
+                {p.imagem_url ? <img src={p.imagem_url} alt="" className="w-full h-full object-cover rounded-xl"/> : <Package size={20} className="text-gray-600"/>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{p.nome}</p>
+                <p className="text-gray-500 text-xs">Eliminado {p.deleted_at ? new Date(p.deleted_at).toLocaleDateString() : ''}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={()=>restoreProduct(p.id)} className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-3 py-1.5 rounded-xl transition-colors">
+                  <RotateCcw size={12}/> Restaurar
+                </button>
+                <button onClick={()=>permanentDelete(p.id)} className="flex items-center gap-1.5 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1.5 rounded-xl transition-colors">
+                  <Trash2 size={12}/> Apagar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Store form modal ── */}
+      {showStoreForm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={()=>setShowStoreForm(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto anim-slide-up" onClick={e=>e.stopPropagation()}>
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-5 py-4 flex items-center justify-between">
+              <h2 className="text-white font-bold">{store ? 'Editar Loja' : 'Criar Loja'}</h2>
+              <button onClick={()=>setShowStoreForm(false)} className="text-gray-500 hover:text-white p-1"><X size={18}/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {[
+                {label:'Nome da Loja *',val:sNome,set:setSNome,ph:'Nome da sua loja'},
+                {label:'Slug (URL) *',val:sSlug,set:setSSlug,ph:'minha-loja'},
+                {label:'Localização',val:sLocal,set:setSLocal,ph:'Angola, Luanda'},
+                {label:'WhatsApp',val:sWA,set:setSWA,ph:'+244 9xx xxx xxx'},
+                {label:'Email de Contacto',val:sEmail,set:setSEmail,ph:'email@exemplo.com'},
+              ].map(({label,val,set,ph})=>(
+                <div key={label}>
+                  <label className="block text-xs text-gray-500 mb-1.5">{label}</label>
+                  <input value={val} onChange={e=>set(e.target.value)} placeholder={ph} className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-emerald-500 placeholder-gray-600"/>
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Descrição</label>
+                <textarea value={sDesc} onChange={e=>setSDesc(e.target.value)} rows={3} placeholder="Descreva a sua loja..."
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-emerald-500 placeholder-gray-600 resize-none"/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Logótipo</label>
+                <ImageUpload value={sLogo} onChange={setSLogo} bucket="store-assets" folder="logos"/>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={()=>setShowStoreForm(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
+                <button onClick={saveStore} disabled={savingStore||!sNome||!sSlug}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm btn-liquid btn-ripple transition-colors">
+                  {savingStore ? 'A guardar...' : store ? 'Guardar' : 'Criar Loja'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Product form modal ── */}
+      {showProductForm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={()=>setShowProductForm(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-t-3xl sm:rounded-3xl w-full max-w-xl max-h-[92vh] overflow-y-auto anim-slide-up" onClick={e=>e.stopPropagation()}>
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-5 py-4 flex items-center justify-between z-10">
+              <h2 className="text-white font-bold">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
+              <button onClick={()=>setShowProductForm(false)} className="text-gray-500 hover:text-white p-1"><X size={18}/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Basic info */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Nome *</label>
+                <input value={pNome} onChange={e=>setPNome(e.target.value)} placeholder="Nome do produto" className="input"/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Descrição</label>
+                <textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} rows={3} placeholder="Descreva o produto..." className="input resize-none"/>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Preço *</label>
+                  <input value={pPreco} onChange={e=>setPPreco(e.target.value)} type="number" placeholder="0.00" className="input"/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Tipo</label>
+                  <select value={pTipo} onChange={e=>setPTipo(e.target.value as any)} className="input">
+                    <option value="digital">Digital</option>
+                    <option value="physical">Físico</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Categoria</label>
+                  <select value={pCat} onChange={e=>setPCat(e.target.value)} className="input">
+                    {CATS.map(c=><option key={c} value={c}>{CAT_LABELS[c]}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Disponibilidade</label>
+                  <select value={pDisp} onChange={e=>setPDisp(e.target.value)} className="input">
+                    <option value="disponivel">Disponível</option>
+                    <option value="esgotado">Esgotado</option>
+                    <option value="pre_venda">Pré-venda</option>
+                    <option value="descontinuado">Descontinuado</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Subcategoria</label>
+                  <input value={pSub} onChange={e=>setPSub(e.target.value)} placeholder="Ex: Contabilidade" className="input"/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Marca</label>
+                  <input value={pMarca} onChange={e=>setPMarca(e.target.value)} placeholder="Nome da marca" className="input"/>
+                </div>
+              </div>
+              {pTipo === 'physical' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1.5">Estoque</label>
+                    <input value={pEstoque} onChange={e=>setPEstoque(e.target.value)} type="number" placeholder="0" className="input"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1.5">Peso (kg)</label>
+                    <input value={pPeso} onChange={e=>setPPeso(e.target.value)} type="number" placeholder="0.0" className="input"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1.5">Transportadora</label>
+                    <input value={pTrans} onChange={e=>setPTrans(e.target.value)} placeholder="DHL, CTT..." className="input"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1.5">Tempo de entrega</label>
+                    <input value={pEntrega} onChange={e=>setPEntrega(e.target.value)} placeholder="3-5 dias úteis" className="input"/>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Localização</label>
+                <input value={pLocal} onChange={e=>setPLocal(e.target.value)} placeholder="Angola, Luanda" className="input"/>
+              </div>
+              {/* Formats */}
+              {pTipo === 'digital' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Formatos incluídos</label>
+                  <div className="flex flex-wrap gap-2">
+                    {FORMATS.map(f=>(
+                      <button key={f} onClick={()=>setPFormatos(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f])}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${pFormatos.includes(f)?'bg-emerald-500/20 border-emerald-600 text-emerald-400':'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600'}`}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Tags */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Tags (separadas por vírgula)</label>
+                <input value={pTags} onChange={e=>setPTags(e.target.value)} placeholder="finança, excel, angola" className="input"/>
+              </div>
+              {/* Image */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">Imagem do produto</label>
+                <ImageUpload value={pImg} onChange={setPImg} bucket="product-images" folder="covers"/>
+              </div>
+              {/* File */}
+              {pTipo === 'digital' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Ficheiro do produto</label>
+                  <FileUpload value={pArq} onChange={setPArq} bucket="product-files" maxSizeMb={500}/>
+                </div>
+              )}
+              {/* Destaque toggle */}
+              <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-2xl border border-gray-700">
+                <div>
+                  <p className="text-white text-sm font-medium">Produto em destaque</p>
+                  <p className="text-gray-500 text-xs mt-0.5">Aparece no topo do marketplace</p>
+                </div>
+                <div role="switch" aria-checked={pDestaque} onClick={()=>setPDestaque(d=>!d)}
+                  className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${pDestaque?'bg-emerald-500':'bg-gray-700'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${pDestaque?'translate-x-4':'translate-x-0.5'}`}/>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={()=>setShowProductForm(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
+                <button onClick={saveProduct} disabled={savingProduct||!pNome||!pPreco}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm btn-liquid btn-ripple transition-colors">
+                  {savingProduct ? 'A guardar...' : editingProduct ? 'Guardar' : 'Publicar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation ── */}
+      {deleteTarget && (
+        <ConfirmDelete
+          label={deleteTarget.nome}
+          type={deleteTarget.type === 'product' ? 'produto' : 'loja'}
+          onConfirm={() => {
+            if (deleteTarget.type === 'product') softDeleteProduct(deleteTarget.id);
+            else deleteStore();
+          }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* ── Release download modal ── */}
+      {releaseOrder && (
+        <ReleaseDownloadModal order={releaseOrder} onRelease={releaseDownload} onClose={()=>setReleaseOrder(null)}/>
       )}
     </div>
   );
