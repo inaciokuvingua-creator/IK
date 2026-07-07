@@ -4,6 +4,12 @@ import { useAuth } from './AuthContext';
 
 export type AiMessage = { role: 'user' | 'assistant'; content: string; ts?: number };
 export type AiContext = 'geral' | 'financeiro' | 'empresarial' | 'marketplace';
+export type AiAttachment = {
+  name?: string;
+  mimeType?: string;
+  url?: string;
+  kind?: string;
+};
 
 export type AiPrivacySettings = {
   enabled: boolean;
@@ -15,7 +21,7 @@ type AiCtx = {
   enabled: boolean;
   privacy: AiPrivacySettings;
   updatePrivacy: (p: Partial<AiPrivacySettings>) => void;
-  sendMessage: (message: string, history: AiMessage[], context: AiContext, financialData?: Record<string, unknown>) => Promise<{ message: string; conversationId: string } | null>;
+  sendMessage: (message: string, history: AiMessage[], context: AiContext, financialData?: Record<string, unknown>, options?: { file?: AiAttachment }) => Promise<{ message: string; conversationId: string } | null>;
   loading: boolean;
   error: string | null;
 };
@@ -51,7 +57,8 @@ export function AIProvider({ children }: { children: ReactNode }) {
     message: string,
     history: AiMessage[],
     context: AiContext,
-    financialData?: Record<string, unknown>
+    financialData?: Record<string, unknown>,
+    options?: { file?: AiAttachment }
   ): Promise<{ message: string; conversationId: string } | null> => {
     if (!user || !session) { setError('Você precisa estar logado.'); return null; }
     if (!privacy.enabled) { setError('IA desativada nas suas configurações de privacidade.'); return null; }
@@ -61,6 +68,10 @@ export function AIProvider({ children }: { children: ReactNode }) {
 
     const cleanHistory = history.map(({ role, content }) => ({ role, content }));
     const payload: Record<string, unknown> = { message, history: cleanHistory, context };
+
+    if (options?.file) {
+      payload.file = options.file;
+    }
 
     if (privacy.allowFinancialData && financialData) {
       payload.financialData = financialData;

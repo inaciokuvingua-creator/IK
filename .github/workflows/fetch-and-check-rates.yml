@@ -1,0 +1,21 @@
+name: Fetch and check exchange rates
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # daily at 00:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  fetch-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call fetch-exchange-rates function
+        run: |
+          curl -sSf -X POST "${{ secrets.SUPABASE_FUNCTION_BASE }}/fetch-exchange-rates" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \
+            -H "Content-Type: application/json" || exit 1
+      - name: Call check-rate-alerts function
+        run: |
+          curl -sSf -X POST "${{ secrets.SUPABASE_FUNCTION_BASE }}/check-rate-alerts" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \
+            -H "Content-Type: application/json" || exit 1

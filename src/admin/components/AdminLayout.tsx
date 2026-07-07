@@ -8,7 +8,7 @@ import { useAdminAuth } from '../AdminAuthContext';
 
 export type AdminPage =
   | 'dashboard' | 'users' | 'financeiro' | 'settings'
-  | 'logs' | 'ai' | 'equipe' | 'empresa' | 'planos';
+  | 'logs' | 'ai' | 'equipe' | 'empresa' | 'planos' | 'marketplace';
 
 type Props = { page: AdminPage; onNavigate: (p: AdminPage) => void; children: ReactNode };
 
@@ -17,6 +17,7 @@ const nav: { id: AdminPage; label: string; icon: React.ElementType; superOnly?: 
   { id: 'users',      label: 'Utilizadores',       icon: Users },
   { id: 'financeiro', label: 'Financeiro',         icon: BarChart3 },
   { id: 'planos',     label: 'Planos & Assinaturas', icon: CreditCard },
+  { id: 'marketplace', label: 'Marketplace',         icon: Store },
   { id: 'equipe',     label: 'Minha Equipe',       icon: UsersRound, superOnly: true },
   { id: 'empresa',    label: 'IK Finance Corp.',   icon: Building2 },
   { id: 'ai',         label: 'IK Finance AI',      icon: Sparkles },

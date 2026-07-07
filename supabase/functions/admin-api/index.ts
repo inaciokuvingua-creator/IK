@@ -405,6 +405,50 @@ Deno.serve(async (req: Request) => {
       return ok({ logs: data ?? [], total: count ?? 0 });
     }
 
+    // ── GET /marketplace/moderation ─────────────────────────────────────────
+    if (path === "/marketplace/moderation" && req.method === "GET") {
+      const status = url.searchParams.get("status") ?? "pending";
+      const page = parseInt(url.searchParams.get("page") ?? "1");
+      const perPage = 20;
+      const from = (page - 1) * perPage;
+      const queueQuery = adminClient
+        .from("marketplace_moderation_queue")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
+      const reportQuery = adminClient
+        .from("marketplace_reports")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
+      if (status && status !== "all") {
+        queueQuery.eq("status", status);
+        reportQuery.eq("status", status === "pending" ? "open" : status);
+      }
+      const [{ data: queue, count: totalQueue }, { data: reports, count: totalReports }] = await Promise.all([queueQuery, reportQuery]);
+      return ok({ queue: queue ?? [], reports: reports ?? [], totalQueue: totalQueue ?? 0, totalReports: totalReports ?? 0 });
+    }
+
+    // ── POST /marketplace/moderation/:id ────────────────────────────────────
+    if (path.startsWith("/marketplace/moderation/") && req.method === "POST") {
+      const id = path.split("/marketplace/moderation/")[1];
+      const { status, note } = await req.json();
+      const { error } = await adminClient.from("marketplace_moderation_queue").update({ status, reviewed_at: new Date().toISOString(), reviewed_by: adminUser.id, metadata: { note } }).eq("id", id);
+      if (error) return err(error.message);
+      await logAction(adminClient, adminUser.id, adminUser.nome, `marketplace_${status}`, "marketplace_moderation_queue", id, { note });
+      return ok({ ok: true });
+    }
+
+    // ── POST /marketplace/reports/:id ───────────────────────────────────────
+    if (path.startsWith("/marketplace/reports/") && req.method === "POST") {
+      const id = path.split("/marketplace/reports/")[1];
+      const { status } = await req.json();
+      const { error } = await adminClient.from("marketplace_reports").update({ status, reviewed_at: new Date().toISOString(), reviewed_by: adminUser.id }).eq("id", id);
+      if (error) return err(error.message);
+      await logAction(adminClient, adminUser.id, adminUser.nome, `report_${status}`, "marketplace_reports", id);
+      return ok({ ok: true });
+    }
+
     // ── POST /change-password ─────────────────────────────────────────────────
     if (path === "/change-password" && req.method === "POST") {
       const { current_password, new_password } = await req.json();

@@ -3,12 +3,13 @@
   "nav": {
     "dashboard": "仪表盘", "cofres": "金库", "financeiro": "财务",
     "negocios": "业务", "patrimonio": "资产", "relatorios": "报告",
-    "marketplace": "市场", "minhaLoja": "我的店铺", "empresas": "公司",
+    "marketplace": "市场", "minhaLoja": "我的店铺", "comunidades": "社区", "empresas": "公司",
     "mensagens": "消息", "planos": "套餐", "perfil": "个人资料",
     "configuracoes": "设置", "sair": "退出登录",
     "financas": "财务", "ecossistema": "生态系统",
     "moeda": "货币", "taxa": "汇率", "notificacoes": "通知",
-    "configurar": "配置", "semNotificacoes": "暂无通知"
+    "configurar": "配置", "semNotificacoes": "暂无通知",
+    "search": "搜索"
   },
   "auth": {
     "login": "登录", "signup": "注册", "logout": "退出",

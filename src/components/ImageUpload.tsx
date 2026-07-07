@@ -4,9 +4,14 @@ import { supabase } from '../lib/supabase';
 
 type Props = {
   bucket: string;
-  path: string;
+  // old API: full path base (without extension) or explicit path handling
+  path?: string;
+  // new API aliases used in forms
+  folder?: string; // upload folder inside the bucket
+  value?: string | null; // alias to currentUrl
   currentUrl?: string | null;
-  onUploaded: (url: string | null) => void;
+  onUploaded?: (url: string | null) => void; // alias-friendly
+  onChange?: (url: string | null) => void; // alias used by forms
   shape?: 'square' | 'circle';
   size?: 'sm' | 'md' | 'lg';
   placeholder?: string;
@@ -20,7 +25,7 @@ const SIZES = {
 };
 
 export default function ImageUpload({
-  bucket, path, currentUrl, onUploaded,
+  bucket, path, folder, currentUrl, value, onUploaded, onChange,
   shape = 'square', size = 'md',
   placeholder = 'Foto',
   accept = 'image/jpeg,image/png,image/webp',
@@ -31,7 +36,10 @@ export default function ImageUpload({
 
   const radius = shape === 'circle' ? 'rounded-full' : 'rounded-2xl';
   const sizeClass = SIZES[size];
-  const displaySrc = preview ?? currentUrl;
+  // support both `currentUrl` and `value` prop names
+  const displaySrc = preview ?? currentUrl ?? value ?? null;
+
+  const effectiveOnUploaded = onUploaded ?? onChange ?? (() => {});
 
   const upload = async (file: File) => {
     setUploading(true);
@@ -41,11 +49,24 @@ export default function ImageUpload({
 
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const fullPath = `${path}.${ext}`;
+      // Determine target path
+      let fullPath: string;
+      if (path) {
+        // legacy: path is a base (without extension)
+        fullPath = `${path}.${ext}`;
+      } else if (folder) {
+        // new: folder provided — store under folder with timestamp to avoid collisions
+        const safeName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+        fullPath = `${folder}/${safeName}`;
+      } else {
+        // fallback: use filename in root
+        fullPath = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+      }
+
       const { error } = await supabase.storage.from(bucket).upload(fullPath, file, { upsert: true });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fullPath);
-      onUploaded(`${publicUrl}?t=${Date.now()}`);
+      effectiveOnUploaded(`${publicUrl}?t=${Date.now()}`);
     } catch (e) {
       setPreview(null);
       console.error(e);
@@ -56,9 +77,22 @@ export default function ImageUpload({
   const remove = async () => {
     setUploading(true);
     try {
-      await supabase.storage.from(bucket).remove([`${path}.jpg`, `${path}.png`, `${path}.webp`]);
+      // Try to remove by known path if provided
+      if (path) {
+        await supabase.storage.from(bucket).remove([`${path}.jpg`, `${path}.png`, `${path}.webp`]);
+      } else if ((currentUrl ?? value) && folder) {
+        // extract filename from public url and remove that specific file inside folder
+        const url = (currentUrl ?? value) as string;
+        const marker = `/storage/v1/object/public/${bucket}/`;
+        const idx = url.indexOf(marker);
+        if (idx !== -1) {
+          const publicPath = url.substring(idx + marker.length).split('?')[0];
+          // remove exact file
+          await supabase.storage.from(bucket).remove([publicPath]);
+        }
+      }
       setPreview(null);
-      onUploaded(null);
+      effectiveOnUploaded(null);
     } catch {}
     setUploading(false);
   };

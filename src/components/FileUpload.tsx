@@ -1,14 +1,21 @@
 import { useRef, useState } from 'react';
 import { Paperclip, Trash2, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { openIKViewer } from './IKViewer';
+import { isMarketplaceFileAllowed } from '../lib/marketplace';
 
 type Props = {
   bucket: string;
-  path: string;
+  // either provide a `path` (folder) or `folder` alias
+  path?: string;
+  folder?: string;
   currentUrl?: string | null;
   currentName?: string | null;
-  onUploaded: (url: string | null, name: string | null) => void;
+  value?: string | null;
+  onUploaded?: (url: string | null, name: string | null) => void;
+  onChange?: (url: string | null, name: string | null) => void;
   maxMb?: number;
+  maxSizeMb?: number; // alias
   label?: string;
 };
 
@@ -33,8 +40,7 @@ function fmtSize(bytes: number) {
 }
 
 export default function FileUpload({
-  bucket, path, currentUrl, currentName,
-  onUploaded, maxMb = 100, label = 'Arquivo do produto',
+  bucket, path, folder, currentUrl, currentName, value, onUploaded, onChange, maxMb = 100, maxSizeMb, label = 'Arquivo do produto',
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -42,8 +48,13 @@ export default function FileUpload({
   const ref = useRef<HTMLInputElement>(null);
 
   const upload = async (file: File) => {
-    if (file.size > maxMb * 1024 * 1024) {
+    const limitMb = maxSizeMb ?? maxMb ?? 100;
+    if (file.size > limitMb * 1024 * 1024) {
       alert(`Ficheiro demasiado grande. Máximo ${maxMb} MB.`);
+      return;
+    }
+    if (!isMarketplaceFileAllowed(file)) {
+      alert('Ficheiro bloqueado por segurança ou formato potencialmente perigoso.');
       return;
     }
     setUploading(true);
@@ -51,12 +62,21 @@ export default function FileUpload({
     setLocalFile({ name: file.name, size: file.size });
 
     try {
-      const fullPath = `${path}/${file.name}`;
+      let fullPath: string;
+      const targetFolder = path ?? folder ?? '';
+      if (targetFolder) {
+        // if folder provided, use timestamped filename to avoid collisions
+        const safeName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+        fullPath = `${targetFolder}/${safeName}`;
+      } else {
+        fullPath = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+      }
       const { error } = await supabase.storage.from(bucket).upload(fullPath, file, { upsert: true });
       if (error) throw error;
       setProgress(100);
       const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fullPath);
-      onUploaded(publicUrl, file.name);
+      const effectiveOnUploaded = onUploaded ?? onChange ?? (() => {});
+      effectiveOnUploaded(publicUrl, file.name);
     } catch (e) {
       console.error(e);
       setLocalFile(null);
@@ -66,7 +86,8 @@ export default function FileUpload({
 
   const remove = () => {
     setLocalFile(null);
-    onUploaded(null, null);
+    const effectiveOnUploaded = onUploaded ?? onChange ?? (() => {});
+    effectiveOnUploaded(null, null);
   };
 
   const hasFile = localFile || (currentUrl && currentName);
@@ -89,10 +110,15 @@ export default function FileUpload({
             </p>
           </div>
           {!uploading && (
-            <button type="button" onClick={remove}
-              className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
-              <Trash2 size={13} />
-            </button>
+            <>
+              <button type="button" onClick={() => openIKViewer({ url: currentUrl ?? '', name: displayName, mimeType: undefined, size: displaySize, description: 'Arquivo carregado no IK Finance' })} className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-950/30 rounded-lg transition-colors">
+                <FileText size={13} />
+              </button>
+              <button type="button" onClick={remove}
+                className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
+                <Trash2 size={13} />
+              </button>
+            </>
           )}
           {uploading && <Loader2 size={16} className="text-emerald-400 animate-spin shrink-0" />}
         </div>

@@ -225,18 +225,40 @@ Deno.serve(async (req: Request) => {
     const body = await req.json() as {
       titulo: string;
       corpo: string;
-      tipo?: "transaction" | "cofre" | "negocio" | "patrimonio" | "meta";
+      tipo?: "transaction" | "cofre" | "negocio" | "patrimonio" | "meta" | "marketplace_purchase" | "marketplace_message" | "marketplace_payment" | "marketplace_download" | "marketplace_review";
       url?: string;
+      userId?: string;
     };
 
-    const { titulo, corpo, url = "/" } = body;
+    const { titulo, corpo, url = "/", userId: explicitUserId, tipo } = body;
+    const targetUserId = explicitUserId ?? user.id;
+
+    const prefMap: Record<string, keyof typeof prefs> | Record<string, string> = {
+      transaction: 'on_transaction',
+      cofre: 'on_cofre',
+      negocio: 'on_negocio',
+      patrimonio: 'on_patrimonio',
+      meta: 'on_meta_reached',
+      marketplace_purchase: 'on_marketplace_purchase',
+      marketplace_message: 'on_marketplace_message',
+      marketplace_payment: 'on_marketplace_payment',
+      marketplace_download: 'on_marketplace_download',
+      marketplace_review: 'on_marketplace_review',
+    };
 
     // Load preferences
     const { data: prefs } = await supabaseAdmin
       .from("notification_preferences")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", targetUserId)
       .maybeSingle();
+
+    const prefKey = tipo ? (prefMap[tipo] as string | undefined) : undefined;
+    if (prefKey && prefs && prefs[prefKey] === false) {
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'preference_disabled' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const results: { push: number[]; email: boolean } = { push: [], email: false };
 
@@ -245,7 +267,7 @@ Deno.serve(async (req: Request) => {
       const { data: subs } = await supabaseAdmin
         .from("push_subscriptions")
         .select("endpoint, p256dh, auth_key")
-        .eq("user_id", user.id);
+        .eq("user_id", targetUserId);
 
       if (subs?.length) {
         for (const sub of subs) {
@@ -260,7 +282,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Email ────────────────────────────────────────────────────────────────
-    if (prefs?.email_enabled && user.email) {
+    const { data: targetUser } = explicitUserId && explicitUserId !== user.id
+      ? await supabaseAdmin.auth.admin.getUserById(targetUserId)
+      : { data: { user } as any };
+    const targetEmail = targetUser?.user?.email ?? user.email;
+
+    if (prefs?.email_enabled && targetEmail) {
       const html = `
         <!DOCTYPE html>
         <html lang="pt">
@@ -296,13 +323,13 @@ Deno.serve(async (req: Request) => {
         </body>
         </html>
       `;
-      const emailResult = await sendEmail(user.email, titulo, html);
+      const emailResult = await sendEmail(targetEmail, titulo, html);
       results.email = emailResult.ok;
     }
 
     // ── Log ──────────────────────────────────────────────────────────────────
     await supabaseAdmin.from("notification_log").insert({
-      user_id: user.id,
+      user_id: targetUserId,
       tipo: "in_app",
       titulo,
       corpo,
