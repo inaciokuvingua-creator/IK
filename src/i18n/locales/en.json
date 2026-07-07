@@ -3,12 +3,13 @@
   "nav": {
     "dashboard": "Dashboard", "cofres": "Vaults", "financeiro": "Finances",
     "negocios": "Businesses", "patrimonio": "Assets", "relatorios": "Reports",
-    "marketplace": "Marketplace", "minhaLoja": "My Store", "empresas": "Companies",
+    "marketplace": "Marketplace", "minhaLoja": "My Store", "comunidades": "Communities", "empresas": "Companies",
     "mensagens": "Messages", "planos": "Plans", "perfil": "Profile",
     "configuracoes": "Settings", "sair": "Sign out",
     "financas": "Finances", "ecossistema": "Ecosystem",
     "moeda": "Currency", "taxa": "Rate", "notificacoes": "Notifications",
-    "configurar": "Configure", "semNotificacoes": "No notifications"
+    "configurar": "Configure", "semNotificacoes": "No notifications",
+    "search": "Search"
   },
   "auth": {
     "login": "Sign in", "signup": "Create account", "logout": "Sign out",

@@ -237,8 +237,9 @@ Deno.serve(async (req: Request) => {
       context: string;
       financialData?: Record<string, unknown>;
       conversationId?: string;
+      file?: { name?: string; mimeType?: string; url?: string; kind?: string };
     };
-    const { message, history = [], context = "geral", financialData, conversationId } = body;
+    const { message, history = [], context = "geral", financialData, conversationId, file } = body;
     if (!message?.trim()) return err("Mensagem vazia");
 
     // Daily limit check
@@ -263,6 +264,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build messages
+    const attachmentContext = file ? `\n\n[ANEXO RECEBIDO PARA ANÁLISE]\n- Nome: ${file.name ?? "sem nome"}\n- Tipo MIME: ${file.mimeType ?? "desconhecido"}\n- Tipo detectado: ${file.kind ?? "desconhecido"}\n- URL: ${file.url ?? "sem URL"}\n` : "";
+
     const systemPrompt = `${aiPersona}
 
 Você é ${aiName}, o assistente oficial e nativo da plataforma IK Finance — criada por Inácio Kuvingua Ulundo, de Huambo, Angola.
@@ -291,10 +294,11 @@ PLANOS:
 
 MOEDAS SUPORTADAS: AOA, USD, EUR, GBP, BRL, CNY, ZAR (taxas em tempo real)
 
-CONTEXTO ACTUAL: ${context}
+CONTEXTO ACTUAL: ${context}${attachmentContext}
 
 REGRAS:
 - Responde SEMPRE em Português (Angola/Portugal)
+- Se houver um anexo, trate-o como conteúdo relevante para a resposta e adapte a resposta à natureza do ficheiro (imagem, áudio, vídeo, documento, etc.)
 - Seja direto, útil e encorajador
 - Nunca invente dados financeiros — use apenas os dados fornecidos
 - Quando não tiver acesso a dados, explique como o utilizador pode autorizar

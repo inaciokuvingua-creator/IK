@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   Bell, BellOff, Mail, Smartphone, Check, X, Trash2,
   ShieldCheck, Clock, TrendingUp, Briefcase, Building2,
-  PiggyBank, Target, AlertTriangle, ChevronRight, Info, Sparkles, Lock, Languages
+  PiggyBank, Target, AlertTriangle, ChevronRight, Info, Sparkles, Lock, Languages, ShoppingBag
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../context/NotificationContext';
@@ -115,6 +115,11 @@ export default function Configuracoes() {
                     <ToggleRow label={t('configuracoes.push.negocios')} description={t('configuracoes.push.negociosDesc')} icon={Briefcase} active={prefs?.on_negocio ?? true} onChange={() => toggle('on_negocio')} />
                     <ToggleRow label={t('configuracoes.push.patrimonio')} description={t('configuracoes.push.patrimonioDesc')} icon={Building2} active={prefs?.on_patrimonio ?? true} onChange={() => toggle('on_patrimonio')} />
                     <ToggleRow label={t('configuracoes.push.meta')} description={t('configuracoes.push.metaDesc')} icon={Target} active={prefs?.on_meta_reached ?? true} onChange={() => toggle('on_meta_reached')} />
+                    <ToggleRow label="Marketplace: compras" description="Novas compras, pedidos e solicitações de conversa com fornecedores" icon={ShoppingBag} active={prefs?.on_marketplace_purchase ?? true} onChange={() => toggle('on_marketplace_purchase' as keyof typeof prefs)} />
+                    <ToggleRow label="Marketplace: mensagens" description="Novas mensagens privadas, comprovativos e respostas de negociação" icon={Bell} active={prefs?.on_marketplace_message ?? true} onChange={() => toggle('on_marketplace_message' as keyof typeof prefs)} />
+                    <ToggleRow label="Marketplace: pagamentos" description="Pagamento aprovado, rejeitado ou pedido de novo comprovativo" icon={ShieldCheck} active={prefs?.on_marketplace_payment ?? true} onChange={() => toggle('on_marketplace_payment' as keyof typeof prefs)} />
+                    <ToggleRow label="Marketplace: downloads" description="Liberação, expiração e alterações em downloads comprados" icon={Smartphone} active={prefs?.on_marketplace_download ?? true} onChange={() => toggle('on_marketplace_download' as keyof typeof prefs)} />
+                    <ToggleRow label="Marketplace: avaliações" description="Nova avaliação, resposta do vendedor e reputação da loja" icon={Sparkles} active={prefs?.on_marketplace_review ?? true} onChange={() => toggle('on_marketplace_review' as keyof typeof prefs)} />
                   </div>
                 )}
               </div>

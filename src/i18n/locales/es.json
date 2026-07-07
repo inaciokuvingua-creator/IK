@@ -3,12 +3,13 @@
   "nav": {
     "dashboard": "Panel", "cofres": "Cajas", "financeiro": "Finanzas",
     "negocios": "Negocios", "patrimonio": "Patrimonio", "relatorios": "Informes",
-    "marketplace": "Marketplace", "minhaLoja": "Mi Tienda", "empresas": "Empresas",
+    "marketplace": "Marketplace", "minhaLoja": "Mi Tienda", "comunidades": "Comunidades", "empresas": "Empresas",
     "mensagens": "Mensajes", "planos": "Planes", "perfil": "Perfil",
     "configuracoes": "Configuración", "sair": "Cerrar sesión",
     "financas": "Finanzas", "ecossistema": "Ecosistema",
     "moeda": "Moneda", "taxa": "Tasa", "notificacoes": "Notificaciones",
-    "configurar": "Configurar", "semNotificacoes": "Sin notificaciones"
+    "configurar": "Configurar", "semNotificacoes": "Sin notificaciones",
+    "search": "Buscar"
   },
   "auth": {
     "login": "Iniciar sesión", "signup": "Crear cuenta", "logout": "Cerrar sesión",

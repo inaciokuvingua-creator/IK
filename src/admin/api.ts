@@ -56,6 +56,9 @@ export const adminApi = {
   saveSettings: (updates: Array<{ chave: string; valor: string }>) => req<{ ok: boolean }>('PUT', '/settings', updates),
 
   logs: (page = 1) => req<{ logs: AdminLog[]; total: number }>('GET', `/logs?page=${page}`),
+  marketplaceModeration: (status = 'pending', page = 1) => req<{ queue: MarketplaceModerationItem[]; reports: MarketplaceReportItem[]; totalQueue: number; totalReports: number }>('GET', `/marketplace/moderation?status=${status}&page=${page}`),
+  marketplaceModerationUpdate: (id: string, body: { status: string; note?: string }) => req<{ ok: boolean }>('POST', `/marketplace/moderation/${id}`, body),
+  marketplaceReportUpdate: (id: string, body: { status: string }) => req<{ ok: boolean }>('POST', `/marketplace/reports/${id}`, body),
   changePassword: (current_password: string, new_password: string) =>
     req<{ ok: boolean }>('POST', '/change-password', { current_password, new_password }),
 
@@ -199,4 +202,30 @@ export type PlanRequest = {
   mensagem: string | null; admin_nota: string | null;
   admin_id: string | null; admin_nome: string | null;
   whatsapp: string | null; reviewed_at: string | null; created_at: string;
+};
+
+export type MarketplaceModerationItem = {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  owner_id: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'escalated';
+  priority: 'low' | 'normal' | 'high';
+  source: string;
+  summary: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  reviewed_at: string | null;
+};
+
+export type MarketplaceReportItem = {
+  id: string;
+  reporter_id: string | null;
+  entity_type: string;
+  entity_id: string;
+  reason: string;
+  details: string | null;
+  status: 'open' | 'reviewing' | 'resolved' | 'dismissed';
+  created_at: string;
+  reviewed_at: string | null;
 };
