@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Relative base prevents blank previews on hosts that serve the app from a subpath.
+  base: './',
   plugins: [
     react(),
     VitePWA({
@@ -46,7 +48,7 @@ export default defineConfig({
             },
           },
         ],
-        navigateFallback: '/index.html',
+        navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         skipWaiting: true,

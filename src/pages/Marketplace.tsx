@@ -1,5 +1,5 @@
 import {
-  useState, useEffect, useRef, useCallback, ChangeEvent,
+  useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
 import {
   Search, Filter, Grid3X3, List, Star, ShoppingBag, Heart,
@@ -11,9 +11,23 @@ import {
   Image as ImageIcon, FileText, Volume2, Film, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { firstProductImage, parseProductImages } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAnimation } from '../context/AnimationContext';
+import { useNotifications } from '../context/NotificationContext';
+import {
+  MARKETPLACE_SHARE_TARGETS,
+  buildProductUrl,
+  buildStoreUrl,
+  formatReviewScore,
+  setDocumentMeta,
+  setStructuredData,
+  shareToTarget,
+  slugify,
+} from '../lib/marketplace';
+import { checkMarketplaceRateLimit, queueMarketplaceModeration } from '../lib/marketplaceGuardrails';
+import { buildPaymentInstructions, type PaymentProfile } from '../lib/paymentProfiles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Store = {
@@ -22,6 +36,7 @@ type Store = {
   categoria: string; verified: boolean; ativo: boolean;
   rating: number; total_sales: number; avg_rating: number; review_count: number;
   localizacao: string | null; whatsapp: string | null; email_contato: string | null;
+  meta_title?: string | null; meta_description?: string | null;
   deleted_at: string | null;
 };
 
@@ -37,8 +52,10 @@ type Product = {
   peso: number | null; dimensoes: object | null;
   transportadora: string | null; tempo_entrega: string | null;
   formatos: string[] | null; tags: string[] | null;
+  slug?: string | null; meta_title?: string | null; meta_description?: string | null; seo_keywords?: string[] | null;
+  allow_download?: boolean;
   deleted_at: string | null; created_at: string;
-  stores?: { nome: string; slug: string; verified: boolean; logo_url: string | null };
+  stores?: { nome: string; slug: string; verified: boolean; logo_url: string | null; owner_id?: string | null };
 };
 
 type ProductMedia = {
@@ -78,16 +95,6 @@ const CAT_LABELS: Record<string, string> = {
   cursos: 'Cursos', templates: 'Templates', fotos: 'Fotos/Arte',
   videos: 'Vídeos', dados: 'Dados', fisico: 'Físico', outro: 'Outro',
 };
-const SHARE_TARGETS = [
-  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', icon: '💬' },
-  { id: 'facebook', label: 'Facebook', color: '#1877F2', icon: '📘' },
-  { id: 'telegram', label: 'Telegram', color: '#26A5E4', icon: '✈️' },
-  { id: 'twitter',  label: 'X',        color: '#000',    icon: '🐦' },
-  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', icon: '💼' },
-  { id: 'copy',     label: 'Copiar',   color: '#6B7280', icon: '🔗' },
-  { id: 'email',    label: 'Email',    color: '#EF4444', icon: '📧' },
-];
-
 function formatSize(b: number) {
   if (b < 1024) return `${b}B`;
   if (b < 1048576) return `${(b/1024).toFixed(1)}KB`;
@@ -176,24 +183,13 @@ function StarRating({ value, onChange, readonly=false, size='md' }: { value: num
 // ── Share modal ───────────────────────────────────────────────────────────────
 function ShareModal({ url, title, onClose }: { url: string; title: string; onClose: ()=>void }) {
   const [copied, setCopied] = useState(false);
-  const full = `${window.location.origin}?share=${encodeURIComponent(url)}`;
+  const full = url;
 
-  const share = (id: string) => {
-    const enc = encodeURIComponent(full);
-    const txt = encodeURIComponent(title);
-    const map: Record<string,string> = {
-      whatsapp: `https://wa.me/?text=${txt}%20${enc}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${enc}`,
-      telegram: `https://t.me/share/url?url=${enc}&text=${txt}`,
-      twitter:  `https://twitter.com/intent/tweet?text=${txt}&url=${enc}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${enc}`,
-      email:    `mailto:?subject=${txt}&body=${enc}`,
-    };
+  const share = async (id: string) => {
+    await shareToTarget(id as any, full, title, title);
     if (id === 'copy') {
-      navigator.clipboard.writeText(full);
-      setCopied(true); setTimeout(()=>setCopied(false),2000);
-    } else {
-      window.open(map[id], '_blank', 'noopener,noreferrer');
+      setCopied(true);
+      setTimeout(()=>setCopied(false),2000);
     }
   };
 
@@ -204,8 +200,8 @@ function ShareModal({ url, title, onClose }: { url: string; title: string; onClo
           <h3 className="text-white font-semibold">Partilhar</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white p-1"><X size={16}/></button>
         </div>
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          {SHARE_TARGETS.map(t => (
+        <div className="grid grid-cols-4 gap-3 mb-4 max-h-72 overflow-y-auto pr-1">
+          {MARKETPLACE_SHARE_TARGETS.map(t => (
             <button key={t.id} onClick={() => share(t.id)}
               className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 transition-all hover:scale-105">
               <span className="text-xl">{t.id==='copy' && copied ? '✅' : t.icon}</span>
@@ -241,6 +237,12 @@ function ProductModal({
   const [submitting, setSubmitting] = useState(false);
   const [isFav, setIsFav]       = useState(false);
   const [tab, setTab]           = useState<'info'|'media'|'reviews'>('info');
+  const [likedReviewIds, setLikedReviewIds] = useState<string[]>([]);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
+
+  const productUrl = buildProductUrl(product.id, product.slug ?? slugify(product.nome));
+  const isSupplierOwner = userId != null && product.stores?.owner_id === userId;
 
   useEffect(() => {
     // Record view
@@ -252,14 +254,51 @@ function ProductModal({
     // Check fav
     if (userId) {
       supabase.from('product_favourites').select('id').eq('product_id',product.id).eq('user_id',userId).maybeSingle().then(({data}) => setIsFav(!!data));
+      supabase.from('product_review_likes').select('review_id').eq('user_id', userId).then(({ data }) => setLikedReviewIds((data ?? []).map((row: any) => row.review_id)));
     }
+    window.history.replaceState({}, '', productUrl);
+    setDocumentMeta({
+      title: product.meta_title ?? `${product.nome} | IK Finance Marketplace`,
+      description: product.meta_description ?? product.descricao ?? `Produto ${product.nome} disponível no marketplace IK Finance.`,
+      keywords: product.seo_keywords ?? [product.categoria, product.subcategoria ?? '', product.marca ?? ''].filter(Boolean),
+      image: firstProductImage(product.imagem_url),
+      url: productUrl,
+    });
+    setStructuredData('ik-marketplace-product-schema', {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.nome,
+      description: product.descricao,
+      image: allImages.map((item) => item.url),
+      brand: product.marca ? { '@type': 'Brand', name: product.marca } : undefined,
+      offers: {
+        '@type': 'Offer',
+        price: product.preco,
+        priceCurrency: product.moeda,
+        availability: product.disponibilidade === 'disponivel' ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: productUrl,
+      },
+      aggregateRating: reviews.length > 0 ? {
+        '@type': 'AggregateRating',
+        ratingValue: avgRating,
+        reviewCount: reviews.length,
+      } : undefined,
+    });
+    return () => {
+      const resetUrl = new URL(window.location.href);
+      resetUrl.searchParams.delete('view');
+      resetUrl.searchParams.delete('product');
+      resetUrl.searchParams.delete('slug');
+      window.history.replaceState({}, '', resetUrl.toString());
+    };
   }, [product.id, userId]);
 
+  const imgUrls = parseProductImages(product.imagem_url ?? null);
   const allImages = [
-    ...(product.imagem_url ? [{ url: product.imagem_url, type: 'image' }] : []),
+    ...imgUrls.map(u=>({ url: u, type: 'image' })),
     ...media.filter(m=>m.type==='image').map(m=>({ url: m.url, type: 'image' })),
   ];
-  const imgSrc = allImages[imgIdx]?.url ?? product.imagem_url;
+  const imgSrc = allImages[imgIdx]?.url ?? firstProductImage(product.imagem_url);
 
   const toggleFav = async () => {
     if (!userId) return;
@@ -274,14 +313,86 @@ function ProductModal({
 
   const submitReview = async () => {
     if (!myRating || !userId) return;
+    const limit = await checkMarketplaceRateLimit({ action: 'product_review', limit: 5, windowMs: 60 * 60 * 1000, userId, metadata: { productId: product.id } });
+    if (!limit.allowed) {
+      alert('Limite temporário de avaliações atingido. Tente novamente mais tarde.');
+      return;
+    }
     setSubmitting(true);
-    await supabase.from('product_reviews').upsert({
+    const { data: saved } = await supabase.from('product_reviews').upsert({
       product_id: product.id, store_id: product.store_id,
       rating: myRating, comment: myComment.trim() || null,
-    });
+    }).select('id').single();
+    if (saved?.id) {
+      await queueMarketplaceModeration({ entityType: 'review', entityId: saved.id, ownerId: userId, summary: `Nova avaliação em ${product.nome}`, priority: myRating <= 2 ? 'high' : 'normal', metadata: { rating: myRating } });
+    }
     const {data} = await supabase.from('product_reviews').select('*, profiles:reviewer_id(nome,avatar_url)').eq('product_id',product.id).order('created_at',{ascending:false}).limit(20);
     setReviews(data as any ?? []);
+    if (product.stores?.owner_id && product.stores.owner_id !== userId) {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      const session = await supabase.auth.getSession();
+      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+          'Content-Type': 'application/json',
+          Apikey: anonKey,
+        },
+        body: JSON.stringify({
+          titulo: 'Nova avaliação recebida',
+          corpo: `${product.nome} recebeu uma nova avaliação de ${myRating} estrela(s).`,
+          tipo: 'marketplace_review',
+          userId: product.stores.owner_id,
+          url: productUrl,
+        }),
+      });
+    }
     setMyRating(0); setMyComment(''); setSubmitting(false);
+  };
+
+  const toggleReviewLike = async (reviewId: string) => {
+    if (!userId) return;
+    const liked = likedReviewIds.includes(reviewId);
+    if (liked) {
+      await supabase.from('product_review_likes').delete().eq('review_id', reviewId).eq('user_id', userId);
+      setLikedReviewIds((prev) => prev.filter((id) => id !== reviewId));
+      setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: Math.max(0, review.likes - 1) } : review));
+      return;
+    }
+    await supabase.from('product_review_likes').insert({ review_id: reviewId, user_id: userId });
+    setLikedReviewIds((prev) => [...prev, reviewId]);
+    setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: review.likes + 1 } : review));
+  };
+
+  const saveSellerReply = async (reviewId: string) => {
+    if (!isSupplierOwner) return;
+    setSubmittingReplyId(reviewId);
+    const reply = (replyDrafts[reviewId] ?? '').trim();
+    await supabase.from('product_reviews').update({ seller_reply: reply || null, seller_reply_at: reply ? new Date().toISOString() : null }).eq('id', reviewId);
+    setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, seller_reply: reply || null } : review));
+    const review = reviews.find((item) => item.id === reviewId);
+    if (review?.reviewer_id) {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      const session = await supabase.auth.getSession();
+      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+          'Content-Type': 'application/json',
+          Apikey: anonKey,
+        },
+        body: JSON.stringify({
+          titulo: 'O vendedor respondeu à sua avaliação',
+          corpo: `${product.nome} recebeu uma resposta do vendedor.`,
+          tipo: 'marketplace_review',
+          userId: review.reviewer_id,
+          url: productUrl,
+        }),
+      });
+    }
+    setSubmittingReplyId(null);
   };
 
   const avgRating = reviews.length ? reviews.reduce((s,r)=>s+r.rating,0)/reviews.length : product.avg_rating;
@@ -342,7 +453,7 @@ function ProductModal({
             <div className="flex flex-col gap-2">
               <button onClick={() => onContactSupplier(product)}
                 className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors btn-liquid btn-ripple">
-                <MessageCircle size={15}/> Falar com Fornecedor
+                <MessageCircle size={15}/> Conversar com o Fornecedor
               </button>
               {product.tipo === 'digital' && (
                 <p className="text-gray-600 text-xs text-center">Entrega digital imediata após pagamento</p>
@@ -425,16 +536,22 @@ function ProductModal({
               {product.stores && (
                 <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-4">
                   <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">Fornecedor</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center shrink-0">
-                      <ShoppingBag size={18} className="text-gray-400"/>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-white font-semibold text-sm">{product.stores.nome}</p>
-                        {product.stores.verified && <CheckCircle size={13} className="text-emerald-400"/>}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center shrink-0">
+                        <ShoppingBag size={18} className="text-gray-400"/>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-white font-semibold text-sm">{product.stores.nome}</p>
+                          {product.stores.verified && <CheckCircle size={13} className="text-emerald-400"/>}
+                        </div>
                       </div>
                     </div>
+                    <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('openStoreProfile', { detail: { id: product.store_id } })); }}
+                      className="w-full text-left text-xs text-emerald-400 hover:text-emerald-200 font-medium transition-colors">
+                      Ver loja
+                    </button>
                   </div>
                 </div>
               )}
@@ -526,10 +643,23 @@ function ProductModal({
                       </div>
                       <StarRating value={r.rating} readonly size="sm"/>
                       {r.comment && <p className="text-gray-300 text-sm mt-1.5 leading-relaxed">{r.comment}</p>}
+                      <div className="flex items-center gap-3 mt-2">
+                        <button onClick={() => toggleReviewLike(r.id)} className={`text-xs transition-colors ${likedReviewIds.includes(r.id) ? 'text-emerald-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                          Curtir ({r.likes})
+                        </button>
+                      </div>
                       {r.seller_reply && (
                         <div className="mt-2 pl-3 border-l-2 border-emerald-700 bg-emerald-950/20 rounded-r-lg p-2">
                           <p className="text-emerald-400 text-xs font-medium mb-1">Resposta do vendedor</p>
                           <p className="text-gray-300 text-xs">{r.seller_reply}</p>
+                        </div>
+                      )}
+                      {isSupplierOwner && (
+                        <div className="mt-2 flex gap-2">
+                          <input value={replyDrafts[r.id] ?? r.seller_reply ?? ''} onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [r.id]: e.target.value }))} placeholder="Responder avaliação" className="flex-1 bg-gray-800 border border-gray-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500" />
+                          <button onClick={() => saveSellerReply(r.id)} disabled={submittingReplyId === r.id} className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold disabled:opacity-50">
+                            {submittingReplyId === r.id ? '...' : 'Responder'}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -550,9 +680,7 @@ function ProductModal({
       )}
 
       {/* Share modal */}
-      {showShare && (
-        <ShareModal url={`/marketplace/product/${product.id}`} title={product.nome} onClose={()=>setShowShare(false)}/>
-      )}
+      {showShare && <ShareModal url={productUrl} title={product.nome} onClose={()=>setShowShare(false)}/>} 
     </div>
   );
 }
@@ -562,6 +690,7 @@ function ContactSupplierModal({
   product, userId, onClose, onNavigateChat,
 }: { product: Product; userId: string; onClose: ()=>void; onNavigateChat: ()=>void }) {
   const { format } = useCurrency();
+  const { sendNotification } = useNotifications();
   const [step, setStep]       = useState<'intro'|'message'|'done'>('intro');
   const [message, setMessage] = useState(`Olá! Tenho interesse em "${product.nome}" por ${format(product.preco)}. Podemos combinar os detalhes do pagamento?`);
   const [sending, setSending] = useState(false);
@@ -569,11 +698,26 @@ function ContactSupplierModal({
   const startConversation = async () => {
     setSending(true);
     try {
+      const rateLimit = await checkMarketplaceRateLimit({ action: 'marketplace_conversation', limit: 12, windowMs: 60 * 60 * 1000, userId, metadata: { productId: product.id } });
+      if (!rateLimit.allowed) {
+        setSending(false);
+        alert('Muitas solicitações em pouco tempo. Aguarde antes de iniciar nova conversa.');
+        return;
+      }
       // Get store owner
       const { data: store } = await supabase.from('stores').select('owner_id').eq('id', product.store_id).maybeSingle();
       if (!store) throw new Error('Loja não encontrada');
       const supplierId = store.owner_id;
       if (supplierId === userId) { onClose(); return; }
+
+      const { data: paymentProfiles } = await supabase
+        .from('payment_profiles')
+        .select('*')
+        .eq('owner_type', 'store')
+        .eq('store_id', product.store_id)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false });
+      const paymentInstructions = buildPaymentInstructions((paymentProfiles ?? []) as PaymentProfile[]);
 
       // Find or create DM conversation
       let convId: string | null = null;
@@ -604,6 +748,7 @@ function ContactSupplierModal({
         store_id: product.store_id, product_id: product.id,
         preco_unitario: product.preco, total: product.preco,
         moeda: product.moeda, status: 'pending',
+        notes: paymentInstructions,
         conversation_id: convId,
       }).select().single();
 
@@ -613,8 +758,25 @@ function ContactSupplierModal({
         type: 'text',
         content: `🛍️ *Interesse em produto*\n\nProduto: ${product.nome}\nPreço: ${format(product.preco)}\n\n${message}`,
       });
+      if ((paymentProfiles ?? []).length > 0) {
+        await supabase.from('chat_messages').insert({
+          conversation_id: convId,
+          type: 'text',
+          content: `💳 *Métodos de pagamento disponíveis*\n\n${paymentInstructions}`,
+        });
+      }
+      if (order?.id) {
+        await queueMarketplaceModeration({ entityType: 'message', entityId: order.id, ownerId: userId, summary: `Conversa iniciada sobre ${product.nome}`, metadata: { conversationId: convId, productId: product.id } });
+      }
 
       await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
+      await sendNotification(
+        'Nova solicitação de compra',
+        `Há um comprador interessado em ${product.nome}. Abra a conversa para negociar o pagamento manual.`,
+        'marketplace_purchase',
+        { userId: supplierId, url: buildProductUrl(product.id, product.slug ?? slugify(product.nome)) }
+      );
+      window.dispatchEvent(new CustomEvent('openChatWith', { detail: { id: supplierId } }));
       setStep('done');
     } catch {
       setSending(false);
@@ -652,7 +814,7 @@ function ContactSupplierModal({
 
         <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-3">
-            {product.imagem_url ? <img src={product.imagem_url} alt="" className="w-12 h-12 rounded-xl object-cover"/> : <div className="w-12 h-12 rounded-xl bg-gray-700 flex items-center justify-center"><Package size={20} className="text-gray-500"/></div>}
+            {firstProductImage(product.imagem_url) ? <img src={firstProductImage(product.imagem_url)!} alt="" className="w-12 h-12 rounded-xl object-cover"/> : <div className="w-12 h-12 rounded-xl bg-gray-700 flex items-center justify-center"><Package size={20} className="text-gray-500"/></div>}
             <div>
               <p className="text-white font-medium text-sm">{product.nome}</p>
               <p className="text-emerald-400 font-bold">{format(product.preco)}</p>
@@ -679,10 +841,12 @@ function ContactSupplierModal({
 // ── My Orders / Downloads panel ────────────────────────────────────────────────
 function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat: ()=>void }) {
   const { format } = useCurrency();
+  const { sendNotification } = useNotifications();
   const [orders, setOrders]           = useState<Order[]>([]);
   const [tokens, setTokens]           = useState<DownloadToken[]>([]);
-  const [tab, setTab]                 = useState<'orders'|'downloads'|'favourites'>('orders');
+  const [tab, setTab]                 = useState<'orders'|'downloads'|'favourites'|'conversations'|'reviews'>('orders');
   const [favs, setFavs]               = useState<any[]>([]);
+  const [reviews, setReviews]         = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
   const [proofFile, setProofFile]     = useState<File | null>(null);
   const [proofNote, setProofNote]     = useState('');
@@ -693,26 +857,63 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo), stores:store_id(nome)').eq('buyer_id', userId).order('created_at',{ascending:false}),
+      supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo), stores:store_id(nome,owner_id)').eq('buyer_id', userId).order('created_at',{ascending:false}),
       supabase.from('download_tokens').select('*, products:product_id(nome,arquivo_url)').eq('buyer_id', userId).order('created_at',{ascending:false}),
       supabase.from('product_favourites').select('*, products:product_id(*)').eq('user_id', userId),
-    ]).then(([o, d, f]) => {
+      supabase.from('product_reviews').select('*, products:product_id(nome)').eq('reviewer_id', userId).order('created_at', { ascending: false }),
+    ]).then(([o, d, f, r]) => {
       setOrders(o.data as Order[] ?? []);
       setTokens(d.data as DownloadToken[] ?? []);
       setFavs(f.data ?? []);
+      setReviews(r.data ?? []);
       setLoading(false);
     });
   }, [userId]);
 
+  const openConversationChat = async (conversationId: string) => {
+    const { data } = await supabase.from('chat_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', userId)
+      .limit(1);
+    const otherId = (data as any[])?.[0]?.user_id;
+    if (otherId) {
+      window.dispatchEvent(new CustomEvent('openChatWith', { detail: { id: otherId } }));
+      window.dispatchEvent(new CustomEvent('openChat'));
+    } else if ((orders.find(o => o.conversation_id === conversationId)?.stores as any)?.owner_id) {
+      const ownerId = (orders.find(o => o.conversation_id === conversationId)?.stores as any)?.owner_id;
+      if (ownerId) {
+        window.dispatchEvent(new CustomEvent('openChatWith', { detail: { id: ownerId } }));
+        window.dispatchEvent(new CustomEvent('openChat'));
+      }
+    }
+  };
+
   const sendProof = async (orderId: string) => {
     if (!proofFile) return;
+    const rateLimit = await checkMarketplaceRateLimit({ action: 'payment_proof_upload', limit: 8, windowMs: 60 * 60 * 1000, userId, metadata: { orderId } });
+    if (!rateLimit.allowed) {
+      alert('Muitos comprovativos enviados em pouco tempo. Aguarde antes de tentar novamente.');
+      return;
+    }
     setSendingProof(true);
     const path = `${userId}/proofs/${orderId}/${Date.now()}-${proofFile.name}`;
     const { data } = await supabase.storage.from('marketplace-media').upload(path, proofFile);
     if (!data) { setSendingProof(false); return; }
     const { data: { publicUrl } } = supabase.storage.from('marketplace-media').getPublicUrl(path);
     await supabase.from('order_proofs').insert({ order_id: orderId, url: publicUrl, mime: proofFile.type, name: proofFile.name, note: proofNote });
+    await queueMarketplaceModeration({ entityType: 'proof', entityId: orderId, ownerId: userId, summary: `Novo comprovativo enviado para o pedido ${orderId}`, priority: 'normal', metadata: { fileName: proofFile.name } });
     await supabase.from('orders').update({ proof_url: publicUrl, status: 'paid' }).eq('id', orderId);
+    const currentOrder = orders.find((order) => order.id === orderId);
+    const supplierId = (currentOrder?.stores as any)?.owner_id as string | undefined;
+    if (supplierId) {
+      await sendNotification(
+        'Novo comprovativo enviado',
+        `O comprador enviou um comprovativo para ${(currentOrder?.products as any)?.nome ?? 'um pedido'}.`,
+        'marketplace_payment',
+        { userId: supplierId, url: buildProductUrl(currentOrder?.product_id ?? '', undefined) }
+      );
+    }
     setOrders(prev => prev.map(o => o.id===orderId ? {...o, status:'paid', proof_url: publicUrl} : o));
     setProofFile(null); setProofNote(''); setSendingProof(false); setSelectedOrder(null);
   };
@@ -731,10 +932,10 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
   return (
     <div className="space-y-4">
       <div className="flex gap-1 bg-gray-800 rounded-2xl p-1">
-        {(['orders','downloads','favourites'] as const).map(t=>(
+        {(['orders','downloads','favourites','conversations','reviews'] as const).map(t=>(
           <button key={t} onClick={()=>setTab(t)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-colors ${tab===t?'bg-emerald-500 text-white':'text-gray-400 hover:text-gray-200'}`}>
-            {t==='orders'?'Pedidos':t==='downloads'?'Downloads':'Favoritos'}
+            {t==='orders'?'Pedidos':t==='downloads'?'Downloads':t==='favourites'?'Favoritos':t==='conversations'?'Conversas':'Avaliações'}
           </button>
         ))}
       </div>
@@ -747,8 +948,8 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
           {orders.map(o=>(
             <div key={o.id} className="bg-gray-800/50 border border-gray-700 rounded-2xl p-4">
               <div className="flex items-start gap-3">
-                {(o.products as any)?.imagem_url
-                  ? <img src={(o.products as any).imagem_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0"/>
+                {firstProductImage((o.products as any)?.imagem_url)
+                  ? <img src={firstProductImage((o.products as any)?.imagem_url)!} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0"/>
                   : <div className="w-12 h-12 rounded-xl bg-gray-700 flex items-center justify-center shrink-0"><Package size={20} className="text-gray-500"/></div>}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
@@ -774,12 +975,18 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
                   </button>
                 )}
                 {o.conversation_id && (
-                  <button onClick={onNavigateChat}
+                  <button onClick={() => openConversationChat(o.conversation_id)}
                     className="flex items-center gap-1.5 text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 px-3 py-1.5 rounded-xl transition-colors">
                     <MessageCircle size={12}/> Chat
                   </button>
                 )}
               </div>
+              {o.notes && (
+                <div className="mt-3 p-3 bg-gray-900 rounded-xl border border-gray-700">
+                  <p className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider mb-2">Informações para pagamento</p>
+                  <p className="text-gray-300 text-xs whitespace-pre-wrap leading-relaxed">{o.notes}</p>
+                </div>
+              )}
               {/* Proof upload */}
               {selectedOrder===o.id && (
                 <div className="mt-3 p-3 bg-gray-900 rounded-xl border border-gray-700 space-y-2">
@@ -821,7 +1028,21 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
                   {disabled
                     ? <span className="text-xs text-red-400 font-medium">{tk.revoked?'Revogado':expired?'Expirado':'Esgotado'}</span>
                     : <a href={(tk.products as any)?.arquivo_url ?? '#'} target="_blank" rel="noopener noreferrer"
-                        onClick={async ()=>{ await supabase.from('download_tokens').update({download_count:tk.download_count+1,last_download:new Date().toISOString()}).eq('id',tk.id); }}
+                        onClick={async ()=>{
+                          const now = new Date().toISOString();
+                          await supabase.from('download_tokens').update({
+                            download_count:tk.download_count+1,
+                            last_download: now,
+                            last_device: navigator.platform,
+                          }).eq('id',tk.id);
+                          await supabase.from('download_token_logs').insert({
+                            download_token_id: tk.id,
+                            order_id: tk.order_id,
+                            buyer_id: userId,
+                            device_label: navigator.platform,
+                            user_agent: navigator.userAgent.substring(0, 200),
+                          });
+                        }}
                         className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold px-3 py-1.5 rounded-xl btn-liquid transition-colors">
                         <Download size={13}/> Baixar
                       </a>}
@@ -839,7 +1060,7 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
             const p = f.products as Product;
             return (
               <div key={f.id} className="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden">
-                {p?.imagem_url ? <img src={p.imagem_url} alt="" className="w-full h-28 object-cover"/> : <div className="w-full h-28 bg-gray-700 flex items-center justify-center"><Package size={24} className="text-gray-500"/></div>}
+                {firstProductImage(p?.imagem_url) ? <img src={firstProductImage(p?.imagem_url)!} alt="" className="w-full h-28 object-cover"/> : <div className="w-full h-28 bg-gray-700 flex items-center justify-center"><Package size={24} className="text-gray-500"/></div>}
                 <div className="p-3">
                   <p className="text-white text-xs font-medium truncate">{p?.nome}</p>
                   <p className="text-emerald-400 text-sm font-bold mt-0.5">{format(p?.preco ?? 0)}</p>
@@ -849,15 +1070,42 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
           })}
         </div>
       )}
+
+      {!loading && tab==='conversations' && (
+        <div className="space-y-3">
+          {orders.filter(o => o.conversation_id).length===0 && <p className="text-gray-600 text-sm text-center py-8">Sem conversas de compra ainda</p>}
+          {orders.filter(o => o.conversation_id).map(o=>(
+            <button key={o.id} onClick={() => o.conversation_id && openConversationChat(o.conversation_id)} className="w-full text-left bg-gray-800/50 border border-gray-700 rounded-2xl p-4 hover:border-gray-600 transition-colors">
+              <p className="text-white text-sm font-medium">{(o.products as any)?.nome ?? 'Conversa de compra'}</p>
+              <p className="text-gray-500 text-xs mt-1">{(o.stores as any)?.nome ?? 'Loja'} · {new Date(o.created_at).toLocaleDateString('pt-AO')}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!loading && tab==='reviews' && (
+        <div className="space-y-3">
+          {reviews.length===0 && <p className="text-gray-600 text-sm text-center py-8">Nenhuma avaliação feita ainda</p>}
+          {reviews.map((review:any) => (
+            <div key={review.id} className="bg-gray-800/50 border border-gray-700 rounded-2xl p-4">
+              <p className="text-white text-sm font-medium">{review.products?.nome ?? 'Produto'}</p>
+              <p className="text-amber-400 text-xs mt-1">{'★'.repeat(review.rating)}{'☆'.repeat(Math.max(0, 5 - review.rating))}</p>
+              {review.comment && <p className="text-gray-400 text-sm mt-2">{review.comment}</p>}
+              <p className="text-gray-600 text-xs mt-2">{new Date(review.created_at).toLocaleDateString('pt-AO')}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Main Marketplace ───────────────────────────────────────────────────────────
-export default function Marketplace({ onNavigate }: { onNavigate?: (page: string) => void }) {
+export default function Marketplace({ onNavigate, initialProductId }: { onNavigate?: (page: string) => void; initialProductId?: string }) {
   const { user }   = useAuth();
   const { format } = useCurrency();
   const { entryClass } = useAnimation();
+  const { sendNotification } = useNotifications();
 
   const [products, setProducts]         = useState<Product[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -871,10 +1119,17 @@ export default function Marketplace({ onNavigate }: { onNavigate?: (page: string
   const [showBuyerPanel, setShowBuyerPanel]   = useState(false);
   const [tab, setTab]                   = useState<'shop'|'orders'>('shop');
 
+  const rankings = useMemo(() => {
+    const topProduct = [...products].sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0) || (b.review_count || 0) - (a.review_count || 0))[0] ?? null;
+    const topStore = [...products].filter((item) => item.stores?.nome).sort((a, b) => ((b.stores?.verified ? 1 : 0) - (a.stores?.verified ? 1 : 0)) || (b.avg_rating || 0) - (a.avg_rating || 0))[0]?.stores ?? null;
+    const trustedSeller = [...products].sort((a, b) => (b.total_vendas || 0) - (a.total_vendas || 0) || (b.avg_rating || 0) - (a.avg_rating || 0))[0]?.stores ?? null;
+    return { topProduct, topStore, trustedSeller };
+  }, [products]);
+
   const load = useCallback(async () => {
     setLoading(true);
     let q = supabase.from('products')
-      .select('*, stores!store_id(nome,slug,verified,logo_url)')
+      .select('*, stores!store_id(nome,slug,verified,logo_url,owner_id)')
       .eq('ativo', true)
       .is('deleted_at', null);
 
@@ -900,14 +1155,38 @@ export default function Marketplace({ onNavigate }: { onNavigate?: (page: string
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    setDocumentMeta({
+      title: 'Marketplace IK Finance',
+      description: 'Descubra produtos digitais e físicos, converse com fornecedores e acompanhe pedidos manualmente no ecossistema IK Finance.',
+      keywords: ['marketplace', 'ik finance', 'produtos digitais', 'fornecedores', 'lojas'],
+      url: buildStoreUrl('marketplace-overview', 'marketplace'),
+    });
+    setStructuredData('ik-marketplace-schema', {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: 'Marketplace IK Finance',
+      description: 'Produtos digitais e físicos do ecossistema IK Finance',
+      url: buildStoreUrl('marketplace-overview', 'marketplace'),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!initialProductId) return;
+    (async () => {
+      const { data } = await supabase.from('products').select('*, stores!store_id(nome,slug,verified,logo_url,owner_id)').eq('id', initialProductId).maybeSingle();
+      if (data) setSelectedProduct(data as Product);
+    })();
+  }, [initialProductId]);
+
   const productCard = (p: Product) => (
     <div key={p.id}
       className={`bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden cursor-pointer hover-lift group transition-all ${viewMode==='list'?'flex gap-4 p-4':'flex flex-col'}`}
-      onClick={() => setSelectedProduct(p)}>
+      onClick={() => setSelectedProduct({ ...p, slug: p.slug ?? slugify(p.nome) })}>
       {/* Image */}
       <div className={`bg-gray-800 overflow-hidden shrink-0 relative ${viewMode==='list'?'w-20 h-20 rounded-xl':'aspect-video'}`}>
-        {p.imagem_url
-          ? <img src={p.imagem_url} alt={p.nome} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+        {firstProductImage(p.imagem_url)
+          ? <img src={firstProductImage(p.imagem_url)!} alt={p.nome} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
           : <div className="w-full h-full flex items-center justify-center"><Package size={28} className="text-gray-600"/></div>}
         {p.destaque && <span className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-lg">★ Destaque</span>}
         {p.tipo === 'digital' && <span className="absolute top-2 right-2 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded-lg">Digital</span>}
@@ -973,6 +1252,24 @@ export default function Marketplace({ onNavigate }: { onNavigate?: (page: string
 
       {!showBuyerPanel && (
         <>
+          <div className="grid md:grid-cols-3 gap-3">
+            <button onClick={() => rankings.topProduct && setSelectedProduct(rankings.topProduct)} className="text-left rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 hover:border-amber-400/40 transition-colors">
+              <p className="text-xs uppercase tracking-[0.2em] text-amber-300/80 mb-2">Produto mais bem avaliado</p>
+              <p className="text-white font-semibold text-sm">{rankings.topProduct?.nome ?? 'Sem dados'}</p>
+              <p className="text-amber-200/80 text-xs mt-1">{rankings.topProduct ? `${formatReviewScore(rankings.topProduct.avg_rating)} estrelas` : 'Aguardando avaliações'}</p>
+            </button>
+            <button onClick={() => rankings.topStore && window.dispatchEvent(new CustomEvent('openStoreProfile', { detail: { id: products.find((item) => item.stores?.slug === rankings.topStore?.slug)?.store_id } }))} className="text-left rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 hover:border-blue-400/40 transition-colors">
+              <p className="text-xs uppercase tracking-[0.2em] text-blue-200/80 mb-2">Loja mais bem avaliada</p>
+              <p className="text-white font-semibold text-sm">{rankings.topStore?.nome ?? 'Sem dados'}</p>
+              <p className="text-blue-100/80 text-xs mt-1">{rankings.topStore?.verified ? 'Loja verificada' : 'Com melhor reputação atual'}</p>
+            </button>
+            <button onClick={() => rankings.trustedSeller && window.dispatchEvent(new CustomEvent('openStoreProfile', { detail: { id: products.find((item) => item.stores?.slug === rankings.trustedSeller?.slug)?.store_id } }))} className="text-left rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 hover:border-emerald-400/40 transition-colors">
+              <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80 mb-2">Vendedor mais confiável</p>
+              <p className="text-white font-semibold text-sm">{rankings.trustedSeller?.nome ?? 'Sem dados'}</p>
+              <p className="text-emerald-100/80 text-xs mt-1">Baseado em vendas, avaliação e verificação</p>
+            </button>
+          </div>
+
           {/* Filters */}
           <div className="flex flex-col gap-3">
             <div className="flex gap-2">

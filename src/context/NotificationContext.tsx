@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { supabase, VAPID_PUBLIC_KEY, type NotificationLog, type NotificationPreferences } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
+const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env;
+const swBasePath = (env.BASE_URL ?? '/').endsWith('/') ? (env.BASE_URL ?? '/') : `${env.BASE_URL}/`;
+const swPath = `${swBasePath}sw.js`;
+
 type NotifContextType = {
   pushSupported: boolean;
   pushPermission: NotificationPermission;
@@ -12,7 +16,7 @@ type NotifContextType = {
   requestPushPermission: () => Promise<boolean>;
   unsubscribePush: () => Promise<void>;
   updatePrefs: (patch: Partial<NotificationPreferences>) => Promise<void>;
-  sendNotification: (titulo: string, corpo: string, tipo?: string) => Promise<void>;
+  sendNotification: (titulo: string, corpo: string, tipo?: string, options?: { userId?: string; url?: string }) => Promise<void>;
   markAllRead: () => Promise<void>;
   clearLog: () => Promise<void>;
 };
@@ -26,9 +30,29 @@ function urlB64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+function toBase64(buffer: ArrayBuffer | null) {
+  if (!buffer) return null;
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return window.btoa(binary);
+}
+
+async function ensureServiceWorkerRegistration() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
+  try {
+    const existing = await navigator.serviceWorker.getRegistration(swBasePath);
+    if (existing) return existing;
+    return navigator.serviceWorker.register(swPath, { scope: swBasePath });
+  } catch (error) {
+    console.error('[Push] service worker registration failed:', error);
+    return null;
+  }
+}
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user, session } = useAuth();
-  const [pushSupported] = useState(() => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  const [pushSupported] = useState(() => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -71,9 +95,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       // Check if already subscribed
       if (pushSupported && Notification.permission === 'granted') {
-        const reg = await navigator.serviceWorker.ready;
-        const existing = await reg.pushManager.getSubscription();
-        setPushSubscribed(!!existing);
+        const reg = await ensureServiceWorkerRegistration();
+        if (reg) {
+          const existing = await reg.pushManager.getSubscription();
+          setPushSubscribed(!!existing);
+        }
       }
     })();
 
@@ -101,11 +127,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (permission !== 'granted') return false;
 
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
+      const reg = await ensureServiceWorkerRegistration();
+      if (!reg) return false;
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
 
       const key = sub.getKey('p256dh');
       const auth = sub.getKey('auth');
@@ -113,8 +144,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       await supabase.from('push_subscriptions').upsert({
         user_id: user!.id,
         endpoint: sub.endpoint,
-        p256dh: btoa(String.fromCharCode(...new Uint8Array(key!))),
-        auth_key: btoa(String.fromCharCode(...new Uint8Array(auth!))),
+        p256dh: toBase64(key) ?? '',
+        auth_key: toBase64(auth) ?? '',
         user_agent: navigator.userAgent.substring(0, 200),
       }, { onConflict: 'user_id,endpoint' });
 
@@ -135,7 +166,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const unsubscribePush = async () => {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await ensureServiceWorkerRegistration();
+    if (!reg) {
+      setPushSubscribed(false);
+      return;
+    }
     const sub = await reg.pushManager.getSubscription();
     if (sub) {
       await sub.unsubscribe();
@@ -155,11 +190,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (data) setPrefs(data);
   };
 
-  const sendNotification = async (titulo: string, corpo: string, tipo?: string) => {
+  const sendNotification = async (titulo: string, corpo: string, tipo?: string, options?: { userId?: string; url?: string }) => {
     if (!user || !session) return;
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      const supabaseUrl = env.VITE_SUPABASE_URL as string;
+      const anonKey = env.VITE_SUPABASE_ANON_KEY as string;
       await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
         method: 'POST',
         headers: {
@@ -167,7 +202,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           Apikey: anonKey,
         },
-        body: JSON.stringify({ titulo, corpo, tipo }),
+        body: JSON.stringify({ titulo, corpo, tipo, url: options?.url, userId: options?.userId }),
       });
     } catch (err) {
       console.error('[Notification] send failed:', err);

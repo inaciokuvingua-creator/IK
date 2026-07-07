@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, X, ArrowUpRight, ArrowDownRight, ChevronDown, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -6,6 +6,10 @@ import type { Cofre, Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
 import { useCurrency } from '../context/CurrencyContext';
 import { useNotifyAction } from '../lib/notify';
+import { supabase as sb } from '../lib/supabase';
+import type { GoalItem } from '../lib/supabase';
+import { computeQuoteTotal } from '../lib/costEngine';
+import { computeSimulationForCofre } from '../lib/costEngine';
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 const TX_CATS = ['alimentação', 'moradia', 'transporte', 'saúde', 'educação', 'lazer', 'investimento', 'salário', 'negócio', 'outros'];
@@ -13,26 +17,30 @@ const TX_CATS = ['alimentação', 'moradia', 'transporte', 'saúde', 'educação
 type CofreForm = { nome: string; descricao: string; saldo: string; cor: string; meta: string };
 type TxForm = { tipo: 'entrada' | 'saida'; valor: string; descricao: string; categoria: string; data_transacao: string };
 
-const emptyTxForm = (): TxForm => ({ tipo: 'entrada', valor: '', descricao: '', categoria: 'outros', data_transacao: new Date().toISOString().split('T')[0] });
+function emptyTxForm(): TxForm {
+  return { tipo: 'entrada', valor: '0', descricao: '', categoria: TX_CATS[0], data_transacao: new Date().toISOString().slice(0, 10) };
+}
 
 export default function Cofres() {
   const { t } = useTranslation();
-  const { format } = useCurrency();
+  const currency = useCurrency();
   const notify = useNotifyAction();
   const [cofres, setCofres] = useState<Cofre[]>([]);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Cofre | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  const [cofreForm, setCofreForm] = useState<CofreForm>({ nome: '', descricao: '', saldo: '0', cor: COLORS[0], meta: '' });
   const [showCofreModal, setShowCofreModal] = useState(false);
   const [editingCofre, setEditingCofre] = useState<Cofre | null>(null);
-  const [cofreForm, setCofreForm] = useState<CofreForm>({ nome: '', descricao: '', saldo: '0', cor: COLORS[0], meta: '' });
-
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState<Transacao | null>(null);
   const [txForm, setTxForm] = useState<TxForm>(emptyTxForm());
 
   const [saving, setSaving] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<GoalItem | null>(null);
+  const [itemForm, setItemForm] = useState<{ nome: string; categoria: string; descricao: string; quantidade: string; preco_unitario: string; moeda: string }>({ nome: '', categoria: '', descricao: '', quantidade: '1', preco_unitario: '0', moeda: 'KZ' });
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -57,6 +65,35 @@ export default function Cofres() {
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
   }, []);
+
+    const openNewItem = () => {
+        setEditingItem(null);
+        setItemForm({ nome: '', categoria: '', descricao: '', quantidade: '1', preco_unitario: '0', moeda: 'KZ' });
+        setShowItemModal(true);
+    };
+
+    const saveItem = async () => {
+        if (!selected) return;
+        setSaving(true);
+        const payload = {
+            cofre_id: selected.id,
+            nome: itemForm.nome,
+            categoria: itemForm.categoria || null,
+            descricao: itemForm.descricao || null,
+            quantidade: Number(itemForm.quantidade || 1),
+            preco_unitario: Number(itemForm.preco_unitario || 0),
+            moeda: itemForm.moeda || 'KZ'
+        };
+        try {
+            const { data, error } = await sb.from('goal_items').insert([payload]).select().maybeSingle();
+            if (error) throw error;
+            if (data) setGoalItems((g) => [data as GoalItem].concat(g));
+            setShowItemModal(false);
+        } catch (err) {
+            console.error(err);
+            notify('Erro ao salvar item');
+        } finally { setSaving(false); }
+    };
 
   // Keep selected in sync after re-fetch
   useEffect(() => {
@@ -175,6 +212,105 @@ export default function Cofres() {
 
   const cofreTx = selected ? transacoes.filter((tx) => tx.cofre_id === selected.id) : [];
 
+  // Goal items
+  const [goalItems, setGoalItems] = useState<GoalItem[]>([]);
+  const fetchGoalItems = async (cofreId?: string | null) => {
+    if (!cofreId) { setGoalItems([]); return; }
+    const { data } = await sb.from('goal_items').select('*').eq('cofre_id', cofreId).order('created_at', { ascending: false });
+    setGoalItems(data as GoalItem[] ?? []);
+  };
+
+  useEffect(() => { if (selected) fetchGoalItems(selected.id); else setGoalItems([]); }, [selected]);
+  useEffect(() => { if (selected) { (async () => { try { const r = await computeSimulationForCofre(selected.id, 'KZ'); setSimResult(r); } catch (e) { console.error(e); } })(); } else setSimResult(null); }, [selected]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const fetchAlerts = async (cofreId?: string | null) => {
+    if (!cofreId) { setAlerts([]); return; }
+    const { data } = await sb.from('alerts').select('*').eq('cofre_id', cofreId).order('created_at', { ascending: false });
+    setAlerts(data || []);
+  };
+  useEffect(() => { if (selected) fetchAlerts(selected.id); else setAlerts([]); }, [selected]);
+
+  const markAlertRead = async (id: string) => {
+    try {
+      await sb.from('alerts').update({ lida: true }).eq('id', id);
+      await fetchAlerts(selected?.id);
+    } catch (e) { console.error(e); }
+  };
+
+  const markAllAlertsRead = async () => {
+    if (!selected) return;
+    try {
+      await sb.from('alerts').update({ lida: true }).eq('cofre_id', selected.id);
+      await fetchAlerts(selected.id);
+    } catch (e) { console.error(e); }
+  };
+
+  const [showQuotesModal, setShowQuotesModal] = useState(false);
+  const [currentQuotes, setCurrentQuotes] = useState<any[]>([]);
+  const [quoteItem, setQuoteItem] = useState<GoalItem | null>(null);
+  const [quoteForm, setQuoteForm] = useState<{ fornecedor: string; preco_unitario: string; moeda: string; frete: string; seguro: string; iva_percent: string; outras: string }>(
+    { fornecedor: '', preco_unitario: '0', moeda: 'KZ', frete: '{}', seguro: '0', iva_percent: '0', outras: '[]' }
+  );
+
+  const openQuotes = async (item: GoalItem) => {
+    setQuoteItem(item);
+    setShowQuotesModal(true);
+    // fetch quotes + totals
+    try {
+      const res = await sb.from('goal_item_quotes').select('*').eq('item_id', item.id);
+      const quotes = res.data || [];
+      const enhanced = [] as any[];
+      for (const q of quotes) {
+        const totals = await computeQuoteTotal(q, item.quantidade || 1, 'KZ');
+        enhanced.push({ quote: q, totals });
+      }
+      enhanced.sort((a, b) => (a.totals.total || 0) - (b.totals.total || 0));
+      setCurrentQuotes(enhanced);
+    } catch (e) { console.error(e); setCurrentQuotes([]); }
+  };
+
+  const addQuote = async () => {
+    if (!quoteItem) return;
+    setSaving(true);
+    try {
+      const payload = {
+        item_id: quoteItem.id,
+        fornecedor: quoteForm.fornecedor || null,
+        preco_unitario: Number(quoteForm.preco_unitario || 0),
+        moeda: quoteForm.moeda || 'KZ',
+        frete: JSON.parse(quoteForm.frete || '{}'),
+        seguro: Number(quoteForm.seguro || 0),
+        seguro_moeda: quoteForm.moeda || 'KZ',
+        iva_percent: Number(quoteForm.iva_percent || 0),
+        taxas_alfandega: [],
+        outras_despesas: JSON.parse(quoteForm.outras || '[]')
+      };
+      const { data, error } = await sb.from('goal_item_quotes').insert([payload]).select().maybeSingle();
+      if (error) throw error;
+      // recompute list
+      await openQuotes(quoteItem);
+      setQuoteForm({ fornecedor: '', preco_unitario: '0', moeda: 'KZ', frete: '{}', seguro: '0', iva_percent: '0', outras: '[]' });
+    } catch (err) { console.error(err); notify('Erro ao salvar cotação'); }
+    finally { setSaving(false); }
+  };
+
+  const [showSimModal, setShowSimModal] = useState(false);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simResult, setSimResult] = useState<any | null>(null);
+
+  const runSimulation = async () => {
+    if (!selected) return;
+    setSimLoading(true);
+    try {
+      const res = await computeSimulationForCofre(selected.id, 'KZ');
+      setSimResult(res);
+      setShowSimModal(true);
+      // create alert if needed
+      try { await (await import('../lib/costEngine')).createSimulationAlertIfNeeded(res); } catch (e) { console.error('alert create failed', e); }
+    } catch (e) { console.error(e); notify('Erro ao simular'); }
+    finally { setSimLoading(false); }
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
@@ -252,9 +388,14 @@ export default function Cofres() {
                   <h2 className="text-white font-semibold">{selected.nome}</h2>
                   <p className="text-gray-500 text-xs">{t('cofres.txCount', { n: cofreTx.length, val: format(selected.saldo) })}</p>
                 </div>
-                <button onClick={openNewTx} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
-                  <Plus size={15} /> {t('cofres.addTx')}
-                </button>
+                  <div className="flex gap-2">
+                    <button onClick={openNewTx} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
+                      <Plus size={15} /> {t('cofres.addTx')}
+                    </button>
+                    <button onClick={runSimulation} className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors" disabled={simLoading}>
+                      🔎 {simLoading ? 'Simulando...' : 'Simular'}
+                    </button>
+                  </div>
               </div>
 
               {cofreTx.length === 0 ? (

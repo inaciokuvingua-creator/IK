@@ -3,12 +3,13 @@
   "nav": {
     "dashboard": "ダッシュボード", "cofres": "金庫", "financeiro": "財務",
     "negocios": "ビジネス", "patrimonio": "資産", "relatorios": "レポート",
-    "marketplace": "マーケット", "minhaLoja": "マイショップ", "empresas": "企業",
+    "marketplace": "マーケット", "minhaLoja": "マイショップ", "comunidades": "コミュニティ", "empresas": "企業",
     "mensagens": "メッセージ", "planos": "プラン", "perfil": "プロフィール",
     "configuracoes": "設定", "sair": "ログアウト",
     "financas": "財務", "ecossistema": "エコシステム",
     "moeda": "通貨", "taxa": "為替レート", "notificacoes": "通知",
-    "configurar": "設定する", "semNotificacoes": "通知なし"
+    "configurar": "設定する", "semNotificacoes": "通知なし",
+    "search": "検索"
   },
   "auth": {
     "login": "ログイン", "signup": "アカウント作成", "logout": "ログアウト",

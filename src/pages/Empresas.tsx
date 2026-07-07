@@ -183,6 +183,12 @@ export default function Empresas() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {selected.owner_id !== user?.id && (
+                    <button onClick={() => { window.dispatchEvent(new CustomEvent('openChatWith', { detail: { id: selected.owner_id } })); window.dispatchEvent(new CustomEvent('openChat')); }}
+                      className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors" title="Conversar com proprietário">
+                      <Mail size={15} />
+                    </button>
+                  )}
                   {selected.owner_id === user?.id && <>
                     <button onClick={() => openEdit(selected)} className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors"><Pencil size={15} /></button>
                     <button onClick={() => deleteCompany(selected.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-xl transition-colors"><Trash2 size={15} /></button>

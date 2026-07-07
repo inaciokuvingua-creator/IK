@@ -3,12 +3,13 @@
   "nav": {
     "dashboard": "Dashboard", "cofres": "Cofres", "financeiro": "Financeiro",
     "negocios": "Negócios", "patrimonio": "Patrimônio", "relatorios": "Relatórios",
-    "marketplace": "Marketplace", "minhaLoja": "Minha Loja", "empresas": "Empresas",
+    "marketplace": "Marketplace", "minhaLoja": "Minha Loja", "comunidades": "Comunidades", "empresas": "Empresas",
     "mensagens": "Mensagens", "planos": "Planos", "perfil": "Perfil",
     "configuracoes": "Configurações", "sair": "Sair",
     "financas": "Finanças", "ecossistema": "Ecossistema",
     "moeda": "Moeda", "taxa": "Taxa", "notificacoes": "Notificações",
-    "configurar": "Configurar", "semNotificacoes": "Sem notificações"
+    "configurar": "Configurar", "semNotificacoes": "Sem notificações",
+    "search": "Pesquisar"
   },
   "auth": {
     "login": "Entrar", "signup": "Criar conta", "logout": "Sair",

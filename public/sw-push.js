@@ -1,6 +1,14 @@
 // Custom service worker additions — imported by vite-plugin-pwa
 // Handles incoming push events and notification clicks
 
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -17,8 +25,9 @@ self.addEventListener('push', (event) => {
     badge: payload.badge ?? '/icon-96x96.png',
     data: { url: payload.url ?? '/' },
     vibrate: [100, 50, 100],
-    tag: 'ik-finance-notification',
+    tag: `ik-finance-notification-${Date.now()}`,
     renotify: true,
+    requireInteraction: false,
     actions: [
       { action: 'open', title: 'Abrir' },
       { action: 'dismiss', title: 'Dispensar' },
@@ -38,15 +47,17 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification.data?.url ?? '/';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.focus();
-          client.navigate(url);
+          await client.navigate(url);
           return;
         }
       }
-      if (clients.openWindow) return clients.openWindow(url);
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
     })
   );
 });

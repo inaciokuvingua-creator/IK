@@ -3,7 +3,7 @@ import {
   TrendingUp, LayoutDashboard, Vault, Briefcase, Building2 as BuildingIcon,
   BarChart3, Wallet, LogOut, Menu, X, ChevronDown, RefreshCw,
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
-  Users, ChevronRight,
+  Users, ChevronRight, Search,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +48,9 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
       items: [
         { id: 'marketplace' as Page, label: t('nav.marketplace'),  icon: ShoppingBag },
         { id: 'minha-loja' as Page,  label: t('nav.minhaLoja'),    icon: Store },
-        { id: 'empresas' as Page,    label: t('nav.empresas'),      icon: Users },
+        { id: 'search' as Page,      label: t('nav.search'),       icon: Search },
+        { id: 'comunidades' as Page, label: t('nav.comunidades'),  icon: Users },
+        { id: 'empresas' as Page,    label: t('nav.empresas'),      icon: BuildingIcon },
         { id: 'chat' as Page,        label: t('nav.mensagens'),     icon: MessageCircle },
       ],
     },

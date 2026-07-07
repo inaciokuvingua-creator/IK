@@ -11,8 +11,15 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAnimation } from '../context/AnimationContext';
+import { useNotifications } from '../context/NotificationContext';
 import ImageUpload from '../components/ImageUpload';
 import FileUpload from '../components/FileUpload';
+import MultiImageUpload from '../components/MultiImageUpload';
+import { firstProductImage, parseProductImages } from '../lib/format';
+import { slugify } from '../lib/marketplace';
+import { checkMarketplaceRateLimit, queueMarketplaceModeration } from '../lib/marketplaceGuardrails';
+import { buildPaymentInstructions, type PaymentProfile } from '../lib/paymentProfiles';
+import PaymentMethodsManager from '../components/PaymentMethodsManager';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Store = {
@@ -37,6 +44,15 @@ type Product = {
   deleted_at: string | null; created_at: string;
 };
 
+type ProductMedia = {
+  id: string;
+  product_id: string;
+  type: 'image' | 'video' | 'audio' | 'document';
+  url: string;
+  name: string | null;
+  mime: string | null;
+};
+
 type Order = {
   id: string; buyer_id: string; store_id: string; product_id: string;
   quantidade: number; preco_unitario: number; total: number; moeda: string;
@@ -55,6 +71,8 @@ type DownloadToken = {
   products?: { nome: string };
   profiles?: { nome: string };
 };
+
+type StorePaymentProfile = PaymentProfile;
 
 const CATS = ['software','musica','ebooks','cursos','templates','fotos','videos','dados','fisico','outro'];
 const CAT_LABELS: Record<string, string> = {
@@ -138,8 +156,10 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   const { user }   = useAuth();
   const { format } = useCurrency();
   const { entryClass } = useAnimation();
+  const { sendNotification } = useNotifications();
 
   const [store, setStore]           = useState<Store | null>(null);
+  const [deletedStore, setDeletedStore] = useState<Store | null>(null);
   const [products, setProducts]     = useState<Product[]>([]);
   const [trash, setTrash]           = useState<Product[]>([]);
   const [orders, setOrders]         = useState<Order[]>([]);
@@ -154,6 +174,9 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   const [deleteTarget, setDeleteTarget]     = useState<{id:string;nome:string;type:'product'|'store'} | null>(null);
   const [releaseOrder, setReleaseOrder]     = useState<Order | null>(null);
   const [expandedOrder, setExpandedOrder]   = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedTrashIds, setSelectedTrashIds] = useState<string[]>([]);
+  const [storePaymentMethods, setStorePaymentMethods] = useState<StorePaymentProfile[]>([]);
 
   // Store form
   const [sNome, setSNome]     = useState('');
@@ -176,6 +199,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   const [pSub, setPSub]       = useState('');
   const [pMarca, setPMarca]   = useState('');
   const [pImg, setPImg]       = useState('');
+  const [pImgs, setPImgs]     = useState<string[]>([]);
   const [pArq, setPArq]       = useState('');
   const [pEstoque, setPEstoque] = useState('');
   const [pDisp, setPDisp]     = useState('disponivel');
@@ -186,6 +210,12 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   const [pFormatos, setPFormatos] = useState<string[]>([]);
   const [pTags, setPTags]     = useState('');
   const [pDestaque, setPDestaque] = useState(false);
+  const [pVideo, setPVideo]       = useState('');
+  const [pVideoName, setPVideoName] = useState<string | null>(null);
+  const [pAudio, setPAudio]       = useState('');
+  const [pAudioName, setPAudioName] = useState<string | null>(null);
+  const [pDoc, setPDoc]           = useState('');
+  const [pDocName, setPDocName]   = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
 
   // ── Load ────────────────────────────────────────────────────────────────────
@@ -194,18 +224,26 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
     setLoading(true);
     const { data: storeData } = await supabase.from('stores').select('*').eq('owner_id', user.id).is('deleted_at', null).maybeSingle();
     setStore(storeData as Store ?? null);
+    if (!storeData) {
+      const { data: removedStore } = await supabase.from('stores').select('*').eq('owner_id', user.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(1).maybeSingle();
+      setDeletedStore(removedStore as Store ?? null);
+    } else {
+      setDeletedStore(null);
+    }
 
     if (storeData) {
-      const [prods, trashProds, ordsData, toks] = await Promise.all([
+      const [prods, trashProds, ordsData, toks, payments] = await Promise.all([
         supabase.from('products').select('*').eq('store_id', storeData.id).is('deleted_at', null).order('created_at',{ascending:false}),
         supabase.from('products').select('*').eq('store_id', storeData.id).not('deleted_at','is',null).order('deleted_at',{ascending:false}),
         supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo,arquivo_url), profiles:buyer_id(nome,avatar_url), order_proofs(id,url,name,created_at)').eq('store_id', storeData.id).order('created_at',{ascending:false}),
         supabase.from('download_tokens').select('*, products:product_id(nome), profiles:buyer_id(nome)').in('product_id', (await supabase.from('products').select('id').eq('store_id',storeData.id)).data?.map(p=>p.id) ?? []).order('created_at',{ascending:false}),
+        supabase.from('payment_profiles').select('*').eq('owner_type', 'store').eq('store_id', storeData.id).eq('is_active', true).order('is_default', { ascending: false }),
       ]);
       setProducts(prods.data as Product[] ?? []);
       setTrash(trashProds.data as Product[] ?? []);
       setOrders(ordsData.data as Order[] ?? []);
       setTokens(toks.data as DownloadToken[] ?? []);
+      setStorePaymentMethods(payments.data as StorePaymentProfile[] ?? []);
     }
     setLoading(false);
   }, [user]);
@@ -252,8 +290,21 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
 
   const deleteStore = async () => {
     if (!store) return;
-    await supabase.from('stores').update({ deleted_at: new Date().toISOString(), ativo: false }).eq('id', store.id);
+    await supabase.from('stores').update({ deleted_at: new Date().toISOString(), restore_until: new Date(Date.now() + 30 * 86400000).toISOString(), ativo: false }).eq('id', store.id);
     setStore(null); setDeleteTarget(null);
+    await loadAll();
+  };
+
+  const restoreStore = async () => {
+    if (!deletedStore) return;
+    await supabase.from('stores').update({ deleted_at: null, restore_until: null, ativo: true }).eq('id', deletedStore.id);
+    await loadAll();
+  };
+
+  const permanentDeleteStore = async () => {
+    if (!deletedStore) return;
+    await supabase.from('stores').delete().eq('id', deletedStore.id);
+    setDeletedStore(null);
     await loadAll();
   };
 
@@ -263,31 +314,56 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
       setEditingProduct(p);
       setPNome(p.nome); setPDesc(p.descricao??''); setPPreco(String(p.preco));
       setPTipo(p.tipo); setPCat(p.categoria); setPSub(p.subcategoria??'');
-      setPMarca(p.marca??''); setPImg(p.imagem_url??''); setPArq(p.arquivo_url??'');
+      setPMarca(p.marca??'');
+      // imagem_url may be a single URL or a JSON array string
+      try {
+        const imgs = p.imagem_url ? (Array.isArray(p.imagem_url) ? p.imagem_url : (typeof p.imagem_url === 'string' && p.imagem_url.trim().startsWith('[') ? JSON.parse(p.imagem_url) : [p.imagem_url])) : [];
+        setPImgs(Array.isArray(imgs) ? imgs.map(String) : []);
+        setPImg((Array.isArray(imgs) ? imgs[0] : (imgs as any)) ?? '');
+      } catch {
+        setPImgs([]); setPImg(p.imagem_url??'');
+      }
+      setPArq(p.arquivo_url??'');
       setPEstoque(p.estoque!=null?String(p.estoque):''); setPDisp(p.disponibilidade);
       setPLocal(p.localizacao??''); setPPeso(p.peso!=null?String(p.peso):'');
       setPTrans(p.transportadora??''); setPEntrega(p.tempo_entrega??'');
       setPFormatos(p.formatos??[]); setPTags((p.tags??[]).join(', '));
       setPDestaque(p.destaque);
+      setPVideo(''); setPVideoName(null); setPAudio(''); setPAudioName(null); setPDoc(''); setPDocName(null);
+      supabase.from('product_media').select('*').eq('product_id', p.id).then(({ data }) => {
+        const media = (data ?? []) as ProductMedia[];
+        const video = media.find((item) => item.type === 'video');
+        const audio = media.find((item) => item.type === 'audio');
+        const document = media.find((item) => item.type === 'document');
+        setPVideo(video?.url ?? ''); setPVideoName(video?.name ?? null);
+        setPAudio(audio?.url ?? ''); setPAudioName(audio?.name ?? null);
+        setPDoc(document?.url ?? ''); setPDocName(document?.name ?? null);
+      });
     } else {
       setEditingProduct(null);
       setPNome(''); setPDesc(''); setPPreco(''); setPTipo('digital'); setPCat('software');
       setPSub(''); setPMarca(''); setPImg(''); setPArq(''); setPEstoque('');
       setPDisp('disponivel'); setPLocal(''); setPPeso(''); setPTrans(''); setPEntrega('');
       setPFormatos([]); setPTags(''); setPDestaque(false);
+      setPVideo(''); setPVideoName(null); setPAudio(''); setPAudioName(null); setPDoc(''); setPDocName(null);
     }
     setShowProductForm(true);
   };
 
   const saveProduct = async () => {
     if (!user || !store || !pNome.trim() || !pPreco) return;
+    const rateLimit = await checkMarketplaceRateLimit({ action: editingProduct ? 'product_update' : 'product_create', limit: 15, windowMs: 60 * 60 * 1000, userId: user.id, metadata: { storeId: store.id } });
+    if (!rateLimit.allowed) {
+      alert('Muitas alterações de produtos em pouco tempo. Aguarde antes de continuar.');
+      return;
+    }
     setSavingProduct(true);
     const payload = {
       store_id: store.id,
       nome: pNome.trim(), descricao: pDesc||null,
       preco: parseFloat(pPreco), tipo: pTipo,
       categoria: pCat, subcategoria: pSub||null,
-      marca: pMarca||null, imagem_url: pImg||null, arquivo_url: pArq||null,
+      marca: pMarca||null, imagem_url: pImgs.length ? JSON.stringify(pImgs) : (pImg||null), arquivo_url: pArq||null,
       estoque: pEstoque ? parseInt(pEstoque) : null,
       disponibilidade: pDisp, localizacao: pLocal||null,
       peso: pPeso ? parseFloat(pPeso) : null,
@@ -296,10 +372,30 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
       tags: pTags.split(',').map(t=>t.trim()).filter(Boolean) || null,
       destaque: pDestaque,
     };
+    let productId = editingProduct?.id ?? null;
     if (editingProduct) {
       await supabase.from('products').update(payload).eq('id', editingProduct.id);
+      productId = editingProduct.id;
     } else {
-      await supabase.from('products').insert({ ...payload, owner_id: user.id });
+      const { data: created } = await supabase.from('products').insert({ ...payload, owner_id: user.id, slug: slugify(pNome) }).select('id').single();
+      productId = created?.id ?? null;
+    }
+    if (productId) {
+      await supabase.from('product_media').delete().eq('product_id', productId).in('type', ['video', 'audio', 'document']);
+      const mediaRows = [
+        pVideo ? { product_id: productId, owner_id: user.id, type: 'video', url: pVideo, name: pVideoName } : null,
+        pAudio ? { product_id: productId, owner_id: user.id, type: 'audio', url: pAudio, name: pAudioName } : null,
+        pDoc ? { product_id: productId, owner_id: user.id, type: 'document', url: pDoc, name: pDocName } : null,
+      ].filter(Boolean);
+      if (mediaRows.length > 0) await supabase.from('product_media').insert(mediaRows as any[]);
+      await queueMarketplaceModeration({
+        entityType: 'product',
+        entityId: productId,
+        ownerId: user.id,
+        summary: `${editingProduct ? 'Atualização' : 'Novo produto'}: ${pNome}`,
+        priority: pDestaque ? 'high' : 'normal',
+        metadata: { tipo: pTipo, categoria: pCat, formatos: pFormatos },
+      });
     }
     // Audit
     await supabase.from('marketplace_audit').insert({
@@ -312,7 +408,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   };
 
   const softDeleteProduct = async (id: string) => {
-    await supabase.from('products').update({ deleted_at: new Date().toISOString(), ativo: false }).eq('id', id);
+    await supabase.from('products').update({ deleted_at: new Date().toISOString(), restore_until: new Date(Date.now() + 30 * 86400000).toISOString(), ativo: false }).eq('id', id);
     await supabase.from('marketplace_audit').insert({ entity_type:'product', action:'soft_delete', entity_id: id, details: {} });
     setDeleteTarget(null);
     await loadAll();
@@ -328,12 +424,43 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
     await loadAll();
   };
 
+  const bulkDeleteProducts = async () => {
+    if (selectedProductIds.length === 0) return;
+    await supabase.from('products').update({ deleted_at: new Date().toISOString(), restore_until: new Date(Date.now() + 30 * 86400000).toISOString(), ativo: false }).in('id', selectedProductIds);
+    setSelectedProductIds([]);
+    await loadAll();
+  };
+
+  const bulkRestoreProducts = async () => {
+    if (selectedTrashIds.length === 0) return;
+    await supabase.from('products').update({ deleted_at: null, restore_until: null, ativo: true }).in('id', selectedTrashIds);
+    setSelectedTrashIds([]);
+    await loadAll();
+  };
+
+  const bulkPermanentDeleteProducts = async () => {
+    if (selectedTrashIds.length === 0) return;
+    await supabase.from('products').delete().in('id', selectedTrashIds);
+    setSelectedTrashIds([]);
+    await loadAll();
+  };
+
   // ── Order management ──────────────────────────────────────────────────────────
   const updateOrderStatus = async (orderId: string, status: string) => {
     const patch: any = { status };
     if (status === 'delivered') patch.approved_at = new Date().toISOString();
     await supabase.from('orders').update(patch).eq('id', orderId);
     setOrders(prev => prev.map(o => o.id===orderId ? {...o,...patch} : o));
+    const order = orders.find((item) => item.id === orderId);
+    if (order?.buyer_id) {
+      const title = status === 'delivered' ? 'Pagamento aprovado' : status === 'cancelled' ? 'Pagamento rejeitado' : 'Novo comprovativo solicitado';
+      const body = status === 'delivered'
+        ? `O fornecedor aprovou o pagamento de ${(order.products as any)?.nome ?? 'seu pedido'}.`
+        : status === 'cancelled'
+        ? `O fornecedor rejeitou o comprovativo de ${(order.products as any)?.nome ?? 'seu pedido'}.`
+        : `O fornecedor pediu um novo comprovativo para ${(order.products as any)?.nome ?? 'seu pedido'}.`;
+      await sendNotification(title, body, 'marketplace_payment', { userId: order.buyer_id, url: order.product_id ? `/?page=marketplace&view=product&product=${order.product_id}` : '/' });
+    }
     // Audit
     await supabase.from('marketplace_audit').insert({ entity_type:'order', action:`status_${status}`, entity_id: orderId, details:{} });
   };
@@ -351,6 +478,12 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
       released_by: user.id,
     });
     await supabase.from('orders').update({ download_released: true, status: 'delivered' }).eq('id', orderId);
+    await sendNotification(
+      'Download liberado',
+      `O download de ${(order.products as any)?.nome ?? 'seu produto'} foi liberado pelo fornecedor.`,
+      'marketplace_download',
+      { userId: order.buyer_id, url: order.product_id ? `/?page=marketplace&view=product&product=${order.product_id}` : '/' }
+    );
     // Audit
     await supabase.from('marketplace_audit').insert({ entity_type:'download', action:'released', entity_id: orderId, details: {expiryDays, maxDownloads} });
     setReleaseOrder(null);
@@ -386,6 +519,21 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   );
 
   // ── No store yet ───────────────────────────────────────────────────────────
+  if (!store && deletedStore && !showStoreForm) return (
+    <div className={`space-y-6 ${entryClass()}`}>
+      <h1 className="text-white text-2xl font-bold">Minha Loja</h1>
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/15 flex items-center justify-center mx-auto"><Clock size={28} className="text-amber-400" /></div>
+        <p className="text-white font-bold text-xl">Loja na lixeira</p>
+        <p className="text-gray-400 text-sm">{deletedStore.nome} foi removida, mas ainda pode ser restaurada antes da exclusão definitiva.</p>
+        <div className="flex gap-3 justify-center flex-wrap">
+          <button onClick={restoreStore} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-5 py-3 rounded-xl"><RotateCcw size={16} /> Restaurar loja</button>
+          <button onClick={permanentDeleteStore} className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-semibold px-5 py-3 rounded-xl"><Trash2 size={16} /> Apagar definitivamente</button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!store && !showStoreForm) return (
     <div className={`space-y-6 ${entryClass()}`}>
       <h1 className="text-white text-2xl font-bold">Minha Loja</h1>
@@ -489,8 +637,8 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
             </div>
             {products.slice(0,5).map(p => (
               <div key={p.id} className="flex items-center gap-3 py-2.5 border-b border-gray-800 last:border-0">
-                {p.imagem_url
-                  ? <img src={p.imagem_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0"/>
+                {firstProductImage(p.imagem_url)
+                  ? <img src={firstProductImage(p.imagem_url)!} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0"/>
                   : <div className="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center shrink-0"><Package size={15} className="text-gray-500"/></div>}
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-xs font-medium truncate">{p.nome}</p>
@@ -500,12 +648,24 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
               </div>
             ))}
           </div>
+
+          <PaymentMethodsManager ownerType="store" storeId={store.id} title="Recebimentos externos da loja" subtitle="Configure contas bancárias, carteiras e métodos P2P externos para que compradores paguem como na Redotpay, mas dentro do seu fluxo atual de chat, prova e liberação." />
         </div>
       )}
 
       {/* ── Products tab ── */}
       {tab === 'products' && (
         <div className="space-y-3">
+          {products.length > 0 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3">
+              <p className="text-gray-400 text-xs">{selectedProductIds.length} selecionado(s)</p>
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => setSelectedProductIds(products.map((p) => p.id))} className="text-xs px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Selecionar todos</button>
+                <button onClick={() => setSelectedProductIds([])} className="text-xs px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Limpar</button>
+                <button onClick={bulkDeleteProducts} disabled={selectedProductIds.length === 0} className="text-xs px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white">Eliminar em massa</button>
+              </div>
+            </div>
+          )}
           {products.length === 0 && (
             <div className="text-center py-12">
               <Package size={32} className="text-gray-600 mx-auto mb-3"/>
@@ -514,8 +674,9 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
           )}
           {products.map(p => (
             <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center gap-4 hover-lift">
-              {p.imagem_url
-                ? <img src={p.imagem_url} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0"/>
+              <input type="checkbox" checked={selectedProductIds.includes(p.id)} onChange={(e) => setSelectedProductIds((prev) => e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id))} className="shrink-0" />
+              {firstProductImage(p.imagem_url)
+                ? <img src={firstProductImage(p.imagem_url)!} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0"/>
                 : <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center shrink-0"><Package size={22} className="text-gray-600"/></div>}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -569,6 +730,12 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
               {/* Expanded order details */}
               {expandedOrder === o.id && (
                 <div className="border-t border-gray-800 p-4 space-y-3">
+                  {o.notes && (
+                    <div className="rounded-xl bg-gray-950/40 border border-gray-800 p-3">
+                      <p className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider">Instruções de pagamento desta venda</p>
+                      <p className="text-gray-300 text-xs whitespace-pre-wrap leading-relaxed">{o.notes}</p>
+                    </div>
+                  )}
                   {/* Proof images */}
                   {o.order_proofs && o.order_proofs.length > 0 && (
                     <div>
@@ -615,7 +782,10 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
                       </span>
                     )}
                     {o.conversation_id && (
-                      <button onClick={()=>onNavigate?.('chat')}
+                      <button onClick={()=>{
+                        window.dispatchEvent(new CustomEvent('openChatWith', { detail: { id: o.buyer_id } }));
+                        window.dispatchEvent(new CustomEvent('openChat'));
+                      }}
                         className="flex items-center gap-1.5 text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 px-3 py-1.5 rounded-xl transition-colors">
                         <MessageCircle size={12}/> Abrir Chat
                       </button>
@@ -671,11 +841,23 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
       {/* ── Trash tab ── */}
       {tab === 'trash' && (
         <div className="space-y-3">
+          {trash.length > 0 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3">
+              <p className="text-gray-400 text-xs">{selectedTrashIds.length} item(ns) na lixeira selecionado(s)</p>
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => setSelectedTrashIds(trash.map((p) => p.id))} className="text-xs px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Selecionar todos</button>
+                <button onClick={() => setSelectedTrashIds([])} className="text-xs px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Limpar</button>
+                <button onClick={bulkRestoreProducts} disabled={selectedTrashIds.length === 0} className="text-xs px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white">Restaurar em massa</button>
+                <button onClick={bulkPermanentDeleteProducts} disabled={selectedTrashIds.length === 0} className="text-xs px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white">Apagar definitivamente</button>
+              </div>
+            </div>
+          )}
           {trash.length === 0 && <p className="text-gray-600 text-sm text-center py-12">Lixeira vazia</p>}
           {trash.map(p => (
             <div key={p.id} className="bg-gray-900 border border-gray-700 border-dashed rounded-2xl p-4 flex items-center gap-4 opacity-70">
+              <input type="checkbox" checked={selectedTrashIds.includes(p.id)} onChange={(e) => setSelectedTrashIds((prev) => e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id))} className="shrink-0" />
               <div className="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center shrink-0">
-                {p.imagem_url ? <img src={p.imagem_url} alt="" className="w-full h-full object-cover rounded-xl"/> : <Package size={20} className="text-gray-600"/>}
+                {firstProductImage(p.imagem_url) ? <img src={firstProductImage(p.imagem_url)!} alt="" className="w-full h-full object-cover rounded-xl"/> : <Package size={20} className="text-gray-600"/>}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium truncate">{p.nome}</p>
@@ -840,7 +1022,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
               {/* Image */}
               <div>
                 <label className="block text-xs text-gray-500 mb-1.5">Imagem do produto</label>
-                <ImageUpload value={pImg} onChange={setPImg} bucket="product-images" folder="covers"/>
+                <MultiImageUpload value={pImgs} onChange={setPImgs} bucket="product-images" folder="covers" />
               </div>
               {/* File */}
               {pTipo === 'digital' && (
@@ -849,6 +1031,20 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
                   <FileUpload value={pArq} onChange={setPArq} bucket="product-files" maxSizeMb={500}/>
                 </div>
               )}
+              <div className="grid md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Vídeo demonstrativo</label>
+                  <FileUpload currentUrl={pVideo || null} currentName={pVideoName} onChange={(url, name) => { setPVideo(url ?? ''); setPVideoName(name); }} bucket="marketplace-media" path={`${user?.id}/product-media`} maxSizeMb={250} label="Vídeo" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Áudio / voz</label>
+                  <FileUpload currentUrl={pAudio || null} currentName={pAudioName} onChange={(url, name) => { setPAudio(url ?? ''); setPAudioName(name); }} bucket="marketplace-media" path={`${user?.id}/product-media`} maxSizeMb={100} label="Áudio" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Documento anexo</label>
+                  <FileUpload currentUrl={pDoc || null} currentName={pDocName} onChange={(url, name) => { setPDoc(url ?? ''); setPDocName(name); }} bucket="marketplace-media" path={`${user?.id}/product-media`} maxSizeMb={150} label="Documento" />
+                </div>
+              </div>
               {/* Destaque toggle */}
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-2xl border border-gray-700">
                 <div>

@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const rawSupabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = rawSupabaseUrl?.trim() ?? '';
+const supabaseAnonKey = rawSupabaseAnonKey?.trim() ?? '';
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+// Keep the app renderable in preview environments where .env is not set.
+const fallbackSupabaseUrl = 'https://preview-placeholder.supabase.co';
+const fallbackSupabaseAnonKey = 'preview-placeholder-anon-key';
+
+if (!isSupabaseConfigured && typeof window !== 'undefined') {
+  console.warn(
+    '[IK] Supabase env vars are missing. Running in preview-safe mode until VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured.'
+  );
+}
+
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : fallbackSupabaseUrl,
+  isSupabaseConfigured ? supabaseAnonKey : fallbackSupabaseAnonKey
+);
 
 export type Cofre = {
   id: string;
@@ -60,6 +78,57 @@ export type Transacao = {
   created_at: string;
 };
 
+export type GoalItem = {
+  id: string;
+  cofre_id: string | null;
+  nome: string;
+  categoria: string | null;
+  descricao: string | null;
+  quantidade: number;
+  preco_unitario: number;
+  moeda: string;
+  metadata?: any;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type GoalItemQuote = {
+  id: string;
+  item_id: string;
+  fornecedor?: string | null;
+  preco_unitario: number;
+  moeda: string;
+  frete?: any;
+  seguro?: number | null;
+  seguro_moeda?: string | null;
+  iva_percent?: number | null;
+  taxas_alfandega?: any;
+  outras_despesas?: any;
+  total_cached?: number | null;
+  created_at: string;
+  updated_at?: string;
+  recommended?: boolean | null;
+};
+
+export type ExchangeRate = {
+  id: number;
+  base_currency: string;
+  currency: string;
+  rate: number;
+  fetched_at: string;
+};
+
+export type Alert = {
+  id: string;
+  user_id?: string | null;
+  cofre_id?: string | null;
+  tipo: string;
+  titulo: string;
+  corpo?: string | null;
+  lida?: boolean;
+  created_at?: string;
+};
+
 export type NotificationPreferences = {
   id: string;
   user_id: string;
@@ -70,6 +139,11 @@ export type NotificationPreferences = {
   on_negocio: boolean;
   on_patrimonio: boolean;
   on_meta_reached: boolean;
+  on_marketplace_purchase: boolean;
+  on_marketplace_message: boolean;
+  on_marketplace_payment: boolean;
+  on_marketplace_download: boolean;
+  on_marketplace_review: boolean;
   daily_summary: boolean;
   created_at: string;
   updated_at: string;
@@ -83,6 +157,20 @@ export type NotificationLog = {
   corpo: string;
   lida: boolean;
   created_at: string;
+};
+
+export type Deal = {
+  id: string;
+  from_id: string | null;
+  to_id: string | null;
+  title: string | null;
+  description: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: 'proposed' | 'accepted' | 'rejected' | 'cancelled' | 'completed';
+  metadata?: any;
+  created_at: string;
+  updated_at?: string;
 };
 
 // VAPID public key — safe to embed in client
