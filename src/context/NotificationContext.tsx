@@ -3,6 +3,8 @@ import { supabase, VAPID_PUBLIC_KEY, type NotificationLog, type NotificationPref
 import { useAuth } from './AuthContext';
 
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env;
+const swBasePath = (env.BASE_URL ?? '/').endsWith('/') ? (env.BASE_URL ?? '/') : `${env.BASE_URL}/`;
+const swPath = `${swBasePath}sw.js`;
 
 type NotifContextType = {
   pushSupported: boolean;
@@ -39,9 +41,9 @@ function toBase64(buffer: ArrayBuffer | null) {
 async function ensureServiceWorkerRegistration() {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
   try {
-    const existing = await navigator.serviceWorker.getRegistration('/');
+    const existing = await navigator.serviceWorker.getRegistration(swBasePath);
     if (existing) return existing;
-    return navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    return navigator.serviceWorker.register(swPath, { scope: swBasePath });
   } catch (error) {
     console.error('[Push] service worker registration failed:', error);
     return null;

@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const rawSupabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = rawSupabaseUrl?.trim() ?? '';
+const supabaseAnonKey = rawSupabaseAnonKey?.trim() ?? '';
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+// Keep the app renderable in preview environments where .env is not set.
+const fallbackSupabaseUrl = 'https://preview-placeholder.supabase.co';
+const fallbackSupabaseAnonKey = 'preview-placeholder-anon-key';
+
+if (!isSupabaseConfigured && typeof window !== 'undefined') {
+  console.warn(
+    '[IK] Supabase env vars are missing. Running in preview-safe mode until VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured.'
+  );
+}
+
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : fallbackSupabaseUrl,
+  isSupabaseConfigured ? supabaseAnonKey : fallbackSupabaseAnonKey
+);
 
 export type Cofre = {
   id: string;

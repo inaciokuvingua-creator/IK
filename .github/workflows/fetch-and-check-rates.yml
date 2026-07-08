@@ -6,15 +6,52 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  fetch-and-check:
+  call-fetch-exchange-rates:
+    name: call fetch exchange rates
     runs-on: ubuntu-latest
     steps:
+      - name: Validate required secrets
+        id: secrets
+        run: |
+          if [ -n "${{ secrets.SUPABASE_FUNCTION_BASE }}" ] && [ -n "${{ secrets.SUPABASE_SERVICE_ROLE }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip gracefully when secrets are missing
+        if: steps.secrets.outputs.ready != 'true'
+        run: |
+          echo "SUPABASE_FUNCTION_BASE or SUPABASE_SERVICE_ROLE is missing. Skipping fetch-exchange-rates call."
+
       - name: Call fetch-exchange-rates function
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           curl -sSf -X POST "${{ secrets.SUPABASE_FUNCTION_BASE }}/fetch-exchange-rates" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \
             -H "Content-Type: application/json" || exit 1
+
+  call-check-rate-alerts:
+    name: call check rate alerts
+    runs-on: ubuntu-latest
+    needs: call-fetch-exchange-rates
+    steps:
+      - name: Validate required secrets
+        id: secrets
+        run: |
+          if [ -n "${{ secrets.SUPABASE_FUNCTION_BASE }}" ] && [ -n "${{ secrets.SUPABASE_SERVICE_ROLE }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip gracefully when secrets are missing
+        if: steps.secrets.outputs.ready != 'true'
+        run: |
+          echo "SUPABASE_FUNCTION_BASE or SUPABASE_SERVICE_ROLE is missing. Skipping check-rate-alerts call."
+
       - name: Call check-rate-alerts function
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           curl -sSf -X POST "${{ secrets.SUPABASE_FUNCTION_BASE }}/check-rate-alerts" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \

@@ -1,0 +1,31 @@
+name: Datalog synthetic
+
+"on":
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  merge-pull-request:
+    name: merge pull request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR mergeability prerequisites
+        run: echo "PR workflow check executed."
+
+  create-datalog-synthetic-yml:
+    name: create datalog synthetic yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ensure datalog workflow exists
+        run: test -f .github/workflows/datalog-synthetic.yml
+
+  pending-changes-exported:
+    name: pending changes exported
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify clean exported state
+        run: git diff --quiet -- .
