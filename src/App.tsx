@@ -47,22 +47,9 @@ function AppContent() {
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    if (showAuth) return <Login />;
-    return <HomePage onGetStarted={() => setShowAuth(true)} />;
-  }
-
-  const navigate = (p: string) => setPage(p as Page);
-
+  // All hooks must be declared before any conditional return (Rules of Hooks)
   useEffect(() => {
+    if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const requestedPage = params.get('page');
     const marketplaceView = params.get('view');
@@ -76,7 +63,7 @@ function AppContent() {
         setPage('storeProfile');
       }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -113,9 +100,9 @@ function AppContent() {
 
   useEffect(() => {
     const handler = (e: any) => {
-      const page = e?.detail?.page;
-      if (!page) return;
-      setPage(page as Page);
+      const pg = e?.detail?.page;
+      if (!pg) return;
+      setPage(pg as Page);
     };
     window.addEventListener('navigatePage', handler as EventListener);
     return () => window.removeEventListener('navigatePage', handler as EventListener);
@@ -137,6 +124,21 @@ function AppContent() {
     window.addEventListener('openChatWith', handler as EventListener);
     return () => window.removeEventListener('openChatWith', handler as EventListener);
   }, []);
+
+  const navigate = (p: string) => setPage(p as Page);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (showAuth) return <Login />;
+    return <HomePage onGetStarted={() => setShowAuth(true)} />;
+  }
 
   return (
     <>
