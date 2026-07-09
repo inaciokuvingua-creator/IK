@@ -172,7 +172,7 @@ export default function Perfil() {
       issued_at: firstDocument?.issued_at ?? '',
       expires_at: firstDocument?.expires_at ?? '',
     });
-    setSocialForm({ ...profile.social_links });
+    setSocialForm({ ...(profile.social_links ?? {}) });
     setSecurityQuestions([{ question: '', answer: '' }, { question: '', answer: '' }]);
     setEditing(true);
   };
@@ -371,7 +371,9 @@ export default function Perfil() {
     );
   }
 
-  const plan = PLAN_INFO[profile.plan];
+  const socialLinks = profile.social_links ?? {};
+  const completion = Number.isFinite(profile.profile_completion) ? profile.profile_completion : 0;
+  const plan = PLAN_INFO[profile.plan] ?? PLAN_INFO.free;
   const PlanIcon = plan.icon;
   const daysLeft = getTrialDaysLeft(profile);
   const trialExpired = isTrialExpired(profile);
@@ -386,8 +388,8 @@ export default function Perfil() {
           <p className="text-gray-400 text-sm mt-0.5">Centro completo de identidade, privacidade, segurança e recuperação da sua conta IK Finance.</p>
         </div>
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 min-w-[240px]">
-          <div className="flex justify-between text-xs text-emerald-200 mb-2"><span>Perfil preenchido</span><span>{profile.profile_completion}%</span></div>
-          <div className="h-2 bg-black/20 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${profile.profile_completion}%` }} /></div>
+          <div className="flex justify-between text-xs text-emerald-200 mb-2"><span>Perfil preenchido</span><span>{completion}%</span></div>
+          <div className="h-2 bg-black/20 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${completion}%` }} /></div>
           <p className="text-[11px] text-emerald-100/70 mt-2">{completionHints.length > 0 ? `Faltam: ${completionHints.slice(0, 3).join(', ')}` : 'Perfil completo e preparado para recuperação segura.'}</p>
         </div>
       </div>
@@ -521,12 +523,12 @@ export default function Perfil() {
                   <div className="md:col-span-2 rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-3">Redes, loja e reputação</p>
                     <div className="flex flex-wrap gap-2">
-                      {SOCIAL_META.filter((item) => !!profile.social_links[item.key]).map(({ key, label, icon: Icon, color }) => {
-                        const value = profile.social_links[key]!;
+                      {SOCIAL_META.filter((item) => !!socialLinks[item.key]).map(({ key, label, icon: Icon, color }) => {
+                        const value = socialLinks[key]!;
                         const url = buildSocialUrl(key, value);
                         return <a key={key} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition-colors group" title={label}><Icon size={13} className={color} /><span className="text-gray-400 group-hover:text-white text-xs transition-colors">{label}</span><ExternalLink size={10} className="text-gray-600 group-hover:text-gray-400 transition-colors" /></a>;
                       })}
-                      {Object.keys(profile.social_links).length === 0 && <span className="text-gray-500 text-sm">Adicione redes, contactos e links para fortalecer o seu perfil público.</span>}
+                      {Object.keys(socialLinks).length === 0 && <span className="text-gray-500 text-sm">Adicione redes, contactos e links para fortalecer o seu perfil público.</span>}
                     </div>
                   </div>
                 </div>

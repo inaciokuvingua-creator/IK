@@ -46,13 +46,37 @@ export default function Cofres() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchAll = async () => {
-    const [c, tx] = await Promise.all([
-      supabase.from('cofres').select('*').order('created_at', { ascending: false }),
-      supabase.from('transacoes').select('*').not('cofre_id', 'is', null).order('data_transacao', { ascending: false }),
-    ]);
-    if (!c.error) setCofres(c.data ?? []);
-    if (!tx.error) setTransacoes(tx.data ?? []);
-    setLoading(false);
+    try {
+      const [c, tx] = await Promise.all([
+        supabase.from('cofres').select('*').order('created_at', { ascending: false }),
+        supabase.from('transacoes').select('*').not('cofre_id', 'is', null).order('data_transacao', { ascending: false }),
+      ]);
+      if (c.error) throw c.error;
+      if (tx.error) throw tx.error;
+      setCofres((c.data ?? []).map((item) => ({
+        ...item,
+        nome: item.nome ?? 'Cofre',
+        descricao: item.descricao ?? null,
+        saldo: Number(item.saldo ?? 0),
+        cor: item.cor ?? COLORS[0],
+        meta: item.meta == null ? null : Number(item.meta),
+      })) as Cofre[]);
+      setTransacoes((tx.data ?? []).map((item) => ({
+        ...item,
+        valor: Number(item.valor ?? 0),
+        descricao: item.descricao ?? 'Transação',
+        categoria: item.categoria ?? 'outros',
+        data_transacao: item.data_transacao ?? new Date().toISOString().slice(0, 10),
+      })) as Transacao[]);
+      setError(null);
+    } catch (err) {
+      console.error('fetch cofres', err);
+      setError('Nao foi possivel carregar os cofres agora.');
+      setCofres([]);
+      setTransacoes([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -100,6 +124,7 @@ export default function Cofres() {
     if (selected) {
       const updated = cofres.find((c) => c.id === selected.id);
       if (updated) setSelected(updated);
+      else setSelected(null);
     }
   }, [cofres, selected]);
 
@@ -315,6 +340,11 @@ export default function Cofres() {
 
   return (
     <div className="space-y-6 anim-page">
+      {error && (
+        <div className="rounded-2xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{t('cofres.title')}</h1>
@@ -411,7 +441,7 @@ export default function Cofres() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">{tx.descricao}</p>
-                        <p className="text-gray-500 text-xs">{formatDate(tx.data_transacao)} · {tx.categoria}</p>
+                        <p className="text-gray-500 text-xs">{formatDate(tx.data_transacao || tx.created_at)} · {tx.categoria}</p>
                       </div>
                       <span className={`text-sm font-semibold mr-2 shrink-0 ${tx.tipo === 'entrada' ? 'text-emerald-400' : 'text-red-400'}`}>
                         {tx.tipo === 'entrada' ? '+' : '-'}{format(tx.valor)}

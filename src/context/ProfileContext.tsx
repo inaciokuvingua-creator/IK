@@ -76,6 +76,72 @@ export type UserProfile = {
   updated_at: string;
 };
 
+function normalizeProfile(data: Partial<UserProfile>, fallbackEmail?: string | null): UserProfile {
+  const now = new Date().toISOString();
+  return {
+    user_id: data.user_id ?? '',
+    nome: data.nome ?? fallbackEmail?.split('@')[0] ?? 'Utilizador',
+    full_name: data.full_name ?? data.nome ?? fallbackEmail?.split('@')[0] ?? 'Utilizador',
+    display_name: data.display_name ?? data.full_name ?? data.nome ?? fallbackEmail?.split('@')[0] ?? 'Utilizador',
+    username: data.username ?? fallbackEmail?.split('@')[0] ?? null,
+    email: data.email ?? fallbackEmail ?? null,
+    bio: data.bio ?? null,
+    public_bio: data.public_bio ?? data.bio ?? null,
+    avatar_url: data.avatar_url ?? null,
+    role: data.role ?? 'user',
+    account_type: data.account_type ?? 'cliente',
+    plan: data.plan ?? 'free',
+    plan_expires_at: data.plan_expires_at ?? null,
+    trial_started_at: data.trial_started_at ?? null,
+    trial_ends_at: data.trial_ends_at ?? null,
+    trial_active: data.trial_active ?? false,
+    verified: data.verified ?? false,
+    verification_type: data.verification_type ?? null,
+    country: data.country ?? 'AO',
+    province: data.province ?? null,
+    city: data.city ?? null,
+    address: data.address ?? null,
+    postal_code: data.postal_code ?? null,
+    birth_date: data.birth_date ?? null,
+    sex: data.sex ?? null,
+    phone: data.phone ?? null,
+    website: data.website ?? null,
+    preferred_language: data.preferred_language ?? 'pt',
+    idioma: data.idioma ?? data.preferred_language ?? 'pt',
+    profile_visibility: data.profile_visibility ?? 'misto',
+    profile_completion: Number.isFinite(data.profile_completion) ? Number(data.profile_completion) : 0,
+    security_level: data.security_level ?? 'standard',
+    two_factor_enabled: data.two_factor_enabled ?? false,
+    sms_verified: data.sms_verified ?? false,
+    email_verified: data.email_verified ?? false,
+    identity_verified: data.identity_verified ?? false,
+    company_name: data.company_name ?? null,
+    company_category: data.company_category ?? null,
+    company_description: data.company_description ?? null,
+    company_logo_url: data.company_logo_url ?? null,
+    company_website: data.company_website ?? null,
+    company_socials: data.company_socials ?? {},
+    company_contacts: data.company_contacts ?? {},
+    company_documents: data.company_documents ?? [],
+    associated_companies: data.associated_companies ?? [],
+    stores_created: data.stores_created ?? [],
+    published_products: data.published_products ?? [],
+    offered_services: data.offered_services ?? [],
+    contact_preferences: data.contact_preferences ?? {},
+    public_profile: data.public_profile ?? {},
+    private_profile: data.private_profile ?? {},
+    last_login_at: data.last_login_at ?? null,
+    last_login_ip: data.last_login_ip ?? null,
+    last_login_location: data.last_login_location ?? null,
+    suspicious_login_count: Number.isFinite(data.suspicious_login_count) ? Number(data.suspicious_login_count) : 0,
+    consent_version: data.consent_version ?? null,
+    consented_at: data.consented_at ?? null,
+    social_links: data.social_links ?? {},
+    created_at: data.created_at ?? now,
+    updated_at: data.updated_at ?? now,
+  };
+}
+
 export function getTrialDaysLeft(profile: UserProfile | null): number {
   if (!profile?.trial_active || !profile.trial_ends_at) return 0;
   const ms = new Date(profile.trial_ends_at).getTime() - Date.now();
@@ -119,20 +185,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (data) {
-      setProfile({
-        ...data,
-        social_links: data.social_links ?? {},
-        company_socials: data.company_socials ?? {},
-        company_contacts: data.company_contacts ?? {},
-        company_documents: data.company_documents ?? [],
-        associated_companies: data.associated_companies ?? [],
-        stores_created: data.stores_created ?? [],
-        published_products: data.published_products ?? [],
-        offered_services: data.offered_services ?? [],
-        contact_preferences: data.contact_preferences ?? {},
-        public_profile: data.public_profile ?? {},
-        private_profile: data.private_profile ?? {},
-      });
+      setProfile(normalizeProfile(data, user.email ?? null));
       // Apply saved language preference
       const langCode = data.idioma ?? data.preferred_language;
       if (langCode && SUPPORTED_LANGUAGES.some(l => l.code === langCode)) {
@@ -168,20 +221,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-      if (created) setProfile({
-        ...created,
-        social_links: created.social_links ?? {},
-        company_socials: created.company_socials ?? {},
-        company_contacts: created.company_contacts ?? {},
-        company_documents: created.company_documents ?? [],
-        associated_companies: created.associated_companies ?? [],
-        stores_created: created.stores_created ?? [],
-        published_products: created.published_products ?? [],
-        offered_services: created.offered_services ?? [],
-        contact_preferences: created.contact_preferences ?? {},
-        public_profile: created.public_profile ?? {},
-        private_profile: created.private_profile ?? {},
-      });
+      if (created) setProfile(normalizeProfile(created, user.email ?? null));
     }
     setLoading(false);
   }, [user]);
@@ -203,20 +243,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       .eq('user_id', user.id)
       .select()
       .single();
-    if (data) setProfile({
-      ...data,
-      social_links: data.social_links ?? {},
-      company_socials: data.company_socials ?? {},
-      company_contacts: data.company_contacts ?? {},
-      company_documents: data.company_documents ?? [],
-      associated_companies: data.associated_companies ?? [],
-      stores_created: data.stores_created ?? [],
-      published_products: data.published_products ?? [],
-      offered_services: data.offered_services ?? [],
-      contact_preferences: data.contact_preferences ?? {},
-      public_profile: data.public_profile ?? {},
-      private_profile: data.private_profile ?? {},
-    });
+    if (data) setProfile(normalizeProfile(data, user.email ?? null));
   };
 
   return (

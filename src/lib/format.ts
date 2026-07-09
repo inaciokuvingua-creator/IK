@@ -1,7 +1,11 @@
 export { useCurrency } from '../context/CurrencyContext';
 
-export function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-');
+export function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '--/--/----';
+  const normalized = String(dateStr).slice(0, 10);
+  const parts = normalized.split('-');
+  if (parts.length !== 3) return normalized;
+  const [year, month, day] = parts;
   return `${day}/${month}/${year}`;
 }
 
