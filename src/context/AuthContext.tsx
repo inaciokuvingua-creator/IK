@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { changeLang, type LangCode } from '../i18n';
 import {
   buildProfileCompletion,
@@ -79,6 +79,23 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
+const SUPABASE_CONFIG_ERROR =
+  'Servidor de autenticação não configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para entrar na sua conta.';
+
+function mapAuthError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('load failed')
+  ) {
+    return 'Não foi possível ligar ao servidor. Verifique a internet e tente novamente.';
+  }
+
+  return message || 'Ocorreu um erro inesperado. Tente novamente.';
+}
 
 async function restoreLang(userId: string) {
   const { data } = await supabase.from('user_profiles').select('idioma').eq('id', userId).maybeSingle();
@@ -86,11 +103,21 @@ async function restoreLang(userId: string) {
 }
 
 async function resolveLoginIdentifier(identifier: string) {
-  if (identifier.includes('@')) return identifier.trim().toLowerCase();
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  if (normalizedIdentifier.includes('@')) return normalizedIdentifier;
   const { data, error } = await supabase.rpc('resolve_login_identifier', { input_identifier: identifier.trim() });
-  if (error) throw error;
+  if (error) {
+    const rpcMessage = String(error.message ?? '').toLowerCase();
+    if (
+      rpcMessage.includes('resolve_login_identifier') ||
+      rpcMessage.includes('function') && rpcMessage.includes('does not exist')
+    ) {
+      throw new Error('Não foi possível validar o nome de utilizador. Entre com o e-mail da conta.');
+    }
+    throw error;
+  }
   const match = Array.isArray(data) ? data[0] : data;
-  return match?.email ? String(match.email).toLowerCase() : identifier.trim().toLowerCase();
+  return match?.email ? String(match.email).toLowerCase() : normalizedIdentifier;
 }
 
 async function auditSuccessfulLogin(userId: string) {
@@ -181,34 +208,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) restoreLang(session.user.id);
+    }).catch((error) => {
+      if (!active) return;
+      console.error('[IK] Falha ao restaurar sessão', error);
+      setSession(null);
+      setUser(null);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) restoreLang(session.user.id);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) restoreLang(session.user.id);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) return { error: SUPABASE_CONFIG_ERROR };
     try {
       const resolvedEmail = await resolveLoginIdentifier(email);
       const { data, error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password });
       if (!error && data.user) await auditSuccessfulLogin(data.user.id);
       return { error: error?.message ?? null };
     } catch (error) {
-      return { error: (error as Error).message };
+      return { error: mapAuthError(error) };
     }
   };
 
   const signUp = async (payload: AdvancedSignUpData | string, password?: string) => {
+    if (!isSupabaseConfigured) return { error: SUPABASE_CONFIG_ERROR };
     if (typeof payload === 'string') {
       const { error } = await supabase.auth.signUp({ email: payload, password: password || '' });
       return { error: error?.message ?? null };
@@ -283,11 +325,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await persistSecurityArtifacts(data.user.id, payload);
       return { error: null };
     } catch (error) {
-      return { error: (error as Error).message };
+      return { error: mapAuthError(error) };
     }
   };
 
   const requestPasswordReset = async (identifier: string) => {
+    if (!isSupabaseConfigured) return { error: SUPABASE_CONFIG_ERROR };
     try {
       const email = await resolveLoginIdentifier(identifier);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -295,11 +338,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return { error: error?.message ?? null };
     } catch (error) {
-      return { error: (error as Error).message };
+      return { error: mapAuthError(error) };
     }
   };
 
   const recoverAccount = async (input: RecoveryInput) => {
+    if (!isSupabaseConfigured) return { error: SUPABASE_CONFIG_ERROR, candidates: [] };
     try {
       const { data, error } = await supabase.rpc('recover_account_identity', {
         input_identifier: input.identifier ?? null,
@@ -314,7 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) return { error: error.message, candidates: [] };
       return { error: null, candidates: (data ?? []) as RecoveryCandidate[] };
     } catch (error) {
-      return { error: (error as Error).message, candidates: [] };
+      return { error: mapAuthError(error), candidates: [] };
     }
   };
 

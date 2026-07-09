@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react';
 import {
   Shield, LayoutDashboard, Users, BarChart3, Settings,
   ScrollText, LogOut, Menu, X, TrendingUp, ChevronRight,
-  Sparkles, UsersRound, Building2, Crown, CreditCard,
+  Sparkles, UsersRound, Building2, Crown, CreditCard, Store,
 } from 'lucide-react';
 import { useAdminAuth } from '../AdminAuthContext';
 
