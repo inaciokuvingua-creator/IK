@@ -118,11 +118,14 @@ Deno.serve(async (req: Request) => {
       const { username, password } = await req.json();
       if (!username || !password) return err("Credenciais inválidas");
 
-      const { data: adminUser } = await adminClient
+      const identifier = String(username).trim().toLowerCase();
+      const query = adminClient
         .from("admin_users")
-        .select("id, username, email, password_hash, nome, ativo, role")
-        .eq("username", username.toLowerCase().trim())
-        .maybeSingle();
+        .select("id, username, email, password_hash, nome, ativo, role");
+
+      const { data: adminUser } = identifier.includes("@")
+        ? await query.eq("email", identifier).maybeSingle()
+        : await query.eq("username", identifier).maybeSingle();
 
       if (!adminUser) return err("Usuário ou senha incorretos", 401);
       if (!adminUser.ativo) return err("Conta suspensa. Contacte o suporte.", 403);
@@ -131,7 +134,7 @@ Deno.serve(async (req: Request) => {
       if (!valid) return err("Usuário ou senha incorretos", 401);
 
       await adminClient.from("admin_users").update({ last_login: new Date().toISOString() }).eq("id", adminUser.id);
-      await logAction(adminClient, adminUser.id, adminUser.nome, "login", "admin_users", adminUser.id, { username });
+      await logAction(adminClient, adminUser.id, adminUser.nome, "login", "admin_users", adminUser.id, { username: identifier });
 
       const token = await signToken({ adminId: adminUser.id, nome: adminUser.nome, exp: Date.now() + 8 * 3600 * 1000 });
       return ok({ token, admin: { id: adminUser.id, username: adminUser.username, nome: adminUser.nome, email: adminUser.email, role: adminUser.role } });

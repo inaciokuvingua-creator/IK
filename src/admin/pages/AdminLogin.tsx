@@ -4,7 +4,7 @@ import { useAdminAuth } from '../AdminAuthContext';
 
 export default function AdminLogin() {
   const { login } = useAdminAuth();
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const err = await login(username.trim(), password);
+    const err = await login(identifier.trim(), password);
     if (err) setError(err);
     setLoading(false);
   };
@@ -35,15 +35,15 @@ export default function AdminLogin() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8">
           <form onSubmit={handle} className="space-y-5">
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">Utilizador</label>
+              <label className="block text-sm text-gray-400 mb-1.5">Utilizador ou e-mail</label>
               <div className="relative">
                 <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
-                  placeholder="admin"
+                  placeholder="admin ou inaciokuvingua@gmail.com"
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl py-3 pl-10 pr-4 text-sm placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
                 />
               </div>

@@ -14,6 +14,45 @@ export function getStoredAdmin(): AdminUser | null {
 export function setStoredAdmin(a: AdminUser) { localStorage.setItem('ik_admin_user', JSON.stringify(a)); }
 export function clearStoredAdmin() { localStorage.removeItem('ik_admin_user'); }
 
+async function loginReq(identifier: string, password: string): Promise<{ token: string; admin: AdminUser }> {
+  const loginBase = `${import.meta.env.VITE_SUPABASE_URL ?? ''}/functions/v1/admin-api`;
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+  if (!loginBase || !anon) {
+    throw new Error('Configuração do admin indisponível no ambiente atual.');
+  }
+
+  const res = await fetch(`${loginBase}/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${anon}`,
+      apikey: anon,
+      'X-Admin-Token': getToken(),
+    },
+    body: JSON.stringify({ username: identifier.trim(), password }),
+  });
+
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const msg =
+      data?.error ??
+      data?.message ??
+      (res.status === 401 ? 'Usuário/e-mail ou senha incorretos.' : null) ??
+      (res.status === 403 ? 'Conta sem permissão para acesso.' : null) ??
+      `Erro no login administrativo (${res.status}).`;
+    throw new Error(msg);
+  }
+
+  return data as { token: string; admin: AdminUser };
+}
+
 async function req<T>(method: string, path: string, body?: object): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -31,8 +70,8 @@ async function req<T>(method: string, path: string, body?: object): Promise<T> {
 }
 
 export const adminApi = {
-  login: (username: string, password: string) =>
-    req<{ token: string; admin: AdminUser }>('POST', '/login', { username, password }),
+  login: (identifier: string, password: string) =>
+    loginReq(identifier, password),
 
   stats: () => req<AdminStats>('GET', '/stats'),
 
