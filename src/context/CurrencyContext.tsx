@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 export type CurrencyCode = 'AOA' | 'USD' | 'EUR' | 'GBP' | 'BRL' | 'CNY' | 'ZAR';
 
@@ -19,6 +21,8 @@ export const CURRENCIES: CurrencyInfo[] = [
   { code: 'ZAR', symbol: 'R',   name: 'Rand Sul-Afric.', flag: '🇿🇦' },
 ];
 
+const VALID_CODES = CURRENCIES.map(c => c.code);
+
 type CurrencyContextType = {
   currency: CurrencyInfo;
   setCurrencyCode: (code: CurrencyCode) => void;
@@ -34,6 +38,7 @@ const CurrencyContext = createContext<CurrencyContextType | null>(null);
 const LS_KEY = 'ik_currency';
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [currencyCode, setCurrencyCodeState] = useState<CurrencyCode>(() => {
     const saved = localStorage.getItem(LS_KEY);
     return (saved as CurrencyCode) ?? 'AOA';
@@ -41,6 +46,23 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [rates, setRates] = useState<Record<string, number> | null>(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Load preferred currency from Supabase when user logs in
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('user_profiles')
+      .select('meta')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const saved = (data?.meta as Record<string, string> | null)?.preferred_currency;
+        if (saved && VALID_CODES.includes(saved as CurrencyCode)) {
+          setCurrencyCodeState(saved as CurrencyCode);
+          localStorage.setItem(LS_KEY, saved);
+        }
+      });
+  }, [user?.id]);
 
   useEffect(() => {
     // Fetch rates with AOA as base using open.er-api.com (free, no key needed)
@@ -71,6 +93,21 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const setCurrencyCode = (code: CurrencyCode) => {
     setCurrencyCodeState(code);
     localStorage.setItem(LS_KEY, code);
+    // Persist to Supabase meta field
+    if (user) {
+      supabase
+        .from('user_profiles')
+        .select('meta')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          const currentMeta = (data?.meta as Record<string, unknown>) ?? {};
+          supabase
+            .from('user_profiles')
+            .update({ meta: { ...currentMeta, preferred_currency: code } })
+            .eq('user_id', user.id);
+        });
+    }
   };
 
   const currency = CURRENCIES.find((c) => c.code === currencyCode) ?? CURRENCIES[0];

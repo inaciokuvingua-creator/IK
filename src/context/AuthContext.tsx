@@ -98,7 +98,7 @@ function mapAuthError(error: unknown): string {
 }
 
 async function restoreLang(userId: string) {
-  const { data } = await supabase.from('user_profiles').select('idioma').eq('id', userId).maybeSingle();
+  const { data } = await supabase.from('user_profiles').select('idioma').eq('user_id', userId).maybeSingle();
   if (data?.idioma) changeLang(data.idioma as LangCode);
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -8,29 +8,39 @@ import { AnimationProvider } from './context/AnimationContext';
 import Layout from './components/Layout';
 import AIAssistant from './components/AIAssistant';
 import SeasonalOverlay from './components/SeasonalOverlay';
-import Login from './pages/Login';
-import HomePage from './pages/Home';
-import Dashboard from './pages/Dashboard';
-import Cofres from './pages/Cofres';
-import Comunidades from './pages/Comunidades';
-import Negocios from './pages/Negocios';
-import Patrimonio from './pages/Patrimonio';
-import Relatorios from './pages/Relatorios';
-import Financeiro from './pages/Financeiro';
-import Configuracoes from './pages/Configuracoes';
-import Perfil from './pages/Perfil';
-import UserProfile from './pages/UserProfile';
-import StoreProfile from './pages/StoreProfile';
-import Empresas from './pages/Empresas';
-import Marketplace from './pages/Marketplace';
-import MinhaLoja from './pages/MinhaLoja';
-import Planos from './pages/Planos';
-import Chat from './pages/Chat';
-import Search from './pages/Search';
 import InstallPrompt from './components/InstallPrompt';
 import PWAManager from './components/PWAManager';
 import FloatingCalculator from './components/FloatingCalculator';
 import IKViewer from './components/IKViewer';
+
+// Páginas carregadas de forma lazy para reduzir o bundle inicial
+const Login        = lazy(() => import('./pages/Login'));
+const HomePage     = lazy(() => import('./pages/Home'));
+const Dashboard    = lazy(() => import('./pages/Dashboard'));
+const Cofres       = lazy(() => import('./pages/Cofres'));
+const Comunidades  = lazy(() => import('./pages/Comunidades'));
+const Negocios     = lazy(() => import('./pages/Negocios'));
+const Patrimonio   = lazy(() => import('./pages/Patrimonio'));
+const Relatorios   = lazy(() => import('./pages/Relatorios'));
+const Financeiro   = lazy(() => import('./pages/Financeiro'));
+const Configuracoes = lazy(() => import('./pages/Configuracoes'));
+const Perfil       = lazy(() => import('./pages/Perfil'));
+const UserProfile  = lazy(() => import('./pages/UserProfile'));
+const StoreProfile = lazy(() => import('./pages/StoreProfile'));
+const Empresas     = lazy(() => import('./pages/Empresas'));
+const Marketplace  = lazy(() => import('./pages/Marketplace'));
+const MinhaLoja    = lazy(() => import('./pages/MinhaLoja'));
+const Planos       = lazy(() => import('./pages/Planos'));
+const Chat         = lazy(() => import('./pages/Chat'));
+const Search       = lazy(() => import('./pages/Search'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
@@ -136,31 +146,33 @@ function AppContent() {
   }
 
   if (!user) {
-    if (showAuth) return <Login />;
-    return <HomePage onGetStarted={() => setShowAuth(true)} />;
+    if (showAuth) return <Suspense fallback={<PageLoader />}><Login /></Suspense>;
+    return <Suspense fallback={<PageLoader />}><HomePage onGetStarted={() => setShowAuth(true)} /></Suspense>;
   }
 
   return (
     <>
       <SeasonalOverlay />
       <Layout currentPage={page} onNavigate={setPage}>
-        {page === 'dashboard'   && <Dashboard onNavigate={navigate} />}
-        {page === 'cofres'      && <Cofres />}
-        {page === 'comunidades' && <Comunidades />}
-        {page === 'financeiro'  && <Financeiro />}
-        {page === 'negocios'    && <Negocios />}
-        {page === 'patrimonio'  && <Patrimonio />}
-        {page === 'relatorios'  && <Relatorios />}
-        {page === 'configuracoes' && <Configuracoes />}
-        {page === 'perfil'      && <Perfil />}
-        {page === 'userProfile' && <UserProfile userId={userProfileId} />}
-        {page === 'storeProfile' && <StoreProfile storeId={storeProfileId} />}
-        {page === 'search' && <Search />}
-        {page === 'empresas'    && <Empresas />}
-        {page === 'marketplace' && <Marketplace onNavigate={navigate} initialProductId={marketplaceProductId ?? undefined} />}
-        {page === 'minha-loja'  && <MinhaLoja onNavigate={navigate} />}
-        {page === 'planos'      && <Planos />}
-        {page === 'chat'        && <Chat initialUserId={chatTargetId ?? undefined} />}
+        <Suspense fallback={<PageLoader />}>
+          {page === 'dashboard'   && <Dashboard onNavigate={navigate} />}
+          {page === 'cofres'      && <Cofres />}
+          {page === 'comunidades' && <Comunidades />}
+          {page === 'financeiro'  && <Financeiro />}
+          {page === 'negocios'    && <Negocios />}
+          {page === 'patrimonio'  && <Patrimonio />}
+          {page === 'relatorios'  && <Relatorios />}
+          {page === 'configuracoes' && <Configuracoes />}
+          {page === 'perfil'      && <Perfil />}
+          {page === 'userProfile' && <UserProfile userId={userProfileId} />}
+          {page === 'storeProfile' && <StoreProfile storeId={storeProfileId} />}
+          {page === 'search' && <Search />}
+          {page === 'empresas'    && <Empresas />}
+          {page === 'marketplace' && <Marketplace onNavigate={navigate} initialProductId={marketplaceProductId ?? undefined} />}
+          {page === 'minha-loja'  && <MinhaLoja onNavigate={navigate} />}
+          {page === 'planos'      && <Planos />}
+          {page === 'chat'        && <Chat initialUserId={chatTargetId ?? undefined} />}
+        </Suspense>
       </Layout>
       <AIAssistant currentPage={page} />
       <FloatingCalculator />

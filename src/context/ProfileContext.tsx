@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { buildProfileCompletion, type AccountType } from '../lib/accountSecurity';
+import { changeLang, type LangCode, SUPPORTED_LANGUAGES } from '../i18n';
 
 export type SocialLinks = {
   instagram?: string;
@@ -132,6 +133,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         public_profile: data.public_profile ?? {},
         private_profile: data.private_profile ?? {},
       });
+      // Apply saved language preference
+      const langCode = data.idioma ?? data.preferred_language;
+      if (langCode && SUPPORTED_LANGUAGES.some(l => l.code === langCode)) {
+        changeLang(langCode as LangCode);
+      }
     } else {
       const now = new Date();
       const trialEnds = new Date(now);

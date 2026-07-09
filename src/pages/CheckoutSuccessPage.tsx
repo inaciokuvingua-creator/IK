@@ -1,31 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, ArrowRight, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useSubscription } from '../hooks/useSubscription';
 import { STRIPE_PRODUCTS } from '../stripe-config';
 
 export default function CheckoutSuccessPage() {
-  const { refetch } = useSubscription();
   const [dots, setDots] = useState('');
 
   useEffect(() => {
-    // Poll subscription status briefly to ensure it's updated
-    let attempts = 0;
-    const interval = setInterval(() => {
-      refetch();
-      attempts++;
-      if (attempts >= 5) clearInterval(interval);
-    }, 2000);
-
     const dotInterval = setInterval(() => {
       setDots(d => d.length >= 3 ? '' : d + '.');
     }, 500);
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(dotInterval);
-    };
+    return () => clearInterval(dotInterval);
   }, []);
+
+  const navigate = (page: string) => {
+    window.dispatchEvent(new CustomEvent('navigatePage', { detail: { page } }));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center px-4">
@@ -80,19 +69,19 @@ export default function CheckoutSuccessPage() {
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-          <Link
-            to="/dashboard"
+          <button
+            onClick={() => navigate('dashboard')}
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
           >
             <span>Ir para o Dashboard</span>
             <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            to="/planos"
+          </button>
+          <button
+            onClick={() => navigate('planos')}
             className="w-full py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-all duration-200 text-sm"
           >
             Ver detalhes do plano
-          </Link>
+          </button>
         </div>
       </div>
     </div>

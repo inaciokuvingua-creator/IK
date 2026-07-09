@@ -56,7 +56,26 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':    ['react', 'react-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-i18n':     ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          'page-marketplace': ['./src/pages/Marketplace.tsx'],
+          'page-minha-loja':  ['./src/pages/MinhaLoja.tsx'],
+          'page-relatorios':  ['./src/pages/Relatorios.tsx'],
+          'page-patrimonio':  ['./src/pages/Patrimonio.tsx'],
+          'page-chat':        ['./src/pages/Chat.tsx'],
+          'page-comunidades': ['./src/pages/Comunidades.tsx'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    include: ['lucide-react'],
   },
 });

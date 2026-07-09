@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAnimation } from '../context/AnimationContext';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,8 +24,9 @@ export default function Dashboard({ onNavigate }: Props) {
   const [lastSync, setLastSync] = useState<Date>(new Date());
   const { format } = useCurrency();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     const [c, n, p, tx] = await Promise.all([
       supabase.from('cofres').select('*').order('created_at', { ascending: false }),
       supabase.from('negocios').select('*').eq('ativo', true),
@@ -38,7 +39,13 @@ export default function Dashboard({ onNavigate }: Props) {
     if (!tx.error) setTransacoes(tx.data ?? []);
     setLastSync(new Date());
     setLoading(false);
-  };
+  }, []);
+
+  // Debounce realtime handler so multiple rapid changes only trigger one fetch
+  const debouncedFetch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchAll(), 600);
+  }, [fetchAll]);
 
   useEffect(() => {
     fetchAll();
@@ -46,15 +53,18 @@ export default function Dashboard({ onNavigate }: Props) {
     // Realtime — one channel, listen to all 4 tables
     const channel = supabase
       .channel('dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cofres' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'negocios' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'patrimonio' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cofres' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'negocios' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patrimonio' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes' }, debouncedFetch)
       .subscribe();
 
     channelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => {
+      supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchAll, debouncedFetch]);
 
   // ── Aggregates ─────────────────────────────────────────────────────────────
 
