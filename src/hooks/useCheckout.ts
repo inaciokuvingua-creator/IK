@@ -24,8 +24,8 @@ export function useCheckout() {
           body: JSON.stringify({
             priceId,
             mode,
-            successUrl: `${window.location.origin}/checkout/success`,
-            cancelUrl: `${window.location.origin}/planos`,
+                successUrl: `${window.location.origin}${window.location.pathname}?checkout=success`,
+                cancelUrl: `${window.location.origin}${window.location.pathname}?page=planos`,
           }),
         }
       );
