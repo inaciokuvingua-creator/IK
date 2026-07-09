@@ -17,9 +17,9 @@ export default function Configuracoes() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const {
-    pushSupported, pushPermission, pushSubscribed,
+    pushSupported, localNotifSupported, pushPermission, pushSubscribed,
     prefs, notifications, unreadCount,
-    requestPushPermission, unsubscribePush,
+    requestPushPermission, requestLocalPermission, unsubscribePush,
     updatePrefs, markAllRead, clearLog,
   } = useNotifications();
 
@@ -94,11 +94,8 @@ export default function Configuracoes() {
 
           {/* Push section */}
           <Section title={t('configuracoes.push.title')} icon={Smartphone} subtitle={t('configuracoes.push.subtitle')}>
-            {!pushSupported ? (
-              <InfoBanner icon={Info} text={t('configuracoes.push.semSuporte')} color="amber" />
-            ) : pushPermission === 'denied' ? (
-              <InfoBanner icon={BellOff} text={t('configuracoes.push.negado')} color="red" />
-            ) : (
+            {/* Tier 1: Full web push */}
+            {pushSupported && pushPermission !== 'denied' && (
               <div className="space-y-3">
                 <ToggleRow
                   label={pushSubscribed ? t('configuracoes.push.ativo') : t('configuracoes.push.ativar')}
@@ -122,6 +119,80 @@ export default function Configuracoes() {
                     <ToggleRow label="Marketplace: avaliações" description="Nova avaliação, resposta do vendedor e reputação da loja" icon={Sparkles} active={prefs?.on_marketplace_review ?? true} onChange={() => toggle('on_marketplace_review' as keyof typeof prefs)} />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tier 1 denied */}
+            {pushSupported && pushPermission === 'denied' && (
+              <div className="space-y-3">
+                <InfoBanner icon={BellOff} text={t('configuracoes.push.negado')} color="red" />
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Para reativar: clique no cadeado/ícone de informação na barra de endereços do navegador → Permissões → Notificações → Permitir.
+                </p>
+              </div>
+            )}
+
+            {/* Tier 2: Notification API without PushManager (Safari desktop, alguns mobile) */}
+            {!pushSupported && localNotifSupported && pushPermission !== 'denied' && (
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 bg-blue-950/30 border border-blue-800/40 rounded-xl">
+                  <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-300 leading-relaxed">
+                    O seu navegador suporta <strong>notificações locais</strong>. Receberá alertas enquanto o app estiver aberto. Para notificações em background, use Chrome, Edge ou Firefox.
+                  </p>
+                </div>
+                <ToggleRow
+                  label={pushPermission === 'granted' ? 'Notificações locais ativas' : 'Ativar notificações locais'}
+                  description={pushPermission === 'granted' ? 'Receberá alertas enquanto o app está aberto.' : 'Toque para permitir notificações neste dispositivo.'}
+                  active={pushPermission === 'granted'}
+                  loading={requesting}
+                  onChange={async () => {
+                    if (pushPermission === 'granted') {
+                      await updatePrefs({ push_enabled: false });
+                      setResult({ ok: true, msg: 'Notificações desativadas.' });
+                      setTimeout(() => setResult(null), 3000);
+                    } else {
+                      setRequesting(true);
+                      const ok = await requestLocalPermission();
+                      setResult(ok
+                        ? { ok: true, msg: 'Notificações locais ativadas!' }
+                        : { ok: false, msg: 'Permissão negada. Verifique as definições do navegador.' }
+                      );
+                      setRequesting(false);
+                      setTimeout(() => setResult(null), 3500);
+                    }
+                  }}
+                  accent
+                />
+              </div>
+            )}
+
+            {/* Tier 2 denied */}
+            {!pushSupported && localNotifSupported && pushPermission === 'denied' && (
+              <div className="space-y-3">
+                <InfoBanner icon={BellOff} text="Notificações bloqueadas neste navegador." color="red" />
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Para desbloquear: aceda às definições do navegador → Privacidade → Notificações → remova o bloqueio para este site.
+                </p>
+              </div>
+            )}
+
+            {/* Tier 3 only: no Notification API at all (muito antigo / iOS wkwebview) */}
+            {!pushSupported && !localNotifSupported && (
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl">
+                  <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-amber-300 leading-relaxed font-medium mb-1">Notificações push não suportadas neste browser</p>
+                    <p className="text-xs text-amber-200/70 leading-relaxed">
+                      As <strong>notificações in-app</strong> (sino no topo) continuam a funcionar. Para push completo, use Chrome, Edge ou Firefox no computador ou Android, ou Safari 16.4+ no iPhone/iPad.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl">
+                  <Check size={14} className="text-emerald-400 shrink-0" />
+                  <p className="text-xs text-emerald-300">Notificações in-app via tempo real: <strong>sempre ativas</strong> ✓</p>
+                </div>
               </div>
             )}
           </Section>

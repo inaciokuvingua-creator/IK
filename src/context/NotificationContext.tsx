@@ -6,14 +6,20 @@ const env = (import.meta as ImportMeta & { env: Record<string, string | undefine
 const swBasePath = (env.BASE_URL ?? '/').endsWith('/') ? (env.BASE_URL ?? '/') : `${env.BASE_URL}/`;
 const swPath = `${swBasePath}sw.js`;
 
+/** Tier 1: Full Web Push (SW + PushManager + Notification) — Chrome/Edge/Firefox desktop & Android */
+/** Tier 2: Local Notification API only (no PushManager) — Safari desktop, some mobile */
+/** Tier 3: In-app only via Supabase realtime — always works everywhere */
+
 type NotifContextType = {
-  pushSupported: boolean;
+  pushSupported: boolean;          // Tier 1: full web push
+  localNotifSupported: boolean;    // Tier 2: Notification API without push
   pushPermission: NotificationPermission;
   pushSubscribed: boolean;
   prefs: NotificationPreferences | null;
   notifications: NotificationLog[];
   unreadCount: number;
   requestPushPermission: () => Promise<boolean>;
+  requestLocalPermission: () => Promise<boolean>;  // Tier 2 activate
   unsubscribePush: () => Promise<void>;
   updatePrefs: (patch: Partial<NotificationPreferences>) => Promise<void>;
   sendNotification: (titulo: string, corpo: string, tipo?: string, options?: { userId?: string; url?: string }) => Promise<void>;
@@ -52,7 +58,21 @@ async function ensureServiceWorkerRegistration() {
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user, session } = useAuth();
-  const [pushSupported] = useState(() => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+
+  // Tier 1: Full Web Push
+  const [pushSupported] = useState(() =>
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    'Notification' in window
+  );
+  // Tier 2: Notification API without ServiceWorker/PushManager
+  const [localNotifSupported] = useState(() =>
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    !('PushManager' in window)
+  );
+
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -103,11 +123,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Realtime: new notifications appear instantly
+    // Realtime: new notifications appear instantly + show local notif if permission granted
     const ch = supabase
       .channel('notif-log-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notification_log', filter: `user_id=eq.${user.id}` }, (payload) => {
-        setNotifications((prev) => [payload.new as NotificationLog, ...prev].slice(0, 50));
+        const n = payload.new as NotificationLog;
+        setNotifications((prev) => [n, ...prev].slice(0, 50));
+        // Tier 2 fallback: show OS notification via Notification API if push not subscribed
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && !document.hasFocus()) {
+          try {
+            new Notification(n.titulo ?? 'IK Finance', {
+              body: n.corpo ?? '',
+              icon: '/icon-192x192.png',
+            });
+          } catch { /* ignore */ }
+        }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notification_log', filter: `user_id=eq.${user.id}` }, () => {
         supabase.from('notification_log').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
@@ -179,6 +209,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setPushSubscribed(false);
   };
 
+  /** Tier 2: request Notification API permission without ServiceWorker/PushManager */
+  const requestLocalPermission = async (): Promise<boolean> => {
+    if (typeof Notification === 'undefined') return false;
+    try {
+      const perm = await Notification.requestPermission();
+      setPushPermission(perm);
+      if (perm === 'granted') {
+        new Notification('IK Finance ativado!', {
+          body: 'Notificações locais ativas. Receberá alertas quando o app estiver aberto.',
+          icon: '/icon-192x192.png',
+        });
+        await updatePrefs({ push_enabled: true });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
   const updatePrefs = async (patch: Partial<NotificationPreferences>) => {
     if (!user) return;
     const { data } = await supabase
@@ -224,7 +274,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const unreadCount = notifications.filter((n) => !n.lida).length;
 
   return (
-    <NotifContext.Provider value={{ pushSupported, pushPermission, pushSubscribed, prefs, notifications, unreadCount, requestPushPermission, unsubscribePush, updatePrefs, sendNotification, markAllRead, clearLog }}>
+    <NotifContext.Provider value={{ pushSupported, localNotifSupported, pushPermission, pushSubscribed, prefs, notifications, unreadCount, requestPushPermission, requestLocalPermission, unsubscribePush, updatePrefs, sendNotification, markAllRead, clearLog }}>
       {children}
     </NotifContext.Provider>
   );
