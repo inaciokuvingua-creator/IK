@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   CreditCard, RefreshCw, Check, AlertCircle, X, ChevronLeft,
   ChevronRight, Clock, CheckCircle2, XCircle, Phone, Mail,
@@ -36,9 +36,9 @@ export default function AdminPlanos() {
   const [changePlan, setChangePlan] = useState('');
   const [working, setWorking] = useState(false);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); }, []);
 
-  const load = async (p = page, s = statusFilter) => {
+  const load = useCallback(async (p = page, s = statusFilter) => {
     setLoading(true);
     try {
       const res = await adminApi.planRequests(s, p);
@@ -46,9 +46,9 @@ export default function AdminPlanos() {
       setTotal(res.total);
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
-  };
+  }, [page, statusFilter, showToast]);
 
-  useEffect(() => { load(); }, [page, statusFilter]);
+  useEffect(() => { load(); }, [load]);
 
   const openAction = (req: PlanRequest, action: 'approve' | 'reject' | 'change') => {
     setNota('');

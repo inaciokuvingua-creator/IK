@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { buildProfileCompletion, type AccountType } from '../lib/accountSecurity';
@@ -109,7 +109,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
     setLoading(true);
     const { data } = await supabase
@@ -184,9 +184,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       });
     }
     setLoading(false);
-  };
+  }, [user]);
 
-  useEffect(() => { fetchProfile(); }, [user?.id]);
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   const updateProfile = async (patch: Partial<UserProfile>) => {
     if (!user) return;

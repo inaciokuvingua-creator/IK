@@ -10,6 +10,7 @@ import {
   Copy, Check, Send, Paperclip, Phone, Globe, Mail,
   Image as ImageIcon, FileText, Volume2, Film, RefreshCw,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { firstProductImage, parseProductImages } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
@@ -55,7 +56,7 @@ type Product = {
   slug?: string | null; meta_title?: string | null; meta_description?: string | null; seo_keywords?: string[] | null;
   allow_download?: boolean;
   deleted_at: string | null; created_at: string;
-  stores?: { nome: string; slug: string; verified: boolean; logo_url: string | null; owner_id?: string | null };
+  stores?: { nome: string; slug: string; verified: boolean; logo_url: string | null; owner_id?: string | null; ativo?: boolean; deleted_at?: string | null };
 };
 
 type ProductMedia = {
@@ -243,19 +244,27 @@ function ProductModal({
 
   const productUrl = buildProductUrl(product.id, product.slug ?? slugify(product.nome));
   const isSupplierOwner = userId != null && product.stores?.owner_id === userId;
+  const imgUrls = useMemo(() => parseProductImages(product.imagem_url ?? null), [product.imagem_url]);
+  const allImages = useMemo(() => [
+    ...imgUrls.map((u) => ({ url: u, type: 'image' as const })),
+    ...media.filter((m) => m.type === 'image').map((m) => ({ url: m.url, type: 'image' as const })),
+  ], [imgUrls, media]);
+  const avgRating = useMemo(
+    () => (reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : product.avg_rating),
+    [reviews, product.avg_rating],
+  );
 
   useEffect(() => {
-    // Record view
     supabase.from('product_views').insert({ product_id: product.id, viewer_id: userId ?? null });
-    // Load media
-    supabase.from('product_media').select('*').eq('product_id', product.id).order('sort_order').then(({data}) => setMedia(data ?? []));
-    // Load reviews
-    supabase.from('product_reviews').select('*, profiles:reviewer_id(nome,avatar_url)').eq('product_id', product.id).order('created_at',{ascending:false}).limit(20).then(({data}) => setReviews(data as any ?? []));
-    // Check fav
+    supabase.from('product_media').select('*').eq('product_id', product.id).order('sort_order').then(({ data }) => setMedia(data ?? []));
+    supabase.from('product_reviews').select('*, profiles:reviewer_id(nome,avatar_url)').eq('product_id', product.id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setReviews(data as any ?? []));
     if (userId) {
-      supabase.from('product_favourites').select('id').eq('product_id',product.id).eq('user_id',userId).maybeSingle().then(({data}) => setIsFav(!!data));
+      supabase.from('product_favourites').select('id').eq('product_id', product.id).eq('user_id', userId).maybeSingle().then(({ data }) => setIsFav(!!data));
       supabase.from('product_review_likes').select('review_id').eq('user_id', userId).then(({ data }) => setLikedReviewIds((data ?? []).map((row: any) => row.review_id)));
     }
+  }, [product.id, userId]);
+
+  useEffect(() => {
     window.history.replaceState({}, '', productUrl);
     setDocumentMeta({
       title: product.meta_title ?? `${product.nome} | IK Finance Marketplace`,
@@ -291,13 +300,8 @@ function ProductModal({
       resetUrl.searchParams.delete('slug');
       window.history.replaceState({}, '', resetUrl.toString());
     };
-  }, [product.id, userId]);
+  }, [allImages, avgRating, product, productUrl, reviews.length]);
 
-  const imgUrls = parseProductImages(product.imagem_url ?? null);
-  const allImages = [
-    ...imgUrls.map(u=>({ url: u, type: 'image' })),
-    ...media.filter(m=>m.type==='image').map(m=>({ url: m.url, type: 'image' })),
-  ];
   const imgSrc = allImages[imgIdx]?.url ?? firstProductImage(product.imagem_url);
 
   const toggleFav = async () => {
@@ -322,7 +326,7 @@ function ProductModal({
     const { data: saved } = await supabase.from('product_reviews').upsert({
       product_id: product.id, store_id: product.store_id,
       rating: myRating, comment: myComment.trim() || null,
-    }).select('id').single();
+    }, { onConflict: 'product_id,reviewer_id' }).select('id').single();
     if (saved?.id) {
       await queueMarketplaceModeration({ entityType: 'review', entityId: saved.id, ownerId: userId, summary: `Nova avaliação em ${product.nome}`, priority: myRating <= 2 ? 'high' : 'normal', metadata: { rating: myRating } });
     }
@@ -360,7 +364,7 @@ function ProductModal({
       setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: Math.max(0, review.likes - 1) } : review));
       return;
     }
-    await supabase.from('product_review_likes').insert({ review_id: reviewId, user_id: userId });
+    await supabase.from('product_review_likes').upsert({ review_id: reviewId, user_id: userId }, { onConflict: 'review_id,user_id', ignoreDuplicates: true });
     setLikedReviewIds((prev) => [...prev, reviewId]);
     setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: review.likes + 1 } : review));
   };
@@ -395,7 +399,6 @@ function ProductModal({
     setSubmittingReplyId(null);
   };
 
-  const avgRating = reviews.length ? reviews.reduce((s,r)=>s+r.rating,0)/reviews.length : product.avg_rating;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
@@ -496,17 +499,17 @@ function ProductModal({
 
               {/* Stats */}
               <div className="grid grid-cols-3 gap-3">
-                {[
-                  [Eye, product.total_views, 'Visualizações'],
-                  [Download, product.total_downloads, 'Downloads'],
-                  [ShoppingBag, product.total_vendas, 'Vendas'],
-                ].map(([Icon, val, label], i) => (
+                {([
+                  { Icon: Eye, val: product.total_views, label: 'Visualizações' },
+                  { Icon: Download, val: product.total_downloads, label: 'Downloads' },
+                  { Icon: ShoppingBag, val: product.total_vendas, label: 'Vendas' },
+                ] as Array<{ Icon: LucideIcon; val: number; label: string }>).map(({ Icon, val, label }, i) => (
                   <div key={i} className="bg-gray-800/50 rounded-xl p-3 text-center">
                     <div className="flex items-center justify-center mb-1 text-gray-500">
                       <Icon size={16}/>
                     </div>
-                    <p className="text-white font-bold text-lg">{val as number}</p>
-                    <p className="text-gray-600 text-xs">{label as string}</p>
+                    <p className="text-white font-bold text-lg">{val}</p>
+                    <p className="text-gray-600 text-xs">{label}</p>
                   </div>
                 ))}
               </div>
@@ -975,7 +978,7 @@ function BuyerPanel({ userId, onNavigateChat }: { userId: string; onNavigateChat
                   </button>
                 )}
                 {o.conversation_id && (
-                  <button onClick={() => openConversationChat(o.conversation_id)}
+                  <button onClick={() => o.conversation_id && openConversationChat(o.conversation_id)}
                     className="flex items-center gap-1.5 text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 px-3 py-1.5 rounded-xl transition-colors">
                     <MessageCircle size={12}/> Chat
                   </button>
@@ -1129,9 +1132,11 @@ export default function Marketplace({ onNavigate, initialProductId }: { onNaviga
   const load = useCallback(async () => {
     setLoading(true);
     let q = supabase.from('products')
-      .select('*, stores!store_id(nome,slug,verified,logo_url,owner_id)')
+      .select('*, stores!store_id(nome,slug,verified,logo_url,owner_id,ativo,deleted_at)')
       .eq('ativo', true)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .eq('stores.ativo', true)
+      .is('stores.deleted_at', null);
 
     if (cat !== 'todos') q = q.eq('categoria', cat);
     if (tipo !== 'todos') q = q.eq('tipo', tipo);
@@ -1149,7 +1154,7 @@ export default function Marketplace({ onNavigate, initialProductId }: { onNaviga
     q = q.order(s.col, {ascending: s.asc}).order('total_vendas', {ascending:false}).limit(80);
 
     const { data } = await q;
-    setProducts(data as Product[] ?? []);
+    setProducts(((data as Product[] | null) ?? []).filter((item) => item.stores?.ativo !== false && !item.stores?.deleted_at));
     setLoading(false);
   }, [cat, tipo, search, sort]);
 

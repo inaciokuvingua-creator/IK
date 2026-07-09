@@ -78,12 +78,19 @@ export function AIProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ik-ai`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Sessao invalida. Entre novamente para usar o assistente.');
+        return null;
+      }
+      const res = await fetch(`${supabaseUrl}/functions/v1/ik-ai`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
-          Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Apikey: anonKey,
         },
         body: JSON.stringify(payload),
       });

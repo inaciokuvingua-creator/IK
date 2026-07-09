@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Building2, Plus, RefreshCw, Check, AlertCircle, X,
   FolderOpen, FileText, MessageSquare, Send, Users,
@@ -63,27 +63,27 @@ export default function AdminEmpresaInterna() {
   const [sendingChat, setSendingChat] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const d = await adminApi.company();
       setData(d);
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
-  };
+  }, [showToast]);
 
-  const loadChat = async (tipo: string) => {
+  const loadChat = useCallback(async (tipo: string) => {
     try {
       const msgs = await adminApi.companyChat(tipo);
       setChatMessages(msgs);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (e) { showToast(false, (e as Error).message); }
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { if (tab === 'chat') loadChat(chatChannel); }, [tab, chatChannel]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (tab === 'chat') loadChat(chatChannel); }, [tab, chatChannel, loadChat]);
 
   const addProject = async () => {
     if (!projectForm.nome) { showToast(false, 'Nome é obrigatório'); return; }

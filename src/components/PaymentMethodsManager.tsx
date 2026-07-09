@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle, CreditCard, Plus, Save, Trash2, Wallet } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -58,17 +58,17 @@ export default function PaymentMethodsManager({ ownerType, ownerUserId, storeId,
 
   const scopeFilter = useMemo(() => ownerType === 'user' ? { owner_user_id: ownerUserId } : { store_id: storeId }, [ownerType, ownerUserId, storeId]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const query = supabase.from('payment_profiles').select('*').eq('owner_type', ownerType).order('is_default', { ascending: false }).order('created_at', { ascending: false });
     if (ownerType === 'user' && ownerUserId) query.eq('owner_user_id', ownerUserId);
     if (ownerType === 'store' && storeId) query.eq('store_id', storeId);
     const { data } = await query;
     setProfiles((data ?? []) as PaymentProfile[]);
-  };
+  }, [ownerType, ownerUserId, storeId]);
 
   useEffect(() => {
     if ((ownerType === 'user' && ownerUserId) || (ownerType === 'store' && storeId)) load();
-  }, [ownerType, ownerUserId, storeId]);
+  }, [load, ownerType, ownerUserId, storeId]);
 
   const startCreate = () => {
     setEditingId(null);

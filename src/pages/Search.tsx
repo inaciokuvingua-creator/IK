@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search as SearchIcon, Users, Store, Package, FileText, MessageCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -64,7 +64,13 @@ export default function Search() {
       }
       setLoading(true);
       const q = `%${query.trim()}%`;
-      const safe = async (p: Promise<any>) => { try { return (await p).data ?? []; } catch { return []; } };
+      const safe = async <T,>(query: PromiseLike<{ data: T[] | null }>) => {
+        try {
+          return (await query).data ?? [];
+        } catch {
+          return [] as T[];
+        }
+      };
 
       const [profileResults, storeResults, productResults, postResults] = await Promise.all([
         safe(supabase.from('user_profiles')
@@ -94,8 +100,6 @@ export default function Search() {
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [query]);
-
-  const total = profiles.length + stores.length + products.length + posts.length;
 
   return (
     <div className="space-y-4">

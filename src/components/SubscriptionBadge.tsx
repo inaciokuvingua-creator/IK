@@ -1,8 +1,6 @@
-import React from 'react';
 import { Zap, Crown } from 'lucide-react';
 import { useSubscription } from '../hooks/useSubscription';
 import { STRIPE_PRODUCTS } from '../stripe-config';
-import { Link } from 'react-router-dom';
 
 interface SubscriptionBadgeProps {
   compact?: boolean;
@@ -24,13 +22,14 @@ export default function SubscriptionBadge({ compact = false }: SubscriptionBadge
   if (!isActive || !matchedProduct) {
     if (compact) return null;
     return (
-      <Link
-        to="/planos"
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('navigatePage', { detail: { page: 'planos' } }))}
         className="inline-flex items-center gap-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-slate-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-full transition-all duration-200"
       >
         <Zap className="w-3 h-3" />
         <span>Upgrade</span>
-      </Link>
+      </button>
     );
   }
 

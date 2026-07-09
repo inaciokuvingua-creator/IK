@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollText, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { adminApi, type AdminLog } from '../api';
 
@@ -34,7 +34,7 @@ export default function AdminLogs() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const load = async (p = page) => {
+  const load = useCallback(async (p = page) => {
     setLoading(true);
     setError(null);
     try {
@@ -43,9 +43,9 @@ export default function AdminLogs() {
       setTotal(res.total);
     } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  };
+  }, [page]);
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(total / 30));
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Search, Trash2, Pencil, X, Check, AlertTriangle, ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
 import { adminApi } from '../api';
 
@@ -33,7 +33,7 @@ export default function AdminFinanceiro() {
   const [editRow, setEditRow] = useState<Row | null>(null);
   const [editFields, setEditFields] = useState<Row>({});
 
-  const load = async (p = page) => {
+  const load = useCallback(async (p = page) => {
     setLoading(true);
     setError(null);
     try {
@@ -48,9 +48,9 @@ export default function AdminFinanceiro() {
       setTotal(res.total);
     } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  };
+  }, [page, tabela, fUserId, fCat, fDateFrom, fDateTo]);
 
-  useEffect(() => { load(); }, [page, tabela]);
+  useEffect(() => { load(); }, [load]);
 
   const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); };
 

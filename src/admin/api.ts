@@ -1,6 +1,6 @@
 // Admin API client — all requests go through the admin-api edge function
-const BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-api`;
-const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const BASE = `${import.meta.env.VITE_SUPABASE_URL ?? ''}/functions/v1/admin-api`;
+const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 const TOKEN_KEY = 'ik_admin_token';
 
 export type AdminUser = { id: string; username: string; nome: string; email: string; role?: string };

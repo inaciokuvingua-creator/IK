@@ -313,7 +313,7 @@ export default function IKViewer() {
     return () => {
       cancelled = true;
     };
-  }, [file?.url, file?.mimeType, file?.name]);
+  }, [file]);
 
   const documentPreviewLines = useMemo(() => {
     if (!documentText) return [];

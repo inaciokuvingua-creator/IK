@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   TrendingUp, Eye, EyeOff, Mail, Lock, AlertCircle, MapPin, Quote, MessageCircle,
@@ -14,7 +14,7 @@ import {
   normalizeUsername,
 } from '../lib/accountSecurity';
 
-type Mode = 'login' | 'signup' | 'recovery';
+type Mode = 'login' | 'signup' | 'recovery' | 'reset';
 
 type SignupFormState = AdvancedSignUpData & {
   confirmPassword: string;
@@ -67,10 +67,11 @@ function isBusinessLike(type: AdvancedSignUpData['accountType']) {
   return ['empresa', 'fornecedor', 'vendedor', 'criador', 'profissional'].includes(type);
 }
 
-export default function Login() {
+export default function Login({ forceReset = false }: { forceReset?: boolean }) {
   const { t } = useTranslation();
-  const { signIn, signUp, requestPasswordReset, recoverAccount } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  const { signIn, signUp, requestPasswordReset, completePasswordReset, recoverAccount, isPasswordRecovery } = useAuth();
+  const resetFlowActive = forceReset || isPasswordRecovery;
+  const [mode, setMode] = useState<Mode>(resetFlowActive ? 'reset' : 'login');
   const [signupStep, setSignupStep] = useState(0);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -101,6 +102,16 @@ export default function Login() {
     allow_reset: boolean;
     suspicious: boolean;
   }>>([]);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  useEffect(() => {
+    if (!resetFlowActive) return;
+    setMode('reset');
+    setError(null);
+    setSuccess('Defina uma nova senha para concluir a recuperação da conta.');
+  }, [resetFlowActive]);
 
   const hasBusinessStep = isBusinessLike(signup.accountType);
   const steps = hasBusinessStep
@@ -217,6 +228,25 @@ export default function Login() {
     const { error: resetError } = await requestPasswordReset(candidateIdentifier);
     if (resetError) setError(resetError);
     else setSuccess('Link de redefinição enviado para o contacto principal da conta.');
+    setLoading(false);
+  };
+
+  const handlePasswordResetCompletion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    if (resetPassword.length < 8) {
+      setError('A nova senha deve ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (resetPassword !== resetConfirm) {
+      setError('A confirmação da senha não corresponde.');
+      return;
+    }
+    setLoading(true);
+    const { error: resetError } = await completePasswordReset(resetPassword);
+    if (resetError) setError(resetError);
+    else setSuccess('Senha redefinida com sucesso. A entrar na sua conta...');
     setLoading(false);
   };
 
@@ -349,6 +379,7 @@ export default function Login() {
                   { value: 'login' as Mode, label: 'Entrar' },
                   { value: 'signup' as Mode, label: 'Criar conta' },
                   { value: 'recovery' as Mode, label: 'Recuperar conta' },
+                  ...(resetFlowActive ? [{ value: 'reset' as Mode, label: 'Nova senha' }] : []),
                 ].map((item) => (
                   <button key={item.value} type="button" onClick={() => { setMode(item.value); setError(null); setSuccess(null); }} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${mode === item.value ? 'bg-emerald-500 text-white' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}>
                     {item.label}
@@ -360,11 +391,13 @@ export default function Login() {
                 {mode === 'login' && 'Entrar com segurança'}
                 {mode === 'signup' && 'Cadastro avançado IK FINANCE'}
                 {mode === 'recovery' && 'Recuperar minha conta'}
+                {mode === 'reset' && 'Definir nova senha'}
               </h2>
               <p className="text-gray-400 text-sm max-w-xl">
                 {mode === 'login' && 'Use e-mail, @username, telefone ou documento cadastrado. Os acessos ficam registados por dispositivo.'}
                 {mode === 'signup' && 'Crie uma identidade completa em etapas, com perfil público, dados privados e recuperação preparada desde o início.'}
                 {mode === 'recovery' && 'Recupere acesso por e-mail, telefone, nome de utilizador, documento ou confirmação inteligente dos seus dados.'}
+                {mode === 'reset' && 'Escolha uma nova senha forte para concluir a recuperação e voltar a entrar no IK Finance.'}
               </p>
             </div>
 
@@ -400,6 +433,34 @@ export default function Login() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-gray-400">Alertas de acesso suspeito</div>
                   </div>
                   <button type="submit" disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-900 disabled:text-emerald-600 text-white font-semibold rounded-2xl py-3 text-sm transition-colors mt-2">{loading ? t('auth.loading') : 'Entrar'}</button>
+                </form>
+              )}
+
+              {mode === 'reset' && (
+                <form onSubmit={handlePasswordResetCompletion} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1.5">Nova senha</label>
+                    <div className="relative">
+                      <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <input type={showResetPassword ? 'text' : 'password'} value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} required placeholder="Mínimo 8 caracteres" className="w-full bg-slate-900 border border-white/10 text-white rounded-2xl py-3 pl-10 pr-11 text-sm placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors" />
+                      <button type="button" onClick={() => setShowResetPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
+                        {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1.5">Confirmar nova senha</label>
+                    <div className="relative">
+                      <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <input type={showResetPassword ? 'text' : 'password'} value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} required placeholder="Repita a nova senha" className="w-full bg-slate-900 border border-white/10 text-white rounded-2xl py-3 pl-10 pr-4 text-sm placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-3 gap-3 text-xs">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-gray-400">Use 8+ caracteres</div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-gray-400">Combine letras, números e símbolos</div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-gray-400">A redefinição termina automaticamente</div>
+                  </div>
+                  <button type="submit" disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-900 disabled:text-emerald-600 text-white font-semibold rounded-2xl py-3 text-sm transition-colors mt-2">{loading ? t('auth.loading') : 'Guardar nova senha'}</button>
                 </form>
               )}
 

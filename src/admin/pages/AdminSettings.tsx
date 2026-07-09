@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Save, RefreshCw, Check, AlertTriangle, Lock, Eye, EyeOff } from 'lucide-react';
 import { adminApi, type SystemSetting } from '../api';
 
@@ -27,9 +27,9 @@ export default function AdminSettings() {
   const [showPwd, setShowPwd] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const s = await adminApi.settings();
@@ -39,9 +39,9 @@ export default function AdminSettings() {
       setValues(v);
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     setSaving(true);

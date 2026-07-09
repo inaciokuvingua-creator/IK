@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCheck, FileText, MessageCircle, Paperclip, Search, Send } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -76,7 +76,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? null;
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     if (!user) return;
     const { data: participantRows } = await supabase.from('chat_participants').select('conversation_id,last_read_at').eq('user_id', user.id).is('left_at', null);
     const conversationIds = (participantRows ?? []).map((item) => item.conversation_id);
@@ -109,21 +109,21 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       } satisfies ConversationSummary;
     }));
     setConversations(summaries);
-    if (!activeConversationId && summaries[0]) setActiveConversationId(summaries[0].id);
-  };
+    setActiveConversationId((prev) => prev ?? summaries[0]?.id ?? null);
+  }, [user]);
 
-  const loadMessages = async (conversationId: string) => {
+  const loadMessages = useCallback(async (conversationId: string) => {
     setLoading(true);
     const { data } = await supabase.from('chat_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     setMessages((data ?? []) as ChatMessage[]);
     await supabase.from('chat_participants').update({ last_read_at: new Date().toISOString() }).eq('conversation_id', conversationId).eq('user_id', user!.id);
     setLoading(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-  };
+  }, [user]);
 
   useEffect(() => {
     loadConversations();
-  }, [user?.id]);
+  }, [loadConversations]);
 
   useEffect(() => {
     if (!initialUserId || !user) return;
@@ -132,7 +132,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       setActiveConversationId(conversationId);
       await loadConversations();
     })();
-  }, [initialUserId, user?.id]);
+  }, [initialUserId, loadConversations, user]);
 
   useEffect(() => {
     const handler = async (event: any) => {
@@ -144,7 +144,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     };
     window.addEventListener('openChatWith', handler as EventListener);
     return () => window.removeEventListener('openChatWith', handler as EventListener);
-  }, [user?.id]);
+  }, [loadConversations, user]);
 
   useEffect(() => {
     if (!activeConversationId) return;
@@ -157,7 +157,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeConversationId]);
+  }, [activeConversationId, loadConversations, loadMessages]);
 
   const sendMessage = async () => {
     if (!user || !activeConversationId || (!text.trim() && !attachment)) return;

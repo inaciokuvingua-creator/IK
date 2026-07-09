@@ -62,7 +62,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(LS_KEY, saved);
         }
       });
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     // Fetch rates with AOA as base using open.er-api.com (free, no key needed)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Sparkles, Save, RefreshCw, Check, AlertTriangle,
   BarChart3, Users, Zap, MessageSquare, Settings2
@@ -30,9 +30,9 @@ export default function AdminAI() {
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const all = await adminApi.settings();
@@ -48,9 +48,9 @@ export default function AdminAI() {
       setUsage({ total: logsRes.total, today: aiLogs.length, byContext: {} });
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     setSaving(true);

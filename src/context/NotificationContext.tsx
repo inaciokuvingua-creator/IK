@@ -147,7 +147,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, [user?.id]);
+  }, [pushSupported, user]);
 
   const requestPushPermission = async (): Promise<boolean> => {
     if (!pushSupported) return false;

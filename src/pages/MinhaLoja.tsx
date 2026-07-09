@@ -258,7 +258,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
       .on('postgres_changes',{event:'*',schema:'public',table:'order_proofs'}, loadAll)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [store?.id, loadAll]);
+  }, [store, loadAll]);
 
   // ── Store CRUD ───────────────────────────────────────────────────────────────
   const openStoreForm = () => {
@@ -904,7 +904,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1.5">Logótipo</label>
-                <ImageUpload value={sLogo} onChange={setSLogo} bucket="store-assets" folder="logos"/>
+                <ImageUpload value={sLogo} onChange={(url) => setSLogo(url ?? '')} bucket="store-assets" folder="logos"/>
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={()=>setShowStoreForm(false)} className="flex-1 border border-gray-700 text-gray-300 py-2.5 rounded-xl text-sm hover:bg-gray-800 transition-colors">Cancelar</button>
@@ -1028,7 +1028,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
               {pTipo === 'digital' && (
                 <div>
                   <label className="block text-xs text-gray-500 mb-1.5">Ficheiro do produto</label>
-                  <FileUpload value={pArq} onChange={setPArq} bucket="product-files" maxSizeMb={500}/>
+                  <FileUpload value={pArq} onChange={(url) => setPArq(url ?? '')} bucket="product-files" maxSizeMb={500}/>
                 </div>
               )}
               <div className="grid md:grid-cols-3 gap-3">

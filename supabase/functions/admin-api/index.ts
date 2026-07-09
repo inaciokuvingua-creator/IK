@@ -22,12 +22,28 @@ function err(msg: string, status = 400) {
 }
 
 // Simple signed token: base64(payload) + "." + base64(hmac-sha256(payload, secret))
-const TOKEN_SECRET = Deno.env.get("ADMIN_TOKEN_SECRET") ?? "ik-admin-secret-2024-change-me";
+const TOKEN_SECRET = Deno.env.get("ADMIN_TOKEN_SECRET") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+function requireEnv(value: string, name: string) {
+  if (!value) throw new Error(`${name} not configured`);
+  return value;
+}
+
+function serviceRoleHeaders(extra: Record<string, string> = {}) {
+  const serviceRoleKey = requireEnv(SERVICE_ROLE_KEY, "SUPABASE_SERVICE_ROLE_KEY");
+  return {
+    Authorization: `Bearer ${serviceRoleKey}`,
+    apikey: serviceRoleKey,
+    ...extra,
+  };
+}
 
 async function signToken(payload: object): Promise<string> {
   const data = btoa(JSON.stringify(payload));
+  const tokenSecret = requireEnv(TOKEN_SECRET, "ADMIN_TOKEN_SECRET");
   const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(TOKEN_SECRET),
+    "raw", new TextEncoder().encode(tokenSecret),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
   );
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data)));
@@ -38,8 +54,9 @@ async function signToken(payload: object): Promise<string> {
 async function verifyToken(token: string): Promise<{ adminId: string; nome: string } | null> {
   try {
     const [data, sigB64] = token.split(".");
+    const tokenSecret = requireEnv(TOKEN_SECRET, "ADMIN_TOKEN_SECRET");
     const key = await crypto.subtle.importKey(
-      "raw", new TextEncoder().encode(TOKEN_SECRET),
+      "raw", new TextEncoder().encode(tokenSecret),
       { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
     );
     const sig = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
@@ -92,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    requireEnv(SERVICE_ROLE_KEY, "SUPABASE_SERVICE_ROLE_KEY")
   );
 
   try {
@@ -103,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: adminUser } = await adminClient
         .from("admin_users")
-        .select("id, username, email, password_hash, nome, ativo")
+        .select("id, username, email, password_hash, nome, ativo, role")
         .eq("username", username.toLowerCase().trim())
         .maybeSingle();
 
@@ -117,7 +134,7 @@ Deno.serve(async (req: Request) => {
       await logAction(adminClient, adminUser.id, adminUser.nome, "login", "admin_users", adminUser.id, { username });
 
       const token = await signToken({ adminId: adminUser.id, nome: adminUser.nome, exp: Date.now() + 8 * 3600 * 1000 });
-      return ok({ token, admin: { id: adminUser.id, username: adminUser.username, nome: adminUser.nome, email: adminUser.email } });
+      return ok({ token, admin: { id: adminUser.id, username: adminUser.username, nome: adminUser.nome, email: adminUser.email, role: adminUser.role } });
     }
 
     // All routes below require authentication
@@ -139,14 +156,14 @@ Deno.serve(async (req: Request) => {
       // Get auth users count via admin API
       const authUsersRes = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users?page=1&per_page=1`,
-        { headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! } }
+        { headers: serviceRoleHeaders() }
       );
       const authData = authUsersRes.ok ? await authUsersRes.json() : { total: 0 };
 
       // Get all auth users (up to 1000)
       const authUsersAllRes = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users?page=1&per_page=1000`,
-        { headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! } }
+        { headers: serviceRoleHeaders() }
       );
       const authUsersAll = authUsersAllRes.ok ? await authUsersAllRes.json() : { users: [] };
       const users: Array<{ id: string; email: string; created_at: string; last_sign_in_at?: string; banned_until?: string }> = authUsersAll.users ?? [];
@@ -196,7 +213,7 @@ Deno.serve(async (req: Request) => {
 
       const allUsersRes = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users?page=${page}&per_page=${perPage}`,
-        { headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! } }
+        { headers: serviceRoleHeaders() }
       );
       const allData = allUsersRes.ok ? await allUsersRes.json() : { users: [], total: 0 };
 
@@ -241,7 +258,7 @@ Deno.serve(async (req: Request) => {
       const userId = path.split("/users/")[1];
       const userRes = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users/${userId}`,
-        { headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! } }
+        { headers: serviceRoleHeaders() }
       );
       if (!userRes.ok) return err("Usuário não encontrado", 404);
       const user = await userRes.json();
@@ -265,7 +282,7 @@ Deno.serve(async (req: Request) => {
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users/${userId}`,
         {
           method: "PUT",
-          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, "Content-Type": "application/json" },
+          headers: serviceRoleHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ email }),
         }
       );
@@ -284,7 +301,7 @@ Deno.serve(async (req: Request) => {
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users/${userId}`,
         {
           method: "PUT",
-          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, "Content-Type": "application/json" },
+          headers: serviceRoleHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ ban_duration: "876000h" }),
         }
       );
@@ -300,7 +317,7 @@ Deno.serve(async (req: Request) => {
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users/${userId}`,
         {
           method: "PUT",
-          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, "Content-Type": "application/json" },
+          headers: serviceRoleHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ ban_duration: "none" }),
         }
       );
@@ -314,7 +331,7 @@ Deno.serve(async (req: Request) => {
       const userId = path.split("/users/")[1];
       const r = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/auth/v1/admin/users/${userId}`,
-        { method: "DELETE", headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! } }
+        { method: "DELETE", headers: serviceRoleHeaders() }
       );
       if (!r.ok) return err("Falha ao excluir usuário");
       await logAction(adminClient, adminUser.id, adminUser.nome, "user_delete", "auth.users", userId);
@@ -693,4 +710,3 @@ Deno.serve(async (req: Request) => {
     return err(String(e), 500);
   }
 });
-

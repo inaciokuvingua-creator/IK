@@ -119,7 +119,7 @@ export default function Comunidades() {
   useEffect(() => {
     pageRef.current = 0;
     loadUsers(true);
-  }, [query, accountType, onlyVerified]);
+  }, [query, accountType, onlyVerified, loadUsers]);
 
   const hasFilters = accountType || onlyVerified;
 

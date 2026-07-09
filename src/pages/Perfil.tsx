@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   User, Shield, CheckCircle, Star, Globe, Phone, Camera, Save, AlertCircle, Crown, Zap, Building2, Rocket,
   Award, Clock, Instagram, Facebook, Youtube, Linkedin, X, ExternalLink, Upload, Trash2, FileBadge,
@@ -121,7 +121,7 @@ export default function Perfil() {
     return hints;
   }, [documents, profile, securityQuestionCount]);
 
-  const fetchSecurityData = async () => {
+  const fetchSecurityData = useCallback(async () => {
     if (!user) return;
     const [documentsResult, historyResult, devicesResult, questionsResult] = await Promise.all([
       supabase.from('user_identity_documents').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
@@ -133,11 +133,11 @@ export default function Perfil() {
     setLoginHistory((historyResult.data ?? []) as LoginHistoryEntry[]);
     setDevices((devicesResult.data ?? []) as DeviceEntry[]);
     setSecurityQuestionCount((questionsResult.data ?? []).length);
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchSecurityData();
-  }, [user?.id]);
+  }, [fetchSecurityData]);
 
   const startEdit = () => {
     if (!profile) return;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
 import { adminApi, type MarketplaceModerationItem, type MarketplaceReportItem } from '../api';
 
@@ -9,7 +9,7 @@ export default function AdminMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -21,9 +21,9 @@ export default function AdminMarketplace() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [status]);
 
-  useEffect(() => { load(); }, [status]);
+  useEffect(() => { load(); }, [load]);
 
   const updateQueue = async (id: string, nextStatus: 'approved' | 'rejected' | 'escalated') => {
     await adminApi.marketplaceModerationUpdate(id, { status: nextStatus });

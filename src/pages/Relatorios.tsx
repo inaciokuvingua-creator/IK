@@ -115,10 +115,12 @@ export default function Relatorios() {
     { id: 'radar',    label: t('relatorios.chartTypes.radar'),    icon: LayoutGrid },
   ];
 
-  const MONTHS_RAW = t('relatorios.months', { returnObjects: true });
-  const MONTHS: string[] = Array.isArray(MONTHS_RAW)
-    ? MONTHS_RAW
-    : ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const MONTHS = useMemo<string[]>(() => {
+    const monthsRaw = t('relatorios.months', { returnObjects: true });
+    return Array.isArray(monthsRaw)
+      ? monthsRaw
+      : ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  }, [t]);
 
   const [txs, setTxs]             = useState<Tx[]>([]);
   const [cofres, setCofres]        = useState<Cofre[]>([]);
@@ -455,7 +457,7 @@ export default function Relatorios() {
           ) : cashflowType === 'pie' ? (
             <PieChart>
               <Pie data={[{ name: ENT, value: kpiTotals.entradas }, { name: SAI, value: kpiTotals.saidas }]}
-                cx="50%" cy="50%" outerRadius={110} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                cx="50%" cy="50%" outerRadius={110} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 labelLine={false} {...ANIMATION}>
                 <Cell fill="#10b981" /><Cell fill="#ef4444" />
               </Pie>
@@ -526,7 +528,7 @@ export default function Relatorios() {
           <ResponsiveContainer width="100%" height={260}>
             {catType === 'pie' ? (
               <PieChart>
-                <Pie data={pieSaidas} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
+                <Pie data={pieSaidas} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
                   {pieSaidas.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Pie>
                 <Tooltip content={<PieTooltip format={format} />} />
@@ -598,7 +600,7 @@ export default function Relatorios() {
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={cofresData} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={true} {...ANIMATION}>
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={true} {...ANIMATION}>
                   {cofresData.map((c, i) => <Cell key={i} fill={c.color || PALETTE[i % PALETTE.length]} />)}
                 </Pie>
                 <Tooltip content={<PieTooltip format={format} />} />
@@ -645,15 +647,15 @@ export default function Relatorios() {
               </RadarChart>
             ) : negocioType === 'pie' ? (
               <PieChart>
-                <Pie data={negocioData.map(n => ({ name: n.name, value: n[LUC] }))}
-                  cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
+                <Pie data={negocioData.map(n => ({ name: n.name, value: Number(n[LUC]) }))}
+                  cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} {...ANIMATION}>
                   {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Pie>
                 <Tooltip content={<PieTooltip format={format} />} />
               </PieChart>
             ) : negocioType === 'donut' ? (
               <PieChart>
-                <Pie data={negocioData.map(n => ({ name: n.name, value: Math.max(0, n[LUC]) }))}
+                <Pie data={negocioData.map(n => ({ name: n.name, value: Math.max(0, Number(n[LUC])) }))}
                   cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2} dataKey="value" {...ANIMATION}>
                   {negocioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                 </Pie>
@@ -735,7 +737,7 @@ export default function Relatorios() {
                   outerRadius={105}
                   paddingAngle={patrimonioType === 'donut' ? 3 : 0}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                   labelLine={true}
                   {...ANIMATION}>
                   {patrimonioData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}

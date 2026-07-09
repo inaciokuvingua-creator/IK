@@ -11,6 +11,7 @@ const VAPID_SUBJECT = "mailto:notifications@ikfinance.app";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "QSx5wDY7pYa_6lUk938nJ8LM8y_qh_O4lrzph2lfaauyre85qBNJklOE-FZV9zvqmDr2bJqYREOVKGjVVzswWw";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "sq3vOagTSZJThPhWVfc76pg69myamERDlSho1Vc7MFs";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+type NotificationKind = "transaction" | "cofre" | "negocio" | "patrimonio" | "meta" | "marketplace_purchase" | "marketplace_message" | "marketplace_payment" | "marketplace_download" | "marketplace_review";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,106 @@ async function sendEmail(to: string, subject: string, html: string) {
   return { ok: res.ok, data };
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function resolveAppUrl(req: Request, path = "/") {
+  const origin = req.headers.get("Origin")
+    ?? Deno.env.get("SITE_URL")
+    ?? Deno.env.get("APP_BASE_URL")
+    ?? "https://ikfinance.app";
+  try {
+    return new URL(path, origin).toString();
+  } catch {
+    return origin;
+  }
+}
+
+function parseProductId(url: string, origin: string) {
+  try {
+    return new URL(url, origin).searchParams.get("product");
+  } catch {
+    return null;
+  }
+}
+
+async function getProductOwnerId(supabaseAdmin: ReturnType<typeof createClient>, productId: string) {
+  const { data: product } = await supabaseAdmin.from("products").select("store_id").eq("id", productId).maybeSingle();
+  if (!product?.store_id) return null;
+  const { data: store } = await supabaseAdmin.from("stores").select("owner_id").eq("id", product.store_id).maybeSingle();
+  return store?.owner_id ?? null;
+}
+
+async function usersShareConversation(supabaseAdmin: ReturnType<typeof createClient>, firstUserId: string, secondUserId: string) {
+  const { data } = await supabaseAdmin
+    .from("chat_participants")
+    .select("conversation_id, user_id")
+    .in("user_id", [firstUserId, secondUserId]);
+
+  const perConversation = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    const participants = perConversation.get(row.conversation_id) ?? new Set<string>();
+    participants.add(row.user_id);
+    perConversation.set(row.conversation_id, participants);
+  }
+  return [...perConversation.values()].some((participants) => participants.has(firstUserId) && participants.has(secondUserId));
+}
+
+async function hasOrderForBuyer(supabaseAdmin: ReturnType<typeof createClient>, productId: string, buyerId: string) {
+  const { data } = await supabaseAdmin.from("orders").select("id").eq("product_id", productId).eq("buyer_id", buyerId).limit(1).maybeSingle();
+  return Boolean(data);
+}
+
+async function hasReviewFromUser(supabaseAdmin: ReturnType<typeof createClient>, productId: string, reviewerId: string) {
+  const { data } = await supabaseAdmin.from("product_reviews").select("id").eq("product_id", productId).eq("reviewer_id", reviewerId).limit(1).maybeSingle();
+  return Boolean(data);
+}
+
+async function canNotifyExplicitTarget(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  senderUserId: string,
+  targetUserId: string,
+  tipo: NotificationKind | undefined,
+  url: string,
+  origin: string,
+) {
+  if (targetUserId === senderUserId) return true;
+  if (!tipo) return false;
+
+  if (tipo === "marketplace_message") {
+    return usersShareConversation(supabaseAdmin, senderUserId, targetUserId);
+  }
+
+  const productId = parseProductId(url, origin);
+  if (!productId) return false;
+  const ownerId = await getProductOwnerId(supabaseAdmin, productId);
+  if (!ownerId) return false;
+
+  if (tipo === "marketplace_purchase") {
+    return targetUserId === ownerId && senderUserId !== ownerId;
+  }
+
+  if (tipo === "marketplace_payment" || tipo === "marketplace_download") {
+    if (senderUserId === ownerId) return hasOrderForBuyer(supabaseAdmin, productId, targetUserId);
+    if (targetUserId === ownerId) return hasOrderForBuyer(supabaseAdmin, productId, senderUserId);
+    return false;
+  }
+
+  if (tipo === "marketplace_review") {
+    if (senderUserId === ownerId) return hasReviewFromUser(supabaseAdmin, productId, targetUserId);
+    if (targetUserId === ownerId) return hasReviewFromUser(supabaseAdmin, productId, senderUserId);
+    return false;
+  }
+
+  return false;
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
@@ -225,15 +326,26 @@ Deno.serve(async (req: Request) => {
     const body = await req.json() as {
       titulo: string;
       corpo: string;
-      tipo?: "transaction" | "cofre" | "negocio" | "patrimonio" | "meta" | "marketplace_purchase" | "marketplace_message" | "marketplace_payment" | "marketplace_download" | "marketplace_review";
+      tipo?: NotificationKind;
       url?: string;
       userId?: string;
     };
 
     const { titulo, corpo, url = "/", userId: explicitUserId, tipo } = body;
     const targetUserId = explicitUserId ?? user.id;
+    const appUrl = resolveAppUrl(req, url);
 
-    const prefMap: Record<string, keyof typeof prefs> | Record<string, string> = {
+    if (explicitUserId && explicitUserId !== user.id) {
+      const allowed = await canNotifyExplicitTarget(supabaseAdmin, user.id, explicitUserId, tipo, url, appUrl);
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const prefMap: Record<string, string> = {
       transaction: 'on_transaction',
       cofre: 'on_cofre',
       negocio: 'on_negocio',
@@ -288,10 +400,12 @@ Deno.serve(async (req: Request) => {
     const targetEmail = targetUser?.user?.email ?? user.email;
 
     if (prefs?.email_enabled && targetEmail) {
+      const safeTitle = escapeHtml(titulo);
+      const safeBody = escapeHtml(corpo);
       const html = `
         <!DOCTYPE html>
         <html lang="pt">
-        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>${titulo}</title></head>
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title></head>
         <body style="margin:0;padding:0;background:#0f172a;font-family:system-ui,sans-serif;">
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:32px 16px;">
             <tr><td align="center">
@@ -304,9 +418,9 @@ Deno.serve(async (req: Request) => {
                 </tr>
                 <tr>
                   <td style="padding:32px;">
-                    <h2 style="margin:0 0 12px;color:#f1f5f9;font-size:18px;font-weight:600;">${titulo}</h2>
-                    <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.6;">${corpo}</p>
-                    <a href="${Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "") ?? "#"}"
+                    <h2 style="margin:0 0 12px;color:#f1f5f9;font-size:18px;font-weight:600;">${safeTitle}</h2>
+                    <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.6;">${safeBody}</p>
+                    <a href="${appUrl}"
                        style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;">
                       Abrir IK Finance
                     </a>

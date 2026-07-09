@@ -201,7 +201,7 @@ function callFunction(name: string, args: number[]): number {
       return sorted.length%2 ? sorted[m] : (sorted[m-1]+sorted[m])/2;
     }
     case 'GCD': { let x=Math.abs(Math.round(a)),y=Math.abs(Math.round(b)); while(y){[x,y]=[y,x%y];} return x; }
-    case 'LCM': { let x=Math.abs(Math.round(a)),y=Math.abs(Math.round(b)); const g=callFunction('GCD',[x,y]); return (x*y)/g; }
+    case 'LCM': { const x=Math.abs(Math.round(a)), y=Math.abs(Math.round(b)); const g=callFunction('GCD',[x,y]); return (x*y)/g; }
     case 'PERCENTILE': {
       // PERCENTILE(p, v1, v2, ...)  p is [0-100]
       const sorted2=[...args.slice(1)].sort((x,y)=>x-y);

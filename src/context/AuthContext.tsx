@@ -71,9 +71,11 @@ type AuthContextType = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isPasswordRecovery: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (payload: AdvancedSignUpData | string, password?: string) => Promise<{ error: string | null }>;
   requestPasswordReset: (identifier: string) => Promise<{ error: string | null }>;
+  completePasswordReset: (password: string) => Promise<{ error: string | null }>;
   recoverAccount: (input: RecoveryInput) => Promise<{ error: string | null; candidates: RecoveryCandidate[] }>;
   signOut: () => Promise<void>;
 };
@@ -95,6 +97,19 @@ function mapAuthError(error: unknown): string {
   }
 
   return message || 'Ocorreu um erro inesperado. Tente novamente.';
+}
+
+function hasPasswordRecoveryContext() {
+  if (typeof window === 'undefined') return false;
+  return window.location.hash.includes('type=recovery') || new URLSearchParams(window.location.search).get('reset') === '1';
+}
+
+function cleanupRecoveryUrl() {
+  if (typeof window === 'undefined') return;
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete('reset');
+  nextUrl.hash = '';
+  window.history.replaceState({}, '', nextUrl.toString());
 }
 
 async function restoreLang(userId: string) {
@@ -206,11 +221,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(hasPasswordRecoveryContext());
 
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!active) return;
+      setIsPasswordRecovery(hasPasswordRecoveryContext());
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) restoreLang(session.user.id);
@@ -223,8 +240,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (active) setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
+      if (event === 'SIGNED_OUT') setIsPasswordRecovery(false);
+      if (event === 'USER_UPDATED') {
+        setIsPasswordRecovery(false);
+        cleanupRecoveryUrl();
+      }
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) restoreLang(session.user.id);
@@ -334,7 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const email = await resolveLoginIdentifier(identifier);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}${window.location.pathname}?reset=1`,
       });
       return { error: error?.message ?? null };
     } catch (error) {
@@ -362,12 +385,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const completePasswordReset = async (password: string) => {
+    if (!isSupabaseConfigured) return { error: SUPABASE_CONFIG_ERROR };
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (!error) {
+        cleanupRecoveryUrl();
+        setIsPasswordRecovery(false);
+      }
+      return { error: error?.message ?? null };
+    } catch (error) {
+      return { error: mapAuthError(error) };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, requestPasswordReset, recoverAccount, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isPasswordRecovery, signIn, signUp, requestPasswordReset, completePasswordReset, recoverAccount, signOut }}>
       {children}
     </AuthContext.Provider>
   );

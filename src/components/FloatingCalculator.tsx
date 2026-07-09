@@ -124,14 +124,14 @@ export default function FloatingCalculator() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [pos.y]);
 
   // Init position to bottom-right
   useLayoutEffect(() => {
     if (pos.y === -1) {
       setPos({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
     }
-  }, []);
+  }, [pos.y]);
 
   // ── Drag ─────────────────────────────────────────────────────────────────
   const onDragStart = (e: React.PointerEvent) => {

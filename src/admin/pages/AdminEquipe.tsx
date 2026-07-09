@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   UsersRound, Plus, RefreshCw, Crown, Shield, Eye, EyeOff,
   Mail, Trash2, UserCheck, UserX, ChevronDown, Check, X,
@@ -43,9 +43,9 @@ export default function AdminEquipe() {
   const [editRoleForm, setEditRoleForm] = useState({ nome: '', descricao: '', cor: '', permissions: {} as Record<string, boolean> });
   const [savingRole, setSavingRole] = useState(false);
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [t, inv, r] = await Promise.all([adminApi.team(), adminApi.teamInvites(), adminApi.roles()]);
@@ -54,9 +54,9 @@ export default function AdminEquipe() {
       setRoles(r);
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const sendInvite = async () => {
     if (!inviteForm.email || !inviteForm.nome) { showToast(false, 'Preencha e-mail e nome'); return; }

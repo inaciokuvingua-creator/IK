@@ -39,6 +39,16 @@ function fmtSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function inferFileName(url?: string | null) {
+  if (!url) return '';
+  try {
+    const pathname = new URL(url).pathname;
+    return decodeURIComponent(pathname.split('/').pop() ?? '');
+  } catch {
+    return url.split('/').pop() ?? '';
+  }
+}
+
 export default function FileUpload({
   bucket, path, folder, currentUrl, currentName, value, onUploaded, onChange, maxMb = 100, maxSizeMb, label = 'Arquivo do produto',
 }: Props) {
@@ -90,8 +100,10 @@ export default function FileUpload({
     effectiveOnUploaded(null, null);
   };
 
-  const hasFile = localFile || (currentUrl && currentName);
-  const displayName = localFile?.name ?? currentName ?? '';
+  const resolvedUrl = currentUrl ?? value ?? null;
+  const resolvedName = currentName ?? inferFileName(resolvedUrl);
+  const hasFile = Boolean(localFile || resolvedUrl);
+  const displayName = localFile?.name ?? resolvedName;
   const displaySize = localFile?.size;
 
   return (
@@ -111,7 +123,7 @@ export default function FileUpload({
           </div>
           {!uploading && (
             <>
-              <button type="button" onClick={() => openIKViewer({ url: currentUrl ?? '', name: displayName, mimeType: undefined, size: displaySize, description: 'Arquivo carregado no IK Finance' })} className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-950/30 rounded-lg transition-colors">
+              <button type="button" onClick={() => openIKViewer({ url: resolvedUrl ?? '', name: displayName, mimeType: undefined, size: displaySize, description: 'Arquivo carregado no IK Finance' })} className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-950/30 rounded-lg transition-colors">
                 <FileText size={13} />
               </button>
               <button type="button" onClick={remove}

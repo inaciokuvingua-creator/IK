@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Search, RefreshCw, UserX, UserCheck, Trash2, Pencil,
   X, Check, AlertTriangle, ChevronLeft, ChevronRight, Eye,
@@ -20,7 +20,7 @@ export default function AdminUsers() {
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const searchRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const load = async (p = page, s = search) => {
+  const load = useCallback(async (p = page, s = search) => {
     setLoading(true);
     setError(null);
     try {
@@ -29,9 +29,9 @@ export default function AdminUsers() {
       setTotal(res.total);
     } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  };
+  }, [page, search]);
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [load]);
 
   const handleSearch = (v: string) => {
     setSearch(v);

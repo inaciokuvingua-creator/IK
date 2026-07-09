@@ -40,6 +40,7 @@ type StoreProduct = {
   avg_rating?: number;
   review_count: number;
   slug?: string | null;
+  deleted_at?: string | null;
 };
 
 type StoreReview = {
@@ -66,6 +67,7 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [likedReviewIds, setLikedReviewIds] = useState<string[]>([]);
 
   const storeUrl = store ? buildStoreUrl(store.id, store.slug) : window.location.href;
 
@@ -78,13 +80,15 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
       try {
         const { data } = await supabase
           .from('stores')
-          .select('*, owner:owner_id(nome,avatar_url), products:products(id,nome,preco,moeda,imagem_url,descricao,ativo,destaque,total_vendas,total_views,avg_rating,review_count,slug)')
+          .select('*, owner:owner_id(nome,avatar_url), products:products(id,nome,preco,moeda,imagem_url,descricao,ativo,destaque,total_vendas,total_views,avg_rating,review_count,slug,deleted_at)')
           .eq('id', storeId)
+          .eq('ativo', true)
+          .is('deleted_at', null)
           .maybeSingle();
         const { data: reviewRows } = await supabase.from('store_reviews').select('*, reviewer:reviewer_id(nome,avatar_url)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(12);
         const { data: paymentRows } = await supabase.from('payment_profiles').select('*').eq('owner_type', 'store').eq('store_id', storeId).eq('is_public', true).eq('is_active', true).order('is_default', { ascending: false });
         setStore((data ?? null) as StoreRecord | null);
-        setProducts(((data as any)?.products ?? []).filter((item: StoreProduct) => item.ativo));
+        setProducts(((data as any)?.products ?? []).filter((item: StoreProduct) => item.ativo && !item.deleted_at));
         setReviews((reviewRows ?? []) as StoreReview[]);
         setPaymentProfiles((paymentRows ?? []) as PaymentProfile[]);
         if (data) {
@@ -123,11 +127,18 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
     if (!storeId) return;
     (async () => {
       try {
-        const { count } = await supabase.from('store_follows').select('id', { count: 'exact', head: true }).eq('store_id', storeId);
-        setFollowCount(count ?? 0);
+        const { data: followCountRow, error: followCountError } = await supabase.rpc('count_store_followers', { store_uuid: storeId });
+        if (!followCountError) {
+          setFollowCount(Number(followCountRow ?? 0));
+        } else {
+          const { count } = await supabase.from('store_follows').select('id', { count: 'exact', head: true }).eq('store_id', storeId);
+          setFollowCount(count ?? 0);
+        }
         if (user) {
           const { data } = await supabase.from('store_follows').select('id').match({ from_id: user.id, store_id: storeId }).maybeSingle();
           setIsFollowing(!!data);
+          const { data: likedRows } = await supabase.from('store_review_likes').select('review_id').eq('user_id', user.id);
+          setLikedReviewIds((likedRows ?? []).map((row: { review_id: string }) => row.review_id));
         }
       } catch (error) {
         console.error('load follow state', error);
@@ -156,18 +167,29 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
   const submitReview = async () => {
     if (!user || !storeId || !reviewRating) return;
     setSubmittingReview(true);
-    await supabase.from('store_reviews').upsert({ store_id: storeId, rating: reviewRating, comment: reviewComment.trim() || null });
-    const { data } = await supabase.from('store_reviews').select('*, reviewer:reviewer_id(nome,avatar_url)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(12);
-    setReviews((data ?? []) as StoreReview[]);
-    setReviewRating(0);
-    setReviewComment('');
-    setSubmittingReview(false);
+    try {
+      await supabase.from('store_reviews').upsert({ store_id: storeId, rating: reviewRating, comment: reviewComment.trim() || null }, { onConflict: 'store_id,reviewer_id' });
+      const { data } = await supabase.from('store_reviews').select('*, reviewer:reviewer_id(nome,avatar_url)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(12);
+      setReviews((data ?? []) as StoreReview[]);
+      setReviewRating(0);
+      setReviewComment('');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   const likeReview = async (reviewId: string, currentLikes: number) => {
     if (!user) return;
-    await supabase.from('store_review_likes').upsert({ review_id: reviewId, user_id: user.id });
+    if (likedReviewIds.includes(reviewId)) {
+      await supabase.from('store_review_likes').delete().eq('review_id', reviewId).eq('user_id', user.id);
+      await supabase.from('store_reviews').update({ likes: Math.max(0, currentLikes - 1) }).eq('id', reviewId);
+      setLikedReviewIds((prev) => prev.filter((id) => id !== reviewId));
+      setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: Math.max(0, review.likes - 1) } : review));
+      return;
+    }
+    await supabase.from('store_review_likes').upsert({ review_id: reviewId, user_id: user.id }, { onConflict: 'review_id,user_id', ignoreDuplicates: true });
     await supabase.from('store_reviews').update({ likes: currentLikes + 1 }).eq('id', reviewId);
+    setLikedReviewIds((prev) => [...prev, reviewId]);
     setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: review.likes + 1 } : review));
   };
 

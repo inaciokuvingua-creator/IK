@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Building2, Plus, Users, FolderOpen, Mail, Check,
   ChevronRight, Briefcase, Globe, X, AlertCircle, Pencil,
@@ -41,27 +41,27 @@ export default function Empresas() {
   const [deptNome, setDeptNome] = useState('');
   const [tab, setTab] = useState<'info'|'equipe'|'departamentos'>('info');
 
-  const showToast = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3500); };
+  const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3500); }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('companies').select('*').order('created_at', { ascending: false });
     setCompanies(data ?? []);
     if (data && data.length > 0 && !selected) setSelected(data[0]);
     setLoading(false);
-  };
+  }, [selected]);
 
-  const loadCompanyData = async (cid: string) => {
+  const loadCompanyData = useCallback(async (cid: string) => {
     const [d, m] = await Promise.all([
       supabase.from('departments').select('*').eq('company_id', cid).order('created_at'),
       supabase.from('company_members').select('*').eq('company_id', cid),
     ]);
     setDepartments(d.data ?? []);
     setMembers(m.data ?? []);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { if (selected) loadCompanyData(selected.id); }, [selected?.id]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (selected) loadCompanyData(selected.id); }, [selected, loadCompanyData]);
 
   const openCreate = () => { setEditing(null); setForm(empty()); setLogoUrl(null); setShowModal(true); };
   const openEdit = (c: Company) => {

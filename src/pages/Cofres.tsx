@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, X, ArrowUpRight, ArrowDownRight, ChevronDown, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -23,7 +23,7 @@ function emptyTxForm(): TxForm {
 
 export default function Cofres() {
   const { t } = useTranslation();
-  const currency = useCurrency();
+  const { format } = useCurrency();
   const notify = useNotifyAction();
   const [cofres, setCofres] = useState<Cofre[]>([]);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
@@ -91,7 +91,7 @@ export default function Cofres() {
             setShowItemModal(false);
         } catch (err) {
             console.error(err);
-            notify('Erro ao salvar item');
+            await notify('cofre', 'Erro ao salvar item', 'Nao foi possivel guardar o item do objetivo.');
         } finally { setSaving(false); }
     };
 
@@ -101,7 +101,7 @@ export default function Cofres() {
       const updated = cofres.find((c) => c.id === selected.id);
       if (updated) setSelected(updated);
     }
-  }, [cofres]);
+  }, [cofres, selected]);
 
   // ── Cofre CRUD ─────────────────────────────────────────────────────────────
   const openNewCofre = () => {
@@ -285,12 +285,12 @@ export default function Cofres() {
         taxas_alfandega: [],
         outras_despesas: JSON.parse(quoteForm.outras || '[]')
       };
-      const { data, error } = await sb.from('goal_item_quotes').insert([payload]).select().maybeSingle();
+      const { error } = await sb.from('goal_item_quotes').insert([payload]).select().maybeSingle();
       if (error) throw error;
       // recompute list
       await openQuotes(quoteItem);
       setQuoteForm({ fornecedor: '', preco_unitario: '0', moeda: 'KZ', frete: '{}', seguro: '0', iva_percent: '0', outras: '[]' });
-    } catch (err) { console.error(err); notify('Erro ao salvar cotação'); }
+    } catch (err) { console.error(err); await notify('cofre', 'Erro ao salvar cotacao', 'Nao foi possivel guardar a cotacao do objetivo.'); }
     finally { setSaving(false); }
   };
 
@@ -307,7 +307,7 @@ export default function Cofres() {
       setShowSimModal(true);
       // create alert if needed
       try { await (await import('../lib/costEngine')).createSimulationAlertIfNeeded(res); } catch (e) { console.error('alert create failed', e); }
-    } catch (e) { console.error(e); notify('Erro ao simular'); }
+    } catch (e) { console.error(e); await notify('cofre', 'Erro ao simular', 'Nao foi possivel executar a simulacao do cofre.'); }
     finally { setSimLoading(false); }
   };
 
