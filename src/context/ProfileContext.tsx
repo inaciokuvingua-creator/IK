@@ -76,6 +76,20 @@ export type UserProfile = {
   updated_at: string;
 };
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function normalizeProfile(data: Partial<UserProfile>, fallbackEmail?: string | null): UserProfile {
   const now = new Date().toISOString();
   return {
@@ -178,52 +192,81 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    try {
+      const profileResult = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+        ),
+        12000,
+        'Tempo esgotado ao carregar perfil.',
+      );
 
-    if (data) {
-      setProfile(normalizeProfile(data, user.email ?? null));
-      // Apply saved language preference
-      const langCode = data.idioma ?? data.preferred_language;
-      if (langCode && SUPPORTED_LANGUAGES.some(l => l.code === langCode)) {
-        changeLang(langCode as LangCode);
+      if (profileResult.error) throw profileResult.error;
+
+      if (profileResult.data) {
+        setProfile(normalizeProfile(profileResult.data, user.email ?? null));
+        // Apply saved language preference
+        const langCode = profileResult.data.idioma ?? profileResult.data.preferred_language;
+        if (langCode && SUPPORTED_LANGUAGES.some((l) => l.code === langCode)) {
+          changeLang(langCode as LangCode);
+        }
+        return;
       }
-    } else {
+
       const now = new Date();
       const trialEnds = new Date(now);
       trialEnds.setMonth(trialEnds.getMonth() + 3);
       const nome = user.email?.split('@')[0] ?? 'Utilizador';
-      const { data: created } = await supabase
-        .from('user_profiles')
-        .insert({
-          user_id: user.id,
-          nome,
-          full_name: nome,
-          display_name: nome,
-          email: user.email ?? null,
-          username: user.email?.split('@')[0] ?? `ik_${user.id.slice(0, 6)}`,
-          trial_started_at: now.toISOString(),
-          trial_ends_at: trialEnds.toISOString(),
-          trial_active: true,
-          plan_expires_at: trialEnds.toISOString(),
-          social_links: {},
-          company_socials: {},
-          company_contacts: {},
-          company_documents: [],
-          associated_companies: [],
-          stores_created: [],
-          published_products: [],
-          offered_services: [],
-          profile_completion: 20,
-        })
-        .select()
-        .single();
-      if (created) setProfile(normalizeProfile(created, user.email ?? null));
+      const createdResult = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_profiles')
+            .insert({
+              user_id: user.id,
+              nome,
+              full_name: nome,
+              display_name: nome,
+              email: user.email ?? null,
+              username: user.email?.split('@')[0] ?? `ik_${user.id.slice(0, 6)}`,
+              trial_started_at: now.toISOString(),
+              trial_ends_at: trialEnds.toISOString(),
+              trial_active: true,
+              plan_expires_at: trialEnds.toISOString(),
+              social_links: {},
+              company_socials: {},
+              company_contacts: {},
+              company_documents: [],
+              associated_companies: [],
+              stores_created: [],
+              published_products: [],
+              offered_services: [],
+              profile_completion: 20,
+            })
+            .select()
+            .single(),
+        ),
+        12000,
+        'Tempo esgotado ao criar perfil inicial.',
+      );
+
+      if (createdResult.error) throw createdResult.error;
+
+      if (createdResult.data) {
+        setProfile(normalizeProfile(createdResult.data, user.email ?? null));
+      } else {
+        setProfile(normalizeProfile({ user_id: user.id }, user.email ?? null));
+      }
+    } catch (error) {
+      console.error('profile fetch failed', error);
+      // Keep the profile page usable even if DB read fails temporarily.
+      setProfile(normalizeProfile({ user_id: user.id }, user.email ?? null));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);

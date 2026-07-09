@@ -21,6 +21,20 @@ function emptyTxForm(): TxForm {
   return { tipo: 'entrada', valor: '0', descricao: '', categoria: TX_CATS[0], data_transacao: new Date().toISOString().slice(0, 10) };
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export default function Cofres() {
   const { t } = useTranslation();
   const { format } = useCurrency();
@@ -47,10 +61,14 @@ export default function Cofres() {
 
   const fetchAll = async () => {
     try {
-      const [c, tx] = await Promise.all([
-        supabase.from('cofres').select('*').order('created_at', { ascending: false }),
-        supabase.from('transacoes').select('*').not('cofre_id', 'is', null).order('data_transacao', { ascending: false }),
-      ]);
+      const [c, tx] = await withTimeout(
+        Promise.all([
+          supabase.from('cofres').select('*').order('created_at', { ascending: false }),
+          supabase.from('transacoes').select('*').not('cofre_id', 'is', null).order('data_transacao', { ascending: false }),
+        ]),
+        12000,
+        'Tempo esgotado ao carregar cofres.',
+      );
       if (c.error) throw c.error;
       if (tx.error) throw tx.error;
       setCofres((c.data ?? []).map((item) => ({
@@ -125,6 +143,12 @@ export default function Cofres() {
       const updated = cofres.find((c) => c.id === selected.id);
       if (updated) setSelected(updated);
       else setSelected(null);
+    }
+  }, [cofres, selected]);
+
+  useEffect(() => {
+    if (!selected && cofres.length > 0) {
+      setSelected(cofres[0]);
     }
   }, [cofres, selected]);
 
@@ -428,6 +452,76 @@ export default function Cofres() {
                   </div>
               </div>
 
+              <div className="grid xl:grid-cols-2 gap-4 mb-5">
+                <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Itens da meta</h3>
+                    <button onClick={openNewItem} className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-200">
+                      + Novo item
+                    </button>
+                  </div>
+                  {goalItems.length === 0 ? (
+                    <p className="text-gray-500 text-xs">Nenhum item cadastrado para esta meta.</p>
+                  ) : (
+                    <div className="space-y-2.5 max-h-48 overflow-auto pr-1">
+                      {goalItems.map((item) => {
+                        const total = (item.quantidade || 0) * (item.preco_unitario || 0);
+                        return (
+                          <div key={item.id} className="rounded-xl border border-gray-800 bg-gray-900/60 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm text-white font-medium">{item.nome}</p>
+                                <p className="text-xs text-gray-500">{item.categoria || 'Sem categoria'}</p>
+                              </div>
+                              <button onClick={() => openQuotes(item)} className="text-xs px-2 py-1 rounded-lg bg-amber-900/50 hover:bg-amber-900 text-amber-200">
+                                Cotações
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                              {item.quantidade} x {format(item.preco_unitario || 0)} ({item.moeda || 'KZ'}) · Total {format(total)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Alertas do cofre</h3>
+                    <button
+                      onClick={markAllAlertsRead}
+                      disabled={alerts.length === 0}
+                      className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-xs text-gray-200"
+                    >
+                      Marcar todas lidas
+                    </button>
+                  </div>
+                  {alerts.length === 0 ? (
+                    <p className="text-gray-500 text-xs">Sem alertas para este cofre.</p>
+                  ) : (
+                    <div className="space-y-2.5 max-h-48 overflow-auto pr-1">
+                      {alerts.map((alert) => (
+                        <div key={alert.id} className={`rounded-xl border p-3 ${alert.lida ? 'border-gray-800 bg-gray-900/60' : 'border-amber-800/70 bg-amber-950/20'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm text-white font-medium">{alert.titulo || 'Alerta'}</p>
+                              <p className="text-xs text-gray-400 mt-1">{alert.corpo || 'Sem detalhes.'}</p>
+                            </div>
+                            {!alert.lida && (
+                              <button onClick={() => markAlertRead(alert.id)} className="text-xs px-2 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900 text-emerald-200">
+                                Marcar lida
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {cofreTx.length === 0 ? (
                 <div className="text-center py-10">
                   <p className="text-gray-500 text-sm">{t('cofres.nenhumaTx')}</p>
@@ -536,6 +630,106 @@ export default function Cofres() {
                 {saving ? t('cofres.salvando') : editingTx ? t('cofres.salvarAlteracoes') : t('cofres.adicionar')}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {showItemModal && (
+        <Modal title={editingItem ? 'Editar item da meta' : 'Novo item da meta'} onClose={() => setShowItemModal(false)}>
+          <div className="space-y-4">
+            <Field label="Nome do item">
+              <input value={itemForm.nome} onChange={(e) => setItemForm({ ...itemForm, nome: e.target.value })} className="input" placeholder="Ex.: Laptop, Equipamento, Curso..." />
+            </Field>
+            <Field label="Categoria">
+              <input value={itemForm.categoria} onChange={(e) => setItemForm({ ...itemForm, categoria: e.target.value })} className="input" placeholder="Tecnologia, Estudos, Casa..." />
+            </Field>
+            <Field label="Descrição">
+              <input value={itemForm.descricao} onChange={(e) => setItemForm({ ...itemForm, descricao: e.target.value })} className="input" placeholder="Opcional" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Quantidade">
+                <input type="number" min="1" step="1" value={itemForm.quantidade} onChange={(e) => setItemForm({ ...itemForm, quantidade: e.target.value })} className="input" />
+              </Field>
+              <Field label="Preço unitário">
+                <input type="number" min="0" step="1" value={itemForm.preco_unitario} onChange={(e) => setItemForm({ ...itemForm, preco_unitario: e.target.value })} className="input" />
+              </Field>
+            </div>
+            <Field label="Moeda">
+              <input value={itemForm.moeda} onChange={(e) => setItemForm({ ...itemForm, moeda: e.target.value.toUpperCase() })} className="input" placeholder="KZ" />
+            </Field>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setShowItemModal(false)} className="flex-1 border border-gray-700 text-gray-300 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={saveItem} disabled={saving || !itemForm.nome.trim()} className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                {saving ? 'Salvando...' : 'Salvar item'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showQuotesModal && (
+        <Modal title={`Cotações · ${quoteItem?.nome ?? 'Item'}`} onClose={() => setShowQuotesModal(false)}>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3 space-y-3">
+              <p className="text-xs text-gray-400">Adicionar cotação</p>
+              <Field label="Fornecedor">
+                <input value={quoteForm.fornecedor} onChange={(e) => setQuoteForm({ ...quoteForm, fornecedor: e.target.value })} className="input" placeholder="Nome da loja/fornecedor" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Preço unitário">
+                  <input type="number" min="0" step="1" value={quoteForm.preco_unitario} onChange={(e) => setQuoteForm({ ...quoteForm, preco_unitario: e.target.value })} className="input" />
+                </Field>
+                <Field label="Moeda">
+                  <input value={quoteForm.moeda} onChange={(e) => setQuoteForm({ ...quoteForm, moeda: e.target.value.toUpperCase() })} className="input" />
+                </Field>
+              </div>
+              <button onClick={addQuote} disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                {saving ? 'Salvando...' : 'Salvar cotação'}
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-56 overflow-auto pr-1">
+              {currentQuotes.length === 0 ? (
+                <p className="text-gray-500 text-sm">Nenhuma cotação para este item.</p>
+              ) : (
+                currentQuotes.map((entry, index) => (
+                  <div key={entry.quote.id} className={`rounded-xl border p-3 ${index === 0 ? 'border-emerald-700 bg-emerald-950/20' : 'border-gray-800 bg-gray-900/60'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm text-white font-medium">{entry.quote.fornecedor || 'Fornecedor sem nome'}</p>
+                      {index === 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-200">Melhor custo</span>}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Preço unitário: {format(Number(entry.quote.preco_unitario || 0))} · Total estimado: {format(Number(entry.totals?.total || 0))}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showSimModal && simResult && (
+        <Modal title="Resultado da simulação" onClose={() => setShowSimModal(false)}>
+          <div className="space-y-3 text-sm">
+            <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
+              <p className="text-gray-400 text-xs">Cofre</p>
+              <p className="text-white font-medium">{selected?.nome}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
+                <p className="text-gray-400 text-xs">Saldo atual</p>
+                <p className="text-white font-semibold">{format(Number(simResult.saldo_atual || selected?.saldo || 0))}</p>
+              </div>
+              <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
+                <p className="text-gray-400 text-xs">Meta estimada</p>
+                <p className="text-white font-semibold">{format(Number(simResult.meta_total || selected?.meta || 0))}</p>
+              </div>
+            </div>
+            {typeof simResult.message === 'string' && (
+              <p className="text-xs text-amber-200 rounded-xl border border-amber-900/50 bg-amber-950/30 p-3">{simResult.message}</p>
+            )}
           </div>
         </Modal>
       )}
