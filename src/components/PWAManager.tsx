@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
+const SW_AUTO_REFRESH_KEY = 'ik-sw-auto-refresh';
+
 export default function PWAManager() {
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [updating, setUpdating] = useState(false);
 
   const {
     needRefresh: [needRefresh],
@@ -16,6 +19,24 @@ export default function PWAManager() {
       console.error('[PWA] SW registration error', error);
     },
   });
+
+  useEffect(() => {
+    if (!needRefresh) {
+      setUpdating(false);
+      sessionStorage.removeItem(SW_AUTO_REFRESH_KEY);
+      return;
+    }
+
+    if (sessionStorage.getItem(SW_AUTO_REFRESH_KEY) === '1') return;
+    sessionStorage.setItem(SW_AUTO_REFRESH_KEY, '1');
+    setUpdating(true);
+
+    const timer = window.setTimeout(() => {
+      void updateServiceWorker(true);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [needRefresh, updateServiceWorker]);
 
   useEffect(() => {
     const onOnline = () => setOffline(false);
@@ -49,10 +70,14 @@ export default function PWAManager() {
                 <p className="text-gray-400 text-xs">Atualize para obter as últimas melhorias.</p>
               </div>
               <button
-                onClick={() => updateServiceWorker(true)}
-                className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                onClick={() => {
+                  setUpdating(true);
+                  void updateServiceWorker(true);
+                }}
+                className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0 disabled:opacity-70"
+                disabled={updating}
               >
-                Atualizar
+                {updating ? 'Atualizando...' : 'Atualizar'}
               </button>
             </div>
           </div>
