@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, X, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import AdvancedModal from '../components/AdvancedModal';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import type { Negocio } from '../lib/supabase';
@@ -175,12 +176,7 @@ export default function Negocios() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{editing ? t('negocios.editarTitle') : t('negocios.novoTitle')}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
-            </div>
+        <AdvancedModal title={editing ? t('negocios.editarTitle') : t('negocios.novoTitle')} onClose={() => setShowModal(false)} initialWidth={520} initialHeight={560}>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">{t('negocios.nome')}</label>
@@ -223,8 +219,7 @@ export default function Negocios() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
     </div>
   );

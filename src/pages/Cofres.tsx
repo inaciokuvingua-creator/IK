@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import type { Cofre, Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
 import { useCurrency } from '../context/CurrencyContext';
+import AdvancedModal from '../components/AdvancedModal';
 import { useNotifyAction } from '../lib/notify';
 import { supabase as sb } from '../lib/supabase';
 import type { GoalItem } from '../lib/supabase';
@@ -737,19 +738,7 @@ export default function Cofres() {
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-white font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors"><X size={18} /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
+const Modal = AdvancedModal;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Building2, Plus, Users, FolderOpen, Mail, Check,
-  ChevronRight, Briefcase, Globe, X, AlertCircle, Pencil,
+  ChevronRight, Briefcase, Globe, AlertCircle, Pencil,
   UserPlus, Shield, CheckCircle, Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
+import AdvancedModal from '../components/AdvancedModal';
 
 type Company = {
   id: string; owner_id: string; nome: string; nif: string | null;
@@ -298,12 +299,7 @@ export default function Empresas() {
 
       {/* Create/Edit Company Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{editing ? 'Editar Empresa' : 'Nova Empresa'}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
-            </div>
+        <AdvancedModal title={editing ? 'Editar Empresa' : 'Nova Empresa'} onClose={() => setShowModal(false)} initialWidth={560} initialHeight={650}>
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-gray-500 mb-2 block">Logo da empresa</label>
@@ -355,15 +351,12 @@ export default function Empresas() {
                 {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar'}
               </button>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
 
       {/* Add Department Modal */}
       {showDeptModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowDeptModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-semibold mb-4">Novo Departamento</h3>
+        <AdvancedModal title="Novo Departamento" onClose={() => setShowDeptModal(false)} initialWidth={460} initialHeight={330}>
             <input value={deptNome} onChange={e => setDeptNome(e.target.value)} placeholder="Nome do departamento"
               className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors mb-4" />
             <div className="flex gap-3">
@@ -371,8 +364,7 @@ export default function Empresas() {
               <button onClick={addDept} disabled={!deptNome.trim()}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">Criar</button>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
     </div>
   );

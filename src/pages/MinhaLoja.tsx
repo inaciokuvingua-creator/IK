@@ -15,6 +15,7 @@ import { useNotifications } from '../context/NotificationContext';
 import ImageUpload from '../components/ImageUpload';
 import FileUpload from '../components/FileUpload';
 import MultiImageUpload from '../components/MultiImageUpload';
+import AdvancedModal from '../components/AdvancedModal';
 import { firstProductImage, parseProductImages } from '../lib/format';
 import { slugify } from '../lib/marketplace';
 import { checkMarketplaceRateLimit, queueMarketplaceModeration } from '../lib/marketplaceGuardrails';
@@ -878,13 +879,8 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
 
       {/* ── Store form modal ── */}
       {showStoreForm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={()=>setShowStoreForm(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto anim-slide-up" onClick={e=>e.stopPropagation()}>
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-5 py-4 flex items-center justify-between">
-              <h2 className="text-white font-bold">{store ? 'Editar Loja' : 'Criar Loja'}</h2>
-              <button onClick={()=>setShowStoreForm(false)} className="text-gray-500 hover:text-white p-1"><X size={18}/></button>
-            </div>
-            <div className="p-5 space-y-4">
+        <AdvancedModal title={store ? 'Editar Loja' : 'Criar Loja'} onClose={()=>setShowStoreForm(false)} initialWidth={640} initialHeight={700}>
+            <div className="space-y-4">
               {[
                 {label:'Nome da Loja *',val:sNome,set:setSNome,ph:'Nome da sua loja'},
                 {label:'Slug (URL) *',val:sSlug,set:setSSlug,ph:'minha-loja'},
@@ -914,19 +910,13 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
 
       {/* ── Product form modal ── */}
       {showProductForm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={()=>setShowProductForm(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-t-3xl sm:rounded-3xl w-full max-w-xl max-h-[92vh] overflow-y-auto anim-slide-up" onClick={e=>e.stopPropagation()}>
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-5 py-4 flex items-center justify-between z-10">
-              <h2 className="text-white font-bold">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
-              <button onClick={()=>setShowProductForm(false)} className="text-gray-500 hover:text-white p-1"><X size={18}/></button>
-            </div>
-            <div className="p-5 space-y-4">
+        <AdvancedModal title={editingProduct ? 'Editar Produto' : 'Novo Produto'} onClose={()=>setShowProductForm(false)} initialWidth={820} initialHeight={800}>
+            <div className="space-y-4">
               {/* Basic info */}
               <div>
                 <label className="block text-xs text-gray-500 mb-1.5">Nome *</label>
@@ -1064,8 +1054,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
 
       {/* ── Delete confirmation ── */}

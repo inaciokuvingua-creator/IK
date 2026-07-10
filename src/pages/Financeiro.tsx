@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown,
-  X, TrendingUp, AlertTriangle, Pencil, Trash2,
+  TrendingUp, AlertTriangle, Pencil, Trash2,
 } from 'lucide-react';
+import AdvancedModal from '../components/AdvancedModal';
 import { supabase } from '../lib/supabase';
 import type { Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
@@ -278,12 +279,7 @@ export default function Financeiro() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold">{editing ? t('financeiro.editarMov') : t('financeiro.novoMov')}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
-            </div>
+        <AdvancedModal title={editing ? t('financeiro.editarMov') : t('financeiro.novoMov')} onClose={() => setShowModal(false)} initialWidth={520} initialHeight={600}>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">{t('financeiro.tipo')}</label>
@@ -344,8 +340,7 @@ export default function Financeiro() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
     </div>
   );

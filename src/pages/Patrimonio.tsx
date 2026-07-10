@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Plus, Pencil, Trash2, X, TrendingUp, TrendingDown, Home, Car,
+  Plus, Pencil, Trash2, TrendingUp, TrendingDown, Home, Car,
   Music2, Briefcase, ChevronDown, MapPin, Users, Zap, BarChart2,
   DollarSign, Clock, CheckCircle, AlertCircle, ArrowUpRight,
   ArrowDownRight, Building2, Wrench, Camera,
@@ -13,6 +13,7 @@ import { useCurrency } from '../context/CurrencyContext';
 import { useNotifyAction } from '../lib/notify';
 import ImageUpload from '../components/ImageUpload';
 import { useAuth } from '../context/AuthContext';
+import AdvancedModal from '../components/AdvancedModal';
 
 // ── Category config ──────────────────────────────────────────────────────────
 type CatId = 'imovel' | 'aluguel' | 'veiculo' | 'taxi' | 'studio' | 'investimento' | 'cripto' | 'arte' | 'equipamento' | 'outros';
@@ -489,16 +490,8 @@ export default function Patrimonio() {
 
       {/* ── Modal ── */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowModal(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10">
-              <h3 className="text-white font-semibold">{editing ? t('patrimonio.editarAtivo') : t('patrimonio.novoAtivo')}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300 p-1"><X size={18} /></button>
-            </div>
-
-            <div className="p-6 space-y-5">
+        <AdvancedModal title={editing ? t('patrimonio.editarAtivo') : t('patrimonio.novoAtivo')} onClose={() => setShowModal(false)} initialWidth={760} initialHeight={760}>
+            <div className="space-y-5">
               {/* Category selector */}
               <div>
                 <label className={labelCls}>{t('patrimonio.tipoAtivo')}</label>
@@ -716,7 +709,7 @@ export default function Patrimonio() {
               )}
             </div>
 
-            <div className="sticky bottom-0 bg-gray-900 border-t border-gray-800 px-6 py-4 flex gap-3">
+            <div className="sticky bottom-0 bg-gray-900 border-t border-gray-800 py-4 flex gap-3">
               <button onClick={() => setShowModal(false)}
                 className="flex-1 border border-gray-700 text-gray-300 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition-colors">
                 {t('patrimonio.cancelar')}
@@ -726,8 +719,7 @@ export default function Patrimonio() {
                 {saving ? t('patrimonio.salvando') : editing ? t('patrimonio.salvarAlteracoes') : t('patrimonio.adicionarAtivo')}
               </button>
             </div>
-          </div>
-        </div>
+        </AdvancedModal>
       )}
     </div>
   );
