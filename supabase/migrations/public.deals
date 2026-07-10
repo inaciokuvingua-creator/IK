@@ -1,0 +1,76 @@
+-- 1) Tabela
+CREATE TABLE IF NOT EXISTS public.deals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  to_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  title text,
+  description text,
+  amount numeric(18,2),
+  currency text,
+  status text DEFAULT 'proposed',
+  metadata jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- índices (idempotentes)
+CREATE INDEX IF NOT EXISTS idx_deals_from_id ON public.deals (from_id);
+CREATE INDEX IF NOT EXISTS idx_deals_to_id ON public.deals (to_id);
+CREATE INDEX IF NOT EXISTS idx_deals_status ON public.deals (status);
+
+-- trigger updated_at
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_deals_updated_at ON public.deals;
+CREATE TRIGGER trg_deals_updated_at
+BEFORE UPDATE ON public.deals
+FOR EACH ROW
+EXECUTE PROCEDURE public.set_updated_at();
+
+-- 2) RLS + Policies
+ALTER TABLE public.deals ENABLE ROW LEVEL SECURITY;
+
+-- remove policies antigas (se existirem)
+DROP POLICY IF EXISTS deals_select ON public.deals;
+DROP POLICY IF EXISTS deals_insert ON public.deals;
+DROP POLICY IF EXISTS deals_update ON public.deals;
+DROP POLICY IF EXISTS deals_delete ON public.deals;
+
+-- Ambos os lados (from e to) veem
+CREATE POLICY deals_select ON public.deals
+FOR SELECT TO authenticated
+USING (
+  from_id = auth.uid() OR to_id = auth.uid()
+);
+
+-- Quem cria fica como from
+CREATE POLICY deals_insert ON public.deals
+FOR INSERT TO authenticated
+WITH CHECK (
+  from_id = auth.uid()
+);
+
+-- Atualiza quem é from ou to
+CREATE POLICY deals_update ON public.deals
+FOR UPDATE TO authenticated
+USING (
+  from_id = auth.uid() OR to_id = auth.uid()
+)
+WITH CHECK (
+  from_id = auth.uid() OR to_id = auth.uid()
+);
+
+-- Deletar (se sua UI permitir)
+CREATE POLICY deals_delete ON public.deals
+FOR DELETE TO authenticated
+USING (
+  from_id = auth.uid() OR to_id = auth.uid()
+);
