@@ -14,6 +14,8 @@ export default function AdminLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    
+    // O fluxo chama diretamente o login do contexto, que tratará o bypass
     const err = await login(identifier.trim(), password);
     if (err) setError(err);
     setLoading(false);
