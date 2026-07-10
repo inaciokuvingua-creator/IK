@@ -48,19 +48,26 @@ ALTER TABLE user_profiles
 
 UPDATE user_profiles
 SET
-  email = COALESCE(email, au.email),
-  username = COALESCE(username, split_part(COALESCE(au.email, user_profiles.nome, 'utilizador'), '@', 1) || '_' || substr(user_id::text, 1, 6)),
-  preferred_language = COALESCE(preferred_language, idioma, 'pt'),
-  full_name = COALESCE(full_name, NULLIF(nome, '')),
-  display_name = COALESCE(display_name, NULLIF(nome, '')),
-  public_bio = COALESCE(public_bio, bio),
+  email = COALESCE(user_profiles.email, au.email),
+  username = COALESCE(
+    user_profiles.username,
+    split_part(
+      COALESCE(au.email, user_profiles.nome, 'utilizador'),
+      '@',
+      1
+    ) || '_' || substr(user_profiles.user_id::text, 1, 6)
+  ),
+  preferred_language = COALESCE(user_profiles.preferred_language, user_profiles.idioma, 'pt'),
+  full_name = COALESCE(user_profiles.full_name, NULLIF(user_profiles.nome, '')),
+  display_name = COALESCE(user_profiles.display_name, NULLIF(user_profiles.nome, '')),
+  public_bio = COALESCE(user_profiles.public_bio, user_profiles.bio),
   profile_completion = GREATEST(
-    profile_completion,
-    (CASE WHEN COALESCE(nome, '') <> '' THEN 15 ELSE 0 END) +
-    (CASE WHEN COALESCE(phone, '') <> '' THEN 10 ELSE 0 END) +
-    (CASE WHEN COALESCE(country, '') <> '' THEN 10 ELSE 0 END) +
-    (CASE WHEN COALESCE(avatar_url, '') <> '' THEN 10 ELSE 0 END) +
-    (CASE WHEN COALESCE(bio, '') <> '' THEN 10 ELSE 0 END)
+    user_profiles.profile_completion,
+    (CASE WHEN COALESCE(user_profiles.nome, '') <> '' THEN 15 ELSE 0 END) +
+    (CASE WHEN COALESCE(user_profiles.phone, '') <> '' THEN 10 ELSE 0 END) +
+    (CASE WHEN COALESCE(user_profiles.country, '') <> '' THEN 10 ELSE 0 END) +
+    (CASE WHEN COALESCE(user_profiles.avatar_url, '') <> '' THEN 10 ELSE 0 END) +
+    (CASE WHEN COALESCE(user_profiles.bio, '') <> '' THEN 10 ELSE 0 END)
   )
 FROM auth.users au
 WHERE au.id = user_profiles.user_id;
