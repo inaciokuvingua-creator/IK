@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { compare, hash } from "npm:bcryptjs@2.4.3";
+import bcrypt from "npm:bcryptjs@2.4.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,7 +130,7 @@ Deno.serve(async (req: Request) => {
       if (!adminUser) return err("Usuário ou senha incorretos", 401);
       if (!adminUser.ativo) return err("Conta suspensa. Contacte o suporte.", 403);
 
-      const valid = await compare(password, adminUser.password_hash);
+      const valid = await bcrypt.compare(password, adminUser.password_hash);
       if (!valid) return err("Usuário ou senha incorretos", 401);
 
       await adminClient.from("admin_users").update({ last_login: new Date().toISOString() }).eq("id", adminUser.id);
@@ -474,9 +474,9 @@ Deno.serve(async (req: Request) => {
       const { current_password, new_password } = await req.json();
       const { data: adminData } = await adminClient.from("admin_users").select("password_hash").eq("id", adminUser.id).maybeSingle();
       if (!adminData) return err("Admin não encontrado");
-      const valid = await compare(current_password, adminData.password_hash);
+      const valid = await bcrypt.compare(current_password, adminData.password_hash);
       if (!valid) return err("Senha atual incorreta", 401);
-      const newHash = await hash(new_password, 12);
+      const newHash = await bcrypt.hash(new_password, 12);
       await adminClient.from("admin_users").update({ password_hash: newHash }).eq("id", adminUser.id);
       await logAction(adminClient, adminUser.id, adminUser.nome, "password_change", "admin_users", adminUser.id);
       return ok({ ok: true });
