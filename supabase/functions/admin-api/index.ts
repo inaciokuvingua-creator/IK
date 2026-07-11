@@ -70,14 +70,43 @@ async function verifyToken(token: string): Promise<{ adminId: string; nome: stri
   }
 }
 
-async function requireAdmin(req: Request, admin: ReturnType<typeof createClient>) {
+async function requireAdmin(
+  req: Request,
+  admin: ReturnType<typeof createClient>
+) {
   const token = req.headers.get("X-Admin-Token") ?? "";
-  const payload = await verifyToken(token);
-  if (!payload) return null;
 
-  const { data } = await admin.from("admin_users").select("id, nome, role, ativo").eq("id", payload.adminId).maybeSingle();
-  if (!data?.ativo) return null;
-  return data as { id: string; nome: string; role: string; ativo: boolean };
+  console.log("[admin-api] has token:", !!token);
+
+  const payload = await verifyToken(token);
+
+  console.log("[admin-api] payload:", payload);
+
+  if (!payload) {
+    return null;
+  }
+
+  const { data, error } = await admin
+    .from("admin_users")
+    .select("id, nome, role, ativo")
+    .eq("id", payload.adminId)
+    .maybeSingle();
+
+  console.log("[admin-api] admin query:", {
+    error,
+    data,
+  });
+
+  if (!data?.ativo) {
+    return null;
+  }
+
+  return data as {
+    id: string;
+    nome: string;
+    role: string;
+    ativo: boolean;
+  };
 }
 
 function isSuperAdmin(a: { role: string }) { return a.role === "super_admin"; }
