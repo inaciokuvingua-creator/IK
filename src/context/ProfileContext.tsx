@@ -279,21 +279,21 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
     if (!('profile_completion' in nextPatch)) {
       nextPatch.profile_completion = buildProfileCompletion({ ...(profile ?? {}), ...patch });
-    }
-    const { data } = await supabase
-      .from('user_profiles')
-      .update(nextPatch)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-    if (data) setProfile(normalizeProfile(data, user.email ?? null));
-  };
+      
+    const { data, error } = await supabase
+  .from('user_profiles')
+  .update(nextPatch)
+  .eq('user_id', user.id)
+  .select()
+  .single();
 
-  return (
-    <Ctx.Provider value={{ profile, loading, updateProfile, refetch: fetchProfile }}>
-      {children}
-    </Ctx.Provider>
-  );
+if (error) {
+  console.error('Erro ao atualizar perfil:', error);
+  throw error;
+}
+
+if (data) {
+  setProfile(normalizeProfile(data, user.email ?? null));
 }
 
 export function useProfile() {
