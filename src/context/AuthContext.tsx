@@ -400,9 +400,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const { error } = await supabase.auth.signOut();
 
+  console.log("Logout:", error);
+
+  if (error) {
+    console.error("Erro ao terminar sessão:", error);
+  }
+};
   return (
     <AuthContext.Provider value={{ user, session, loading, isPasswordRecovery, signIn, signUp, requestPasswordReset, completePasswordReset, recoverAccount, signOut }}>
       {children}
