@@ -55,7 +55,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     setAdmin(null);
   };
 
-  const isSuperAdmin = admin?.role === 'super_admin';
+  const
+ isSuperAdmin = admin?.role === 
+'admin'
+ || admin?.role === 
+'super_admin'
+;
 
   return <Ctx.Provider value={{ admin, loading, isSuperAdmin, login, logout }}>{children}</Ctx.Provider>;
 }
