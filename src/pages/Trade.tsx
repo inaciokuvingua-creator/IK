@@ -7,7 +7,7 @@ import EconomicCalendar from '../components/Trading/EconomicCalendar';
 import IntelligenceAggregator from '../components/Trading/IntelligenceAggregator';
 import ExchangeTicker from '../components/Trading/ExchangeTicker';
 import TradingMentorAI from '../components/Trading/TradingMentorAI';
-
+ 
 export default function Trade() {
   return (
     <TradingProvider>
