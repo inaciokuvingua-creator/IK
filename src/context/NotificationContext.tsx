@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env;
 const swBasePath = (env.BASE_URL ?? '/').endsWith('/') ? (env.BASE_URL ?? '/') : `${env.BASE_URL}/`;
 const swPath = `${swBasePath}sw.js`;
-
+ 
 /** Tier 1: Full Web Push (SW + PushManager + Notification) — Chrome/Edge/Firefox desktop & Android */
 /** Tier 2: Local Notification API only (no PushManager) — Safari desktop, some mobile */
 /** Tier 3: In-app only via Supabase realtime — always works everywhere */
