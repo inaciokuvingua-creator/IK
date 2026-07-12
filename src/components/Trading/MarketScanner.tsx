@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Filter, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { TrendingUp, TrendingDown, Filter, RefreshCw, Search } from 'lucide-react';
 import { useTrading } from '../../context/TradingContext';
 import type { AssetType } from '../../types/trading';
 
 export default function MarketScanner() {
   const { assets, selectedAsset, setSelectedAsset, analyzeAsset, loading, fetchAssets } = useTrading();
   const [filterType, setFilterType] = useState<AssetType | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredAssets = filterType === 'all' 
-    ? assets 
-    : assets.filter(a => a.type === filterType);
+  const filteredAssets = useMemo(() => {
+    return assets.filter(a => {
+      const matchesType = filterType === 'all' || a.type === filterType;
+      const matchesSearch = a.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           a.name.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesType && matchesSearch;
+    });
+  }, [assets, filterType, searchTerm]);
 
   const assetTypes: { value: AssetType | 'all'; label: string }[] = [
     { value: 'all', label: 'Todos' },
@@ -39,21 +45,34 @@ export default function MarketScanner() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {assetTypes.map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => setFilterType(value)}
-            className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
-              filterType === value
-                ? 'bg-emerald-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Search and Filters */}
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+          <input
+            type="text"
+            placeholder="Pesquisar símbolo ou nome..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+          />
+        </div>
+        
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {assetTypes.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setFilterType(value)}
+              className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
+                filterType === value
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Assets Grid */}

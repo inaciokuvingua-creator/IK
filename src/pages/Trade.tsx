@@ -5,11 +5,15 @@ import AIAnalysisPanel from '../components/Trading/AIAnalysisPanel';
 import PredictionCard from '../components/Trading/PredictionCard';
 import EconomicCalendar from '../components/Trading/EconomicCalendar';
 import IntelligenceAggregator from '../components/Trading/IntelligenceAggregator';
+import ExchangeTicker from '../components/Trading/ExchangeTicker';
 
 export default function Trade() {
   return (
     <TradingProvider>
-      <div className="space-y-6">
+      <div className="space-y-6 -mt-5 -mx-5 lg:-mt-7 lg:-mx-7">
+        <ExchangeTicker />
+        
+        <div className="px-5 lg:px-7 space-y-6 pt-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
@@ -48,6 +52,7 @@ export default function Trade() {
             Não constituem recomendações de investimento. Trading envolve riscos significativos. Consulte um consultor 
             financeiro profissional antes de tomar decisões de investimento. Não garantimos lucros.
           </p>
+        </div>
         </div>
       </div>
     </TradingProvider>
