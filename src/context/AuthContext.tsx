@@ -10,7 +10,7 @@ import {
   type AccountType,
   type DocumentType,
 } from '../lib/accountSecurity';
-
+ 
 export type SecurityQuestionInput = {
   question: string;
   answer: string;
