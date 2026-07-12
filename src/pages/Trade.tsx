@@ -4,6 +4,7 @@ import MarketScanner from '../components/Trading/MarketScanner';
 import AIAnalysisPanel from '../components/Trading/AIAnalysisPanel';
 import PredictionCard from '../components/Trading/PredictionCard';
 import EconomicCalendar from '../components/Trading/EconomicCalendar';
+import IntelligenceAggregator from '../components/Trading/IntelligenceAggregator';
 
 export default function Trade() {
   return (
@@ -29,6 +30,7 @@ export default function Trade() {
 
           {/* Right Column - Analysis and Predictions */}
           <div className="lg:col-span-2 space-y-6">
+            <IntelligenceAggregator />
             <AIAnalysisPanel />
             <PredictionCard />
           </div>

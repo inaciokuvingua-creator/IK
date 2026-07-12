@@ -55,6 +55,21 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
+      // 1. Buscar contexto de conversas anteriores (AI Intelligence)
+      const { data: convData } = await supabase
+        .from('ai_conversations')
+        .select('mensagens')
+        .order('updated_at', { ascending: false })
+        .limit(3);
+      
+      let externalContext = "";
+      if (convData) {
+        externalContext = convData
+          .map(c => Array.isArray(c.mensagens) ? c.mensagens.slice(-2).map((m: any) => m.content).join(" ") : "")
+          .join(" ")
+          .substring(0, 500); // Limitar tamanho do contexto
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ik-trading-ai`,
         {
@@ -63,7 +78,11 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
           },
-          body: JSON.stringify({ asset_symbol: symbol, type: 'analysis' }),
+          body: JSON.stringify({ 
+            asset_symbol: symbol, 
+            type: 'analysis',
+            external_context: externalContext 
+          }),
         }
       );
 
