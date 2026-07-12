@@ -7,7 +7,8 @@ const corsHeaders = {
 };
 
 // ─── VAPID config ─────────────────────────────────────────────────────────────
-const VAPID_SUBJECT = "mailto:notifications@ikfinance.app";
+const VAPID_SUBJECT =
+  Deno.env.get("VAPID_EMAIL") ?? "mailto:inaciokuvingua@gmail.com";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "QSx5wDY7pYa_6lUk938nJ8LM8y_qh_O4lrzph2lfaauyre85qBNJklOE-FZV9zvqmDr2bJqYREOVKGjVVzswWw";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "sq3vOagTSZJThPhWVfc76pg69myamERDlSho1Vc7MFs";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
