@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase';
 import type { Cofre, Negocio, PatrimonioItem, Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
 import { useCurrency } from '../context/CurrencyContext';
-
+ 
 type Props = { onNavigate: (page: string) => void };
 
 export default function Dashboard({ onNavigate }: Props) {
