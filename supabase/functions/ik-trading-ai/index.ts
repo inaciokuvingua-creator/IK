@@ -20,7 +20,6 @@ serve(async (req) => {
 
     const { asset_symbol, type, external_context } = await req.json()
 
-    // 1. Simulação de Câmbio Real (Em produção, usaria APIs como Open Exchange Rates ou a tabela exchange_rates do IK Finance)
     const exchangeRates = {
       'USD/BRL': 5.42,
       'EUR/USD': 1.08,
@@ -28,7 +27,6 @@ serve(async (req) => {
       'ETH/USD': 3450.00
     };
 
-    // 2. Agregação de Notícias
     const news = [
       {
         title: `Movimentação institucional em ${asset_symbol} detectada`,
@@ -48,7 +46,13 @@ serve(async (req) => {
       `Análise agregada de fontes externas sugere: ${external_context}` : 
       "Nenhuma inteligência externa adicional fornecida para este ativo.";
 
-    // 3. Lógica de Análise Avançada com Contexto de Câmbio
+    // 1. Geração de Mentoria Didática
+    const mentorExplanation = `
+      Vamos aprender com o ${asset_symbol}. O RSI está em 65.8, o que indica que os compradores estão dominando, mas ainda há espaço antes de o mercado ficar 'cansado' (acima de 70). 
+      O padrão 'Cup and Handle' que vemos é como uma xícara: o mercado caiu, formou um fundo arredondado e agora está criando a 'asa' para romper a resistência. 
+      Em termos simples: o mercado está acumulando energia para um salto.
+    `;
+
     const analysis = {
       asset: asset_symbol,
       timestamp: new Date().toISOString(),
@@ -69,6 +73,11 @@ serve(async (req) => {
         label: "Strong Bullish",
         news_summary: "O mercado está otimista devido à forte acumulação e notícias positivas de fontes institucionais.",
         recent_news: news
+      },
+      mentor: {
+        didactic_explanation: mentorExplanation,
+        key_concept: "Continuação de Tendência",
+        pro_tip: "Observe o volume no rompimento da 'asa' da xícara para confirmar a entrada."
       },
       external_intel: {
         summary: externalIntelligence,
