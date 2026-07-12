@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { firstProductImage } from '../lib/format';
 import { buildProductUrl, buildStoreUrl, MARKETPLACE_SHARE_TARGETS, setDocumentMeta, setStructuredData, shareToTarget } from '../lib/marketplace';
 import { paymentMethodLabel, type PaymentProfile } from '../lib/paymentProfiles';
-
+ 
 type StoreRecord = {
   id: string;
   owner_id: string;
