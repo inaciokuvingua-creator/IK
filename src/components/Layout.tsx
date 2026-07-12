@@ -18,7 +18,7 @@ type Props = {
   onNavigate: (page: Page) => void;
   children: React.ReactNode;
 };
-
+ 
 export default function Layout({ currentPage, onNavigate, children }: Props) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
