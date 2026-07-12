@@ -17,7 +17,7 @@ interface TradingContextType {
   analyzeAsset: (symbol: string) => Promise<void>;
   fetchEconomicEvents: () => Promise<void>;
   clearError: () => void;
-}
+} 
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
