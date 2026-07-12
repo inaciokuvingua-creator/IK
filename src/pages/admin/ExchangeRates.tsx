@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { listRates, upsertRate, deleteRateByCurrency, fetchAndStoreExternal } from '../../lib/exchangeRates';
-
+ 
 export default function ExchangeRatesAdmin() {
   const [rates, setRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
