@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useAuth } from './AuthContext';
 import type { TradingAsset, MarketAnalysis, AIPrediction, TradeAnalysisResponse, EconomicEvent } from '../types/trading';
 import { supabase } from '../lib/supabase';
- 
+  
 interface TradingContextType {
   assets: TradingAsset[];
   selectedAsset: TradingAsset | null;
