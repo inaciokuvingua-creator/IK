@@ -4,7 +4,7 @@ import BusinessPanel from '../components/Community/BusinessPanel';
 import DealPanel from '../components/DealPanel';
 import StoreCard from '../components/StoreCard';
 import { useAuth } from '../context/AuthContext';
-
+ 
 export default function UserProfile({ userId }: { userId: string | null }) {
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
