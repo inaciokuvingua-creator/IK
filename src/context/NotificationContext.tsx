@@ -36,12 +36,21 @@ function urlB64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
-function toBase64(buffer: ArrayBuffer | null) {
-  if (!buffer) return null;
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-  return window.btoa(binary);
+function toBase64Url(buffer: ArrayBuffer | null) {
+    if (!buffer) return '';
+
+    const bytes = new Uint8Array(buffer);
+
+    let binary = '';
+
+    bytes.forEach(b=>{
+        binary += String.fromCharCode(b);
+    });
+
+    return btoa(binary)
+      .replace(/\+/g,'-')
+      .replace(/\//g,'_')
+      .replace(/=/g,'');
 }
 
 async function ensureServiceWorkerRegistration() {
