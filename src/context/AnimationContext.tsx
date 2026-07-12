@@ -3,7 +3,7 @@ import { getSeasonalConfig, getDailyAnimSet, type SeasonalConfig } from '../lib/
 import { useProfile } from './ProfileContext';
 
 export type AnimIntensity = 'off' | 'low' | 'medium' | 'high';
-
+ 
 export type AnimSettings = {
   enabled: boolean;
   intensity: AnimIntensity;
