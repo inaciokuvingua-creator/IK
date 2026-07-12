@@ -6,7 +6,7 @@ export type ImpactLevel = 'low' | 'medium' | 'high';
 
 export interface TradingAsset {
   id: string;
-  symbol: string;
+  symbol: string; 
   name: string;
   type: AssetType;
   exchange?: string;
