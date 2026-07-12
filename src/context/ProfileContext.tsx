@@ -12,7 +12,7 @@ export type SocialLinks = {
   linkedin?: string;
   website?: string;
 };
-
+ 
 export type UserProfile = {
   user_id: string;
   nome: string;
