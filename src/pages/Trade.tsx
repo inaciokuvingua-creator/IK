@@ -12,7 +12,7 @@ export default function Trade() {
   return (
     <TradingProvider>
       <div className="space-y-6 -mt-5 -mx-5 lg:-mt-7 lg:-mx-7">
-        <ExchangeTicker />
+        <ExchangeTicker /> 
         
         <div className="px-5 lg:px-7 space-y-6 pt-6">
         {/* Trading Mentor - Didactic Guide */}
