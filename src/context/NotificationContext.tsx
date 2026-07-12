@@ -181,12 +181,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const auth = sub.getKey('auth');
 
       await supabase.from('push_subscriptions').upsert({
-        user_id: user!.id,
-        endpoint: sub.endpoint,
-        p256dh: toBase64(key) ?? '',
-        auth_key: toBase64(auth) ?? '',
-        user_agent: navigator.userAgent.substring(0, 200),
-      }, { onConflict: 'user_id,endpoint' });
+  user_id: user!.id,
+  endpoint: sub.endpoint,
+  p256dh: toBase64Url(key),
+  auth_key: toBase64Url(auth),
+  user_agent: navigator.userAgent.substring(0, 200),
+}, { onConflict: 'user_id,endpoint' });
 
       setPushSubscribed(true);
 
