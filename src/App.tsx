@@ -27,7 +27,7 @@ function lazyWithRetry<T extends { default: ComponentType<any> }>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const isChunkLoadError = /ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message);
-
+ 
       if (typeof window !== 'undefined' && isChunkLoadError) {
         const retryKey = `lazy-retry:${cacheKey}`;
         if (!sessionStorage.getItem(retryKey)) {
