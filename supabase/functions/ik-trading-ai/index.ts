@@ -20,7 +20,15 @@ serve(async (req) => {
 
     const { asset_symbol, type, external_context } = await req.json()
 
-    // 1. Simulação de Agregação de Notícias (Em produção, usaria APIs como NewsAPI ou MarketAux)
+    // 1. Simulação de Câmbio Real (Em produção, usaria APIs como Open Exchange Rates ou a tabela exchange_rates do IK Finance)
+    const exchangeRates = {
+      'USD/BRL': 5.42,
+      'EUR/USD': 1.08,
+      'BTC/USD': 64250.00,
+      'ETH/USD': 3450.00
+    };
+
+    // 2. Agregação de Notícias
     const news = [
       {
         title: `Movimentação institucional em ${asset_symbol} detectada`,
@@ -36,16 +44,19 @@ serve(async (req) => {
       }
     ];
 
-    // 2. Síntese de Inteligência Externa (Contexto de outros Bots/Chats)
-    // Se external_context for fornecido, a IA irá sintetizar
     const externalIntelligence = external_context ? 
       `Análise agregada de fontes externas sugere: ${external_context}` : 
       "Nenhuma inteligência externa adicional fornecida para este ativo.";
 
-    // 3. Lógica de Análise Avançada
+    // 3. Lógica de Análise Avançada com Contexto de Câmbio
     const analysis = {
       asset: asset_symbol,
       timestamp: new Date().toISOString(),
+      exchange_context: {
+        rates: exchangeRates,
+        base_currency: "USD",
+        market_status: "OPEN"
+      },
       technical: {
         rsi: 65.8,
         macd: "Fortalecimento de tendência",
@@ -67,7 +78,7 @@ serve(async (req) => {
         optimistic: { target: "+7.5%", probability: 0.35 },
         neutral: { target: "+1.2%", probability: 0.45 },
         pessimistic: { target: "-2.5%", probability: 0.20 },
-        explanation: `A convergência de dados técnicos e sentimento de mercado altamente positivo, reforçado por notícias de fontes confiáveis, indica uma alta probabilidade de continuação da tendência de alta. ${externalIntelligence}`
+        explanation: `Considerando o câmbio atual (USD/BRL: ${exchangeRates['USD/BRL']}), a convergência de dados técnicos e sentimento de mercado altamente positivo indica uma alta probabilidade de continuação da tendência de alta. ${externalIntelligence}`
       }
     }
 
