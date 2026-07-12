@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
-
+ 
 export type AiMessage = { role: 'user' | 'assistant'; content: string; ts?: number };
 export type AiContext = 'geral' | 'financeiro' | 'empresarial' | 'marketplace';
 export type AiAttachment = {
