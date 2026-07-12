@@ -272,29 +272,36 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   const updateProfile = async (patch: Partial<UserProfile>) => {
-    if (!user) return;
-    const nextPatch = {
+  if (!user) return;
+
+  const nextPatch = {
+    ...patch,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!('profile_completion' in nextPatch)) {
+    nextPatch.profile_completion = buildProfileCompletion({
+      ...(profile ?? {}),
       ...patch,
-      updated_at: new Date().toISOString(),
-    };
-    if (!('profile_completion' in nextPatch)) {
-      nextPatch.profile_completion = buildProfileCompletion({ ...(profile ?? {}), ...patch });
-      
-    const { data, error } = await supabase
-  .from('user_profiles')
-  .update(nextPatch)
-  .eq('user_id', user.id)
-  .select()
-  .single();
+    });
+  }
 
-if (error) {
-  console.error('Erro ao atualizar perfil:', error);
-  throw error;
-}
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .update(nextPatch)
+    .eq('user_id', user.id)
+    .select()
+    .single();
 
-if (data) {
-  setProfile(normalizeProfile(data, user.email ?? null));
-}
+  if (error) {
+    console.error('Erro ao atualizar perfil:', error);
+    throw error;
+  }
+
+  if (data) {
+    setProfile(normalizeProfile(data, user.email ?? null));
+  }
+};
 
 export function useProfile() {
   const ctx = useContext(Ctx);
