@@ -189,16 +189,27 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const detected = detectMediaType(attachment.name, attachment.type);
       messageType = detected === 'document' ? 'file' : detected;
     }
-    await supabase.from('chat_messages').insert({
-      conversation_id: activeConversationId,
-      sender_id: user.id,
-      type: messageType,
-      content: text.trim() || null,
-      media_url: mediaUrl,
-      media_name: mediaName,
-      media_mime: mediaMime,
-      media_size: attachment?.size ?? null,
-    });
+ const { data, error } = await supabase
+  .from('chat_messages')
+  .insert({
+    conversation_id: activeConversationId,
+    sender_id: user.id,
+    type: messageType,
+    content: text.trim() || null,
+    media_url: mediaUrl,
+    media_name: mediaName,
+    media_mime: mediaMime,
+    media_size: attachment?.size ?? null,
+  })
+  .select();
+
+console.log("CHAT MESSAGE DATA:", data);
+console.log("CHAT MESSAGE ERROR:", error);
+
+if (error) {
+  alert(error.message);
+  return;
+}
     await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversationId);
     if (activeConversation?.otherUserId) {
       await sendNotification(
