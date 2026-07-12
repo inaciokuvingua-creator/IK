@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GraduationCap, Lightbulb, MessageSquare, ChevronRight, PlayCircle } from 'lucide-react';
 import { useTrading } from '../../context/TradingContext';
-
+ 
 export default function TradingMentorAI() {
   const { analysis, selectedAsset, loading } = useTrading();
   const [activeLesson, setActiveLesson] = useState<string | null>(null);
