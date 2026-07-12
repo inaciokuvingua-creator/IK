@@ -298,10 +298,24 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     throw error;
   }
 
-  if (data) {
+   if (data) {
     setProfile(normalizeProfile(data, user.email ?? null));
   }
 };
+
+return (
+  <Ctx.Provider
+    value={{
+      profile,
+      loading,
+      updateProfile,
+      refetch: fetchProfile,
+    }}
+  >
+    {children}
+  </Ctx.Provider>
+);
+}
 
 export function useProfile() {
   const ctx = useContext(Ctx);
