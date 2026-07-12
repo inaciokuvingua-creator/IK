@@ -3,7 +3,7 @@ import {
   TrendingUp, LayoutDashboard, Vault, Briefcase, Building2 as BuildingIcon,
   BarChart3, Wallet, LogOut, Menu, X, ChevronDown, RefreshCw,
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
-  Users, ChevronRight, Search,
+  Users, ChevronRight, Search, LineChart,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -41,6 +41,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         { id: 'negocios' as Page,   label: t('nav.negocios'),     icon: Briefcase },
         { id: 'patrimonio' as Page, label: t('nav.patrimonio'),   icon: BuildingIcon },
         { id: 'relatorios' as Page, label: t('nav.relatorios'),   icon: BarChart3 },
+        { id: 'trade' as Page,      label: '📈 Trade',            icon: LineChart },
       ],
     },
     {

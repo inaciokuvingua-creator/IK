@@ -106,6 +106,7 @@ const MinhaLoja     = lazyWithRetry(() => import('./pages/MinhaLoja'), 'minha-lo
 const Planos        = lazyWithRetry(() => import('./pages/Planos'), 'planos');
 const Chat          = lazyWithRetry(() => import('./pages/Chat'), 'chat');
 const Search        = lazyWithRetry(() => import('./pages/Search'), 'search');
+const Trade         = lazyWithRetry(() => import('./pages/Trade'), 'trade');
 
 function PageLoader() {
   return (
@@ -119,12 +120,12 @@ export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
   | 'relatorios' | 'financeiro' | 'configuracoes'
   | 'perfil' | 'empresas' | 'marketplace' | 'minha-loja'
-  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile';
+  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade';
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'cofres', 'negocios', 'patrimonio', 'relatorios', 'financeiro',
   'configuracoes', 'perfil', 'empresas', 'marketplace', 'minha-loja', 'planos',
-  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile',
+  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade',
 ];
 
 function isPage(value: string): value is Page {
@@ -243,6 +244,7 @@ function AppContent() {
       case 'minha-loja': return <MinhaLoja onNavigate={navigate} />;
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
+      case 'trade': return <Trade />;
       default: return <Dashboard onNavigate={navigate} />;
     }
   };
