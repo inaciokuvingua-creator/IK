@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 export type CurrencyCode = 'AOA' | 'USD' | 'EUR' | 'GBP' | 'BRL' | 'CNY' | 'ZAR';
-
+ 
 export type CurrencyInfo = {
   code: CurrencyCode;
   symbol: string;
