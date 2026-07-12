@@ -40,28 +40,44 @@ export default function CommunityFeed({ query }: { query?: string }) {
 
   useEffect(() => { load(); }, []);
 
-  const handlePost = async () => {
-    if (!text.trim() || !user) return;
-    setPosting(true);
-    try {
-      const { data } = await supabase
-        .from('posts')
-        .insert({
-          user_id: user.id,
-          content: text.trim(),
-          author_nome: profile?.display_name ?? profile?.nome ?? user.email?.split('@')[0],
-          author_avatar: profile?.avatar_url ?? null,
-        })
-        .select()
-        .single();
-      if (data) setPosts(prev => [data, ...prev]);
-      setText('');
-    } catch (e) {
-      console.error('post error', e);
-    } finally {
-      setPosting(false);
+ const handlePost = async () => {
+  if (!text.trim() || !user) return;
+
+  setPosting(true);
+
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .insert({
+        user_id: user.id,
+        content: text.trim(),
+        author_nome: profile?.display_name ?? profile?.nome ?? user.email?.split('@')[0],
+        author_avatar: profile?.avatar_url ?? null,
+      })
+      .select()
+      .single();
+
+    console.log("POST DATA:", data);
+    console.log("POST ERROR:", error);
+
+    if (error) {
+      alert(error.message);
+      return;
     }
-  };
+
+    if (data) {
+      setPosts(prev => [data, ...prev]);
+    }
+
+    setText('');
+
+  } catch (e) {
+    console.error('post error', e);
+    alert("Erro ao publicar");
+  } finally {
+    setPosting(false);
+  }
+};
 
   return (
     <div className="space-y-4">
