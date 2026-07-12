@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, CheckCircle, ExternalLink, MapPin, MessageCircle, Share2, Star, Store, ThumbsUp } from 'lucide-react';
-
+ 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { firstProductImage } from '../lib/format';
