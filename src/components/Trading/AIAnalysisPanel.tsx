@@ -115,6 +115,19 @@ export default function AIAnalysisPanel() {
           ))}
         </div>
       </div>
+
+      {/* Pro Tip - Didactic Element */}
+      {analysis.mentor && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Lightbulb size={16} className="text-emerald-400" />
+            <h5 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Dica do Mentor</h5>
+          </div>
+          <p className="text-sm text-gray-300 leading-relaxed">
+            {analysis.mentor.pro_tip}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

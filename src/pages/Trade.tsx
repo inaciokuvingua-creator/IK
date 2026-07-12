@@ -6,6 +6,7 @@ import PredictionCard from '../components/Trading/PredictionCard';
 import EconomicCalendar from '../components/Trading/EconomicCalendar';
 import IntelligenceAggregator from '../components/Trading/IntelligenceAggregator';
 import ExchangeTicker from '../components/Trading/ExchangeTicker';
+import TradingMentorAI from '../components/Trading/TradingMentorAI';
 
 export default function Trade() {
   return (
@@ -14,6 +15,9 @@ export default function Trade() {
         <ExchangeTicker />
         
         <div className="px-5 lg:px-7 space-y-6 pt-6">
+        {/* Trading Mentor - Didactic Guide */}
+        <TradingMentorAI />
+
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
