@@ -109,7 +109,9 @@ async function requireAdmin(
   };
 }
 
-function isSuperAdmin(a: { role: string }) { return a.role === "super_admin"; }
+function isSuperAdmin(a: { role: string }) {
+  return a.role === "super_admin" || a.role === "admin";
+}
 
 async function logAction(
   admin: ReturnType<typeof createClient>,
