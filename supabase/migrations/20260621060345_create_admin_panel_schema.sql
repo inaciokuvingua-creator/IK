@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
   nome          text NOT NULL DEFAULT 'Administrador',
   ativo         boolean NOT NULL DEFAULT true,
   last_login    timestamptz,
-  created_at    timestamptz DEFAULT now()
+  created_at    timestamptz DEFAULT now(),
+  updated_at    timestamptz DEFAULT now()
 );
 
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
