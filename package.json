@@ -28,7 +28,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^17.0.8",
-    "recharts": "^3.9.1"
+    "recharts": "^3.9.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.1",
