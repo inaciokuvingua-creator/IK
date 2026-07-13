@@ -167,7 +167,12 @@ Deno.serve(async (req: Request) => {
       await adminClient.from("admin_users").update({ last_login: new Date().toISOString() }).eq("id", adminUser.id);
       await logAction(adminClient, adminUser.id, adminUser.nome, "login", "admin_users", adminUser.id, { username: identifier });
 
-      const token = await signToken({ adminId: adminUser.id, nome: adminUser.nome, exp: Date.now() + 8 * 3600 * 1000 });
+      const token = await signToken({
+  adminId: adminUser.id,
+  nome: adminUser.nome,
+  role: adminUser.role,
+  exp: Date.now() + 8 * 3600 * 1000
+});
       return ok({ token, admin: { id: adminUser.id, username: adminUser.username, nome: adminUser.nome, email: adminUser.email, role: adminUser.role } });
     }
 
