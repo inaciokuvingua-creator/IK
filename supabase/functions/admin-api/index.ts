@@ -88,7 +88,7 @@ async function requireAdmin(
 
   const { data, error } = await admin
     .from("admin_users")
-    .select("id, nome, role, ativo")
+    .select("id, username, nome, email, role, ativo")
     .eq("id", payload.adminId)
     .maybeSingle();
 
