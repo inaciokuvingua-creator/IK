@@ -115,9 +115,17 @@ ON CONFLICT (chave) DO NOTHING;
 -- ─── Seed default admin account ──────────────────────────────────────────────
 -- Password: Admin@IKFinance2024 (bcrypt hash)
 -- IMPORTANT: Change this password immediately after first login
-INSERT INTO admin_users (username, email, password_hash, nome) VALUES (
+INSERT INTO admin_users (
+  username,
+  email,
+  password_hash,
+  nome,
+  role
+) VALUES (
   'admin',
   'admin@ikfinance.app',
   '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewLxNgCw1R6s4DGe',
-  'Inácio Kuvingua'
-) ON CONFLICT (username) DO NOTHING;
+  'Inácio Kuvingua',
+  'super_admin'
+)
+ON CONFLICT (username) DO NOTHING;
