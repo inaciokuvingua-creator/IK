@@ -2,6 +2,5 @@
 UPDATE admin_users
 SET email = 'inaciokuvingua@gmail.com',
     updated_at = now()
-WHERE username = 'admin'
-   OR email = 'admin@ikfinance.app';
+WHERE username = 'admin';
 
