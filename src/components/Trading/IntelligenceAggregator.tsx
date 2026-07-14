@@ -8,7 +8,7 @@ export default function IntelligenceAggregator() {
   if (loading || !analysis) return null;
 
   const news = analysis.sentiment.recent_news || [];
-  const externalIntel = analysis.external_intel;
+  const externalIntel = analysis.external_intel || { summary: 'Análise agregada indisponível', aggregated_sources: [] as string[] };
 
   return (
     <div className="space-y-4">
@@ -19,10 +19,10 @@ export default function IntelligenceAggregator() {
           <h4 className="font-semibold text-white">Inteligência Agregada</h4>
         </div>
         <p className="text-sm text-gray-300 leading-relaxed mb-4">
-          {externalIntel?.summary}
+          {externalIntel.summary || 'Análise agregada indisponível'}
         </p>
         <div className="flex flex-wrap gap-2">
-          {externalIntel?.aggregated_sources.map((source: string, idx: number) => (
+          {(externalIntel.aggregated_sources || []).map((source: string, idx: number) => (
             <span key={idx} className="px-2 py-1 bg-gray-800 text-gray-400 text-[10px] rounded-lg border border-gray-700">
               {source}
             </span>

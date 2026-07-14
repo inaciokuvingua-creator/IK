@@ -49,14 +49,14 @@ export default function AdvancedModal({ title, onClose, children, className = ''
     return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', onKeyDown); window.removeEventListener('resize', onResize); };
   }, [onClose]);
 
-  const beginAction = (event: PointerEvent<HTMLDivElement>, kind: 'drag' | 'resize') => {
+  const beginAction = (event: PointerEvent<HTMLElement>, kind: 'drag' | 'resize') => {
     if (isMobile() || maximized) return;
     event.preventDefault();
     action.current = { kind, startX: event.clientX, startY: event.clientY, state: windowState };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const moveAction = (event: PointerEvent<HTMLDivElement>) => {
+  const moveAction = (event: PointerEvent<HTMLElement>) => {
     const current = action.current;
     if (!current) return;
     const dx = event.clientX - current.startX;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, AlertCircle, Zap } from 'lucide-react';
+import { TrendingUp, AlertCircle, Zap, Lightbulb } from 'lucide-react';
 import { useTrading } from '../../context/TradingContext';
 
 export default function AIAnalysisPanel() {

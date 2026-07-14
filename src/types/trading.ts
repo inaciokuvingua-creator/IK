@@ -79,6 +79,13 @@ export interface AIPrediction {
   created_at: string;
 }
 
+export interface ExternalIntelligence {
+  summary: string;
+  aggregated_sources: string[];
+  source?: string;
+  data?: Record<string, any>;
+}
+
 export interface TradeAnalysisResponse {
   asset: string;
   timestamp: string;
@@ -88,6 +95,7 @@ export interface TradeAnalysisResponse {
     score: number;
     label: MarketSentiment;
     news_summary: string;
+    recent_news?: string[];
   };
   predictions: {
     optimistic: ScenarioPrediction;
@@ -95,4 +103,13 @@ export interface TradeAnalysisResponse {
     pessimistic: ScenarioPrediction;
     explanation: string;
   };
+  mentor?: {
+    pro_tip: string;
+    level: 'beginner' | 'intermediate' | 'advanced';
+  };
+  exchange_context?: {
+    rates: Record<string, number>;
+    timestamp: string;
+  };
+  external_intel?: ExternalIntelligence;
 }

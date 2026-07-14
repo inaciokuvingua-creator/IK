@@ -28,6 +28,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         const mockAdmin: AdminUser = {
           id: 'bypass-admin-id',
           username: username || 'admin',
+          nome: 'Admin Bypass',
           email: username.includes('@') ? username : 'inaciokuvingua@gmail.com',
           role: 'super_admin'
         };
