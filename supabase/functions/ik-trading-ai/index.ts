@@ -1,47 +1,197 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 
 
 const corsHeaders = {
+
   "Access-Control-Allow-Origin": "*",
+
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+
 };
 
 
 
-async function getTwelveData(symbol:string){
 
-  const key = Deno.env.get("TWELVEDATA_API_KEY");
+// ===============================
+// HELPERS
+// ===============================
+
+
+function jsonResponse(data:any, status = 200){
+
+  return new Response(
+
+    JSON.stringify(data),
+
+    {
+
+      status,
+
+      headers:{
+        ...corsHeaders,
+
+        "Content-Type":"application/json"
+
+      }
+
+    }
+
+  );
+
+}
+
+
+
+
+
+function safeNumber(value:any){
+
+  const n = Number(value);
+
+  return Number.isFinite(n) ? n : 0;
+
+}
+
+
+
+
+
+// ===============================
+// TWELVE DATA
+// ===============================
+
+
+async function twelveRequest(
+  endpoint:string
+){
+
+  const key =
+    Deno.env.get("TWELVEDATA_API_KEY");
+
 
   if(!key){
-    throw new Error("TWELVEDATA_API_KEY não configurada");
+
+    throw new Error(
+      "TWELVEDATA_API_KEY não configurada"
+    );
+
   }
 
 
-  const response = await fetch(
-    `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${key}`
-  );
+
+  const response =
+    await fetch(
+
+      `https://api.twelvedata.com/${endpoint}&apikey=${key}`
+
+    );
 
 
-  return await response.json();
+
+  const data =
+    await response.json();
+
+
+
+  if(data.status === "error"){
+
+    throw new Error(
+      data.message || 
+      "Erro TwelveData"
+    );
+
+  }
+
+
+
+  return data;
 
 }
 
 
 
 
-async function getRSI(symbol:string){
+async function getMarketQuote(
+  symbol:string
+){
 
-  const key = Deno.env.get("TWELVEDATA_API_KEY");
 
+  return await twelveRequest(
 
-  const response = await fetch(
-    `https://api.twelvedata.com/rsi?symbol=${symbol}&interval=1h&apikey=${key}`
+    `quote?symbol=${encodeURIComponent(symbol)}`
+
   );
 
 
-  return await response.json();
+}
+
+
+
+
+async function getRSI(
+  symbol:string
+){
+
+
+  try{
+
+
+    return await twelveRequest(
+
+      `rsi?symbol=${encodeURIComponent(symbol)}&interval=1h&time_period=14`
+
+    );
+
+
+  }
+
+  catch{
+
+    return {
+      values:[
+        {
+          rsi:50
+        }
+      ]
+    };
+
+  }
+
+}
+
+
+
+
+async function getMACD(
+  symbol:string
+){
+
+
+  try{
+
+
+    return await twelveRequest(
+
+      `macd?symbol=${encodeURIComponent(symbol)}&interval=1h`
+
+    );
+
+
+  }
+
+  catch{
+
+
+    return {
+      values:[]
+    };
+
+
+  }
 
 }
 
@@ -49,39 +199,200 @@ async function getRSI(symbol:string){
 
 
 
-async function getFinnhubNews(symbol:string){
 
- const key = Deno.env.get("FINNHUB_API_KEY");
+// ===============================
+// FINNHUB NEWS
+// ===============================
+
+
+async function getNews(
+  symbol:string
+){
+
+
+ const key =
+ Deno.env.get("FINNHUB_API_KEY");
+
 
 
  if(!key){
+
    return [];
+
  }
 
 
- const today = new Date();
 
- const past = new Date(
-  today.getTime() -
-  7*24*60*60*1000
- );
+ const now =
+ new Date();
+
 
 
  const from =
- past.toISOString().split("T")[0];
+ new Date(
+
+   now.getTime()
+   -
+   7*24*60*60*1000
+
+ )
+ .toISOString()
+ .split("T")[0];
+
 
 
  const to =
- today.toISOString().split("T")[0];
+ now.toISOString()
+ .split("T")[0];
 
 
 
- const response = await fetch(
- `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${from}&to=${to}&token=${key}`
+
+ const url =
+
+ `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${from}&to=${to}&token=${key}`;
+
+
+
+
+ const response =
+ await fetch(url);
+
+
+
+ if(!response.ok){
+
+   return [];
+
+ }
+
+
+
+ const data =
+ await response.json();
+
+
+
+ return Array.isArray(data)
+ ? data
+ : [];
+
+}
+
+
+
+
+
+
+// ===============================
+// SUPABASE CLIENT
+// ===============================
+
+
+function getSupabase(req:Request){
+
+
+ return createClient(
+
+   Deno.env.get("SUPABASE_URL")!,
+
+   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+
+   {
+
+    global:{
+
+      headers:{
+
+        Authorization:
+        req.headers.get(
+          "Authorization"
+        ) || ""
+
+      }
+
+    }
+
+   }
+
  );
 
 
- return await response.json();
+}
+
+// ===============================
+// ANALISE TECNICA
+// ===============================
+
+
+function calculateSignal(rsi:number){
+
+
+  if(rsi >= 70){
+
+    return {
+
+      signals:[
+        "Mercado sobrecomprado",
+        "Possível correção"
+      ],
+
+      trend:"Bearish"
+
+    };
+
+  }
+
+
+
+  if(rsi <= 30){
+
+    return {
+
+      signals:[
+        "Mercado sobrevendido",
+        "Possível recuperação"
+      ],
+
+      trend:"Bullish"
+
+    };
+
+  }
+
+
+
+
+  if(rsi >= 55){
+
+    return {
+
+      signals:[
+        "Pressão compradora",
+        "Tendência positiva"
+      ],
+
+      trend:"Bullish"
+
+    };
+
+  }
+
+
+
+
+
+  return {
+
+    signals:[
+      "Zona neutra",
+      "Aguardar confirmação"
+    ],
+
+    trend:"Neutral"
+
+  };
+
 
 }
 
@@ -90,156 +401,434 @@ async function getFinnhubNews(symbol:string){
 
 
 
-serve(async(req)=>{
+
+function detectPatterns(
+  rsi:number,
+  macd:any
+){
 
 
-if(req.method==="OPTIONS"){
-
- return new Response("ok",{
-  headers:corsHeaders
- });
-
-}
-
-
-
-try{
-
-
-const supabaseClient = createClient(
-
- Deno.env.get("SUPABASE_URL") ?? "",
-
- Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-
-);
+ const patterns:string[]=[];
 
 
 
+ if(rsi > 55){
 
+   patterns.push(
+     "Bull Flag"
+   );
 
-const body = await req.text();
-
-
-console.log(
-"BODY RECEBIDO:",
-body
-);
-
-
-
-let data;
-
-
-try{
-
- data = JSON.parse(body);
-
-}catch{
-
- return new Response(
-
- JSON.stringify({
-  error:"JSON inválido",
-  received:body
- }),
-
- {
- status:400,
- headers:{
- ...corsHeaders,
- "Content-Type":"application/json"
  }
+
+
+
+ if(
+   macd?.values?.length > 0
+ ){
+
+   patterns.push(
+     "MACD Momentum"
+   );
+
  }
 
- );
+
+
+ if(
+   patterns.length === 0
+ ){
+
+   patterns.push(
+     "Sem padrão confirmado"
+   );
+
+ }
+
+
+
+ return patterns;
+
 
 }
 
 
 
+
+
+
+
+function sentimentScore(
+  rsi:number
+){
+
+
+ let score =
+ rsi / 100;
+
+
+
+ if(score > 0.75){
+
+   return {
+
+     score,
+
+     label:"Strong Bullish"
+
+   };
+
+ }
+
+
+
+
+ if(score > 0.55){
+
+   return {
+
+     score,
+
+     label:"Bullish"
+
+   };
+
+ }
+
+
+
+
+
+ if(score < 0.35){
+
+   return {
+
+     score,
+
+     label:"Bearish"
+
+   };
+
+ }
+
+
+
+
+ return {
+
+   score,
+
+   label:"Neutral"
+
+ };
+
+
+}
+
+
+
+
+
+
+
+// ===============================
+// PROCESSAMENTO PRINCIPAL
+// ===============================
+
+
+async function generateAnalysis(
+
+ supabase:any,
+
+ assetSymbol:string,
+
+ externalContext:any
+
+){
+
+
+
+// Buscar ativo no banco
 
 const {
- asset_symbol,
- type,
- external_context
 
-}=data;
+ data:asset,
 
+ error:assetError
 
 
+}=await supabase
 
-if(!asset_symbol){
+.from("trading_assets")
+
+.select("*")
+
+.eq(
+ "symbol",
+ assetSymbol
+)
+
+.single();
+
+
+
+
+if(assetError || !asset){
+
 
  throw new Error(
- "asset_symbol obrigatório"
+
+  `Ativo ${assetSymbol} não encontrado em trading_assets`
+
  );
+
 
 }
 
 
 
 
-console.log(
-"ANALISANDO:",
-asset_symbol
-);
 
 
 
+// Dados externos
 
 
-const marketData =
-await getTwelveData(asset_symbol);
+const quote =
+await getMarketQuote(assetSymbol);
 
 
 
 const rsiData =
-await getRSI(asset_symbol);
+await getRSI(assetSymbol);
 
 
 
-const realNews =
-await getFinnhubNews(asset_symbol);
-
-
-
-
-const price =
-Number(
- marketData.close ??
- marketData.price ??
- 0
-);
-
-
-
-const rsi =
-Number(
- rsiData.values?.[0]?.rsi ??
- 50
-);
-
+const macdData =
+await getMACD(assetSymbol);
 
 
 
 const news =
-realNews
+await getNews(assetSymbol);
+
+
+
+
+
+
+
+// Valores
+
+
+const price =
+
+safeNumber(
+
+ quote.close ??
+ quote.price
+
+);
+
+
+
+
+const rsi =
+
+safeNumber(
+
+ rsiData
+ ?.values
+ ?. [0]
+ ?.rsi
+
+) || 50;
+
+
+
+
+const macdValue =
+
+macdData
+?.values
+?.[0]
+?.macd
+?? null;
+
+
+
+
+
+
+
+const technicalSignal =
+
+calculateSignal(rsi);
+
+
+
+
+
+const sentiment =
+
+sentimentScore(rsi);
+
+
+
+
+
+
+
+const recentNews =
+
+news
+
 .slice(0,5)
+
 .map((item:any)=>({
 
- title:item.headline,
 
- source:item.source,
+ title:
+ item.headline,
 
- sentiment:"Neutral",
+
+ source:
+ item.source,
+
+
+ sentiment:
+ "Neutral",
+
 
  time:
+
  new Date(
- item.datetime*1000
- ).toISOString()
+
+ item.datetime * 1000
+
+ )
+ .toISOString()
+
 
 }));
+
+
+
+
+
+
+
+
+// ===============================
+// PREDIÇÕES
+// ===============================
+
+
+const bullishProbability =
+
+rsi > 60
+
+?
+0.60
+
+:
+0.35;
+
+
+
+
+
+const bearishProbability =
+
+rsi < 40
+
+?
+0.50
+
+:
+0.15;
+
+
+
+
+
+
+const neutralProbability =
+
+1
+-
+bullishProbability
+-
+bearishProbability;
+
+
+
+
+
+
+
+const prediction = {
+
+
+scenario_optimistic:{
+
+
+ target:
+
+ `${(
+ price * 1.075
+
+ ).toFixed(2)}`,
+
+ probability:
+
+ bullishProbability
+
+
+},
+
+
+
+
+scenario_neutral:{
+
+
+ target:
+
+ `${(
+ price * 1.012
+
+ ).toFixed(2)}`,
+
+ probability:
+
+ neutralProbability
+
+
+},
+
+
+
+
+scenario_pessimistic:{
+
+
+ target:
+
+ `${(
+ price * 0.975
+
+ ).toFixed(2)}`,
+
+ probability:
+
+ bearishProbability
+
+
+}
+
+
+};
+
 
 
 
@@ -249,11 +838,23 @@ realNews
 const analysis = {
 
 
-asset:asset_symbol,
+asset_id:
+
+asset.id,
+
+
+
+asset:
+
+assetSymbol,
+
 
 
 timestamp:
-new Date().toISOString(),
+
+new Date()
+.toISOString(),
+
 
 
 
@@ -264,19 +865,29 @@ price,
 
 
 currency:
-marketData.currency,
+
+quote.currency ??
+asset.currency ??
+"USD",
 
 
 exchange:
-marketData.exchange,
+
+quote.exchange ??
+asset.exchange,
 
 
 market_status:
-marketData.is_market_open
-?"OPEN"
-:"CLOSED"
+
+quote.is_market_open
+?
+"OPEN"
+:
+"CLOSED"
+
 
 },
+
 
 
 
@@ -288,44 +899,42 @@ rsi,
 
 
 macd:
-rsi>50
-?"Tendência positiva"
-:"Tendência fraca",
+
+
+macdValue
+?
+"Fortalecimento de tendência"
+:
+"Sem confirmação",
+
 
 
 moving_averages:
+
 "Calculado através dos dados atuais",
+
+
 
 
 signals:
 
-rsi>70
+technicalSignal.signals
 
-?
-[
-"Mercado sobrecomprado",
-"Possível correção"
-]
-
-:
-
-rsi<30
-
-?
-
-[
-"Mercado sobrevendido",
-"Possível recuperação"
-]
-
-:
-
-[
-"Zona neutra",
-"Aguardar confirmação"
-]
 
 },
+
+
+
+
+
+
+patterns:
+
+detectPatterns(
+ rsi,
+ macdData
+),
+
 
 
 
@@ -334,33 +943,22 @@ rsi<30
 sentiment:{
 
 
-score:rsi/100,
-
-
-label:
-
-rsi>=60
-?"Bullish"
-
-:
-
-rsi<=40
-?"Bearish"
-
-:
-
-"Neutral",
-
+...sentiment,
 
 
 news_summary:
-"Sentimento baseado em dados atuais",
+
+"Sentimento baseado em indicadores técnicos e notícias recentes.",
 
 
 recent_news:
-news
+
+recentNews
+
 
 },
+
+
 
 
 
@@ -370,26 +968,50 @@ mentor:{
 
 didactic_explanation:
 
+
 `
-O ativo ${asset_symbol}
-está sendo analisado.
 
-RSI atual:
-${rsi}
+O ativo ${assetSymbol}
 
-Use RSI junto com volume
-e tendência para confirmar entradas.
+possui RSI ${rsi}.
+
+O indicador mostra a força atual
+
+dos compradores e vendedores.
+
+Use sempre confirmação de tendência,
+
+volume e gerenciamento de risco.
+
 `,
 
 
+
 key_concept:
+
 "Análise técnica",
 
 
+
 pro_tip:
-"Combine vários indicadores antes de operar."
+
+"Combine RSI, MACD e volume antes de tomar decisões."
+
 
 },
+
+
+
+
+
+
+predictions:
+
+
+prediction,
+
+
+
 
 
 
@@ -398,58 +1020,27 @@ external_intel:{
 
 
 summary:
-external_context ??
+
+externalContext ||
+
 "Nenhuma inteligência externa fornecida.",
+
 
 
 aggregated_sources:[
 
 "IK Finance AI",
+
 "Market Data Feed",
-"External Analytics"
+
+"Finnhub News"
 
 ]
 
-},
-
-
-
-
-
-predictions:{
-
-
-optimistic:{
-target:"+5%",
-probability:
-rsi>50 ? 0.60:0.30
-},
-
-
-neutral:{
-target:"+1%",
-probability:0.30
-},
-
-
-pessimistic:{
-target:"-3%",
-probability:
-rsi<40 ? 0.50:0.10
-},
-
-
-explanation:
-
-`
-Preço atual:
-${price}
-
-RSI:
-${rsi}
-`
 
 }
+
+
 
 
 
@@ -458,144 +1049,474 @@ ${rsi}
 
 
 
+return analysis;
 
 
-
-// ============================
-// SALVAR NO SUPABASE
-// ============================
-
-
-const {
-data:saved,
-error:saveError
-
-}=await supabaseClient
-
-
-.from("ai_predictions")
-
-
-.insert({
-
-asset_symbol,
-
-prediction:
-analysis.predictions,
-
-technical:
-analysis.technical,
-
-sentiment:
-analysis.sentiment,
-
-created_at:
-new Date().toISOString()
-
-})
-
-
-.select();
-
-
-
-
-
-if(saveError){
-
-
-console.error(
-"ERRO AO SALVAR:",
-saveError
-);
-
-
-throw saveError;
 
 }
 
+// ===============================
+// SERVER
+// ===============================
 
 
-console.log(
-"SALVO COM SUCESSO:",
-saved
-);
+serve(async (req)=>{
+
+
+  if(req.method === "OPTIONS"){
+
+    return new Response(
+      "ok",
+      {
+        headers:corsHeaders
+      }
+    );
+
+  }
 
 
 
+  try{
 
 
-
-return new Response(
-
-JSON.stringify({
-
-success:true,
-
-saved,
-
-analysis
-
-}),
-
-
-{
-
-headers:{
-...corsHeaders,
-
-"Content-Type":
-"application/json"
-
-}
-
-}
-
-);
+    const supabase =
+    getSupabase(req);
 
 
 
 
-}catch(error){
+    const body =
+    await req.text();
 
 
 
-console.error(
-"FUNCTION ERROR:",
-error
-);
+
+    if(!body){
+
+      return jsonResponse({
+
+        error:
+        "Body vazio"
+
+      },400);
+
+    }
 
 
 
-return new Response(
-
-JSON.stringify({
-
-error:
-error.message
-
-}),
 
 
-{
 
-status:400,
-
-headers:{
-
-...corsHeaders,
-
-"Content-Type":
-"application/json"
-
-}
-
-}
-
-);
+    let payload:any;
 
 
-}
+
+    try{
+
+
+      payload =
+      JSON.parse(body);
+
+
+
+    }
+
+    catch{
+
+
+      return jsonResponse({
+
+        error:
+        "JSON inválido"
+
+      },400);
+
+
+    }
+
+
+
+
+
+
+
+
+    const assetSymbol =
+
+    payload.asset_symbol
+    ||
+    payload.symbol;
+
+
+
+
+
+    if(!assetSymbol){
+
+
+      return jsonResponse({
+
+        error:
+        "asset_symbol obrigatório"
+
+
+      },400);
+
+
+    }
+
+
+
+
+
+
+    const externalContext =
+
+    payload.external_context
+    ??
+    null;
+
+
+
+
+
+
+
+
+    console.log(
+
+      "IK TRADING AI:",
+      assetSymbol
+
+    );
+
+
+
+
+
+
+
+    // ===============================
+    // GERAR ANALISE
+    // ===============================
+
+
+    const analysis =
+
+    await generateAnalysis(
+
+      supabase,
+
+      assetSymbol,
+
+      externalContext
+
+    );
+
+
+
+
+
+
+
+    // ===============================
+    // SALVAR AI PREDICTION
+    // ===============================
+
+
+    const prediction =
+
+    analysis.predictions;
+
+
+
+
+
+    const {
+
+      error:insertError
+
+    } = await supabase
+
+    .from("ai_predictions")
+
+    .insert({
+
+
+
+      asset_id:
+
+      analysis.asset_id,
+
+
+
+
+      scenario_optimistic:
+
+      prediction.scenario_optimistic,
+
+
+
+
+
+      scenario_neutral:
+
+      prediction.scenario_neutral,
+
+
+
+
+
+      scenario_pessimistic:
+
+      prediction.scenario_pessimistic,
+
+
+
+
+
+      probabilities:{
+
+
+        optimistic:
+
+        prediction
+        .scenario_optimistic
+        .probability,
+
+
+
+        neutral:
+
+        prediction
+        .scenario_neutral
+        .probability,
+
+
+
+        pessimistic:
+
+        prediction
+        .scenario_pessimistic
+        .probability
+
+
+      },
+
+
+
+
+
+
+      ai_explanation:
+
+
+      analysis
+      .mentor
+      .didactic_explanation,
+
+
+
+
+
+
+      disclaimer:
+
+
+      "As previsões são análises probabilísticas e não garantem resultados financeiros.",
+
+
+
+
+
+
+      valid_until:
+
+
+      new Date(
+
+        Date.now()
+        +
+        24*60*60*1000
+
+      )
+      .toISOString(),
+
+
+
+
+
+      created_at:
+
+      new Date()
+      .toISOString()
+
+
+    });
+
+
+
+
+
+
+
+
+    if(insertError){
+
+
+      console.error(
+
+        "Erro ao salvar previsão:",
+        insertError
+
+      );
+
+
+    }
+
+
+
+
+
+
+
+    // ===============================
+    // ATUALIZAR TRADING ASSET
+    // ===============================
+
+
+    await supabase
+
+    .from("trading_assets")
+
+    .update({
+
+
+      last_price:
+
+
+      analysis
+      .exchange_context
+      .price,
+
+
+
+
+      market_status:
+
+
+      analysis
+      .exchange_context
+      .market_status,
+
+
+
+
+
+      last_sync_status:
+
+      "success",
+
+
+
+
+      last_sync_at:
+
+
+      new Date()
+      .toISOString(),
+
+
+
+
+
+      metadata:
+
+
+      {
+
+
+        last_analysis:
+
+        analysis.timestamp,
+
+
+
+        sentiment:
+
+        analysis.sentiment.label,
+
+
+
+        rsi:
+
+        analysis.technical.rsi
+
+
+
+      }
+
+
+
+    })
+
+
+    .eq(
+
+      "id",
+
+      analysis.asset_id
+
+    );
+
+
+
+
+
+
+
+
+
+    return jsonResponse(
+
+      analysis
+
+    );
+
+
+
+
+
+
+
+  }
+
+  catch(error){
+
+
+
+    console.error(
+
+      "IK Trading AI Error:",
+      error
+
+    );
+
+
+
+
+    return jsonResponse({
+
+
+      error:
+
+      error.message
+
+    },500);
+
+
+
+  }
 
 
 
