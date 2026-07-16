@@ -41,7 +41,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         { id: 'negocios' as Page,   label: t('nav.negocios'),     icon: Briefcase },
         { id: 'patrimonio' as Page, label: t('nav.patrimonio'),   icon: BuildingIcon },
         { id: 'relatorios' as Page, label: t('nav.relatorios'),   icon: BarChart3 },
-        { id: 'Trade'      as Page, label: 'trade',               icon: LineChart }, 
+        { id: 'trade'      as Page, label: 'Trade',               icon: LineChart }, 
       ],
     },
     {
