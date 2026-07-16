@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+
 import {
   TrendingUp,
   TrendingDown,
@@ -10,7 +11,9 @@ import { useTrading } from '../../context/TradingContext';
 import type { AssetType } from '../../types/trading';
 
 
+
 export default function MarketScanner() {
+
 
   const {
     assets,
@@ -22,6 +25,7 @@ export default function MarketScanner() {
   } = useTrading();
 
 
+
   const [filterType, setFilterType] =
     useState<AssetType | 'all'>('all');
 
@@ -31,9 +35,13 @@ export default function MarketScanner() {
 
 
 
-  const filteredAssets = useMemo(() => {
 
-    return assets.filter(asset => {
+
+  const filteredAssets = useMemo(()=>{
+
+
+    return assets.filter(asset=>{
+
 
       const matchesType =
         filterType === 'all'
@@ -41,21 +49,28 @@ export default function MarketScanner() {
         asset.type === filterType;
 
 
+
       const matchesSearch =
+
         asset.symbol
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase())
+
         ||
+
         asset.name
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
 
 
       return matchesType && matchesSearch;
 
+
     });
 
-  }, [
+
+  },[
     assets,
     filterType,
     searchTerm
@@ -65,11 +80,10 @@ export default function MarketScanner() {
 
 
 
-  const assetTypes:
-  {
-    value: AssetType | 'all';
-    label:string;
-  }[] = [
+
+
+
+  const assetTypes = [
 
     {
       value:'all',
@@ -106,7 +120,13 @@ export default function MarketScanner() {
       label:'💼 ETFs'
     }
 
-  ];
+  ] as {
+    value:AssetType|'all';
+    label:string
+  }[];
+
+
+
 
 
 
@@ -118,9 +138,11 @@ export default function MarketScanner() {
     <div className="space-y-4">
 
 
-      {/* HEADER */}
 
-      <div className="flex items-center justify-between">
+
+
+      <div className="flex justify-between items-center">
+
 
         <div>
 
@@ -129,11 +151,16 @@ export default function MarketScanner() {
           </h2>
 
 
-          <p className="text-sm text-gray-400 mt-1">
-            Dados sincronizados com IK Finance AI
+          <p className="text-sm text-gray-400">
+
+            Dados reais sincronizados com IK Finance AI
+
           </p>
 
+
         </div>
+
+
 
 
 
@@ -144,20 +171,22 @@ export default function MarketScanner() {
           disabled={loading}
 
           className="
-          flex items-center gap-2
-          px-4 py-2
+          flex
+          items-center
+          gap-2
+          px-4
+          py-2
           bg-emerald-500/10
-          hover:bg-emerald-500/20
           text-emerald-400
           rounded-xl
-          transition-colors
-          disabled:opacity-50
           "
 
         >
 
           <RefreshCw
+
             size={16}
+
             className={
               loading
               ?
@@ -165,9 +194,11 @@ export default function MarketScanner() {
               :
               ''
             }
+
           />
 
           Atualizar
+
 
         </button>
 
@@ -179,12 +210,16 @@ export default function MarketScanner() {
 
 
 
-      {/* SEARCH */}
+
+
+
 
       <div className="relative">
 
 
         <Search
+
+          size={18}
 
           className="
           absolute
@@ -194,44 +229,34 @@ export default function MarketScanner() {
           text-gray-500
           "
 
-          size={18}
-
         />
 
 
 
         <input
 
-          type="text"
-
-          placeholder="
-          Pesquisar símbolo ou nome...
-          "
-
           value={searchTerm}
 
           onChange={
-            e =>
-            setSearchTerm(e.target.value)
+            e=>setSearchTerm(e.target.value)
           }
 
+
+          placeholder="Pesquisar ativo..."
 
           className="
           w-full
           pl-10
-          pr-4
           py-2.5
           bg-gray-800
           border
           border-gray-700
           rounded-xl
           text-white
-          text-sm
-          focus:outline-none
-          focus:border-emerald-500
           "
 
         />
+
 
       </div>
 
@@ -240,59 +265,67 @@ export default function MarketScanner() {
 
 
 
-      {/* FILTERS */}
+
+
 
       <div className="
       flex
       gap-2
       overflow-x-auto
-      pb-2
       ">
 
 
-        {
-          assetTypes.map(item => (
+      {
 
-            <button
-
-              key={item.value}
-
-              onClick={() =>
-                setFilterType(item.value)
-              }
+        assetTypes.map(type=>(
 
 
-              className={`
-              px-4
-              py-2
-              rounded-xl
-              text-sm
-              whitespace-nowrap
-
-              ${
-                filterType === item.value
-
-                ?
-
-                'bg-emerald-500 text-white'
-
-                :
-
-                'bg-gray-800 text-gray-400'
-              }
-
-              `}
-
-            >
-
-              {item.label}
-
-            </button>
+          <button
 
 
-          ))
+            key={type.value}
 
-        }
+
+            onClick={()=>
+              setFilterType(type.value)
+            }
+
+
+            className={`
+            
+            px-4
+            py-2
+            rounded-xl
+            text-sm
+            
+            ${
+              filterType===type.value
+
+              ?
+
+              'bg-emerald-500 text-white'
+
+              :
+
+              'bg-gray-800 text-gray-400'
+
+            }
+
+            `}
+
+
+          >
+
+            {type.label}
+
+
+          </button>
+
+
+
+        ))
+
+      }
 
 
       </div>
@@ -303,8 +336,6 @@ export default function MarketScanner() {
 
 
 
-
-      {/* ASSETS */}
 
 
       <div className="
@@ -316,207 +347,242 @@ export default function MarketScanner() {
       ">
 
 
+
+
       {
+        filteredAssets.map(asset=>{
 
-      filteredAssets.map(asset => {
 
+          const price =
+            Number(asset.last_price)
+            ||
+            0;
 
-        const change =
-        Number(
-          asset.price_change_percent_24h
-        )
-        ||
-        0;
 
 
+          const change =
+            Number(asset.price_change_percent_24h)
+            ||
+            0;
 
-        const positive =
-        change >= 0;
 
 
+          const positive =
+            change >=0;
 
-        return (
 
-        <button
 
-          key={asset.id}
 
-          onClick={() => {
+          return (
 
-            setSelectedAsset(asset);
 
-            analyzeAsset(asset.symbol);
 
-          }}
+          <button
 
 
-          className={`
+            key={asset.id}
 
-          p-4
 
-          rounded-xl
+            onClick={()=>{
 
-          border
+              setSelectedAsset(asset);
 
-          text-left
+              analyzeAsset(asset.symbol);
 
-          transition-all
+            }}
 
 
-          ${
-            selectedAsset?.id === asset.id
+            className={`
 
-            ?
+            p-4
 
-            'bg-emerald-500/10 border-emerald-500/50'
+            rounded-xl
 
-            :
+            border
 
-            'bg-gray-800/50 border-gray-700'
-          }
+            text-left
 
 
-          `}
+            ${
+              selectedAsset?.id===asset.id
 
-        >
+              ?
 
+              'bg-emerald-500/10 border-emerald-500'
 
+              :
 
-        <div className="
-        flex
-        items-start
-        justify-between
-        mb-3
-        ">
-
-
-          <div>
-
-            <p className="font-bold text-white">
-
-              {asset.symbol}
-
-            </p>
-
-
-            <p className="
-            text-xs
-            text-gray-400
-            ">
-
-              {asset.name}
-
-            </p>
-
-
-          </div>
-
-
-
-          <span className="
-          px-2
-          py-1
-          bg-gray-700
-          text-gray-300
-          text-xs
-          rounded-lg
-          ">
-
-            {asset.type}
-
-          </span>
-
-
-        </div>
-
-
-
-
-
-
-
-        {/* REAL PRICE */}
-
-
-        <div className="
-        flex
-        items-center
-        gap-2
-        ">
-
-
-          <span className="
-          text-lg
-          font-bold
-          text-white
-          ">
-
-
-          {
-
-          asset.last_price
-
-          ?
-
-          `$${Number(asset.last_price)
-          .toLocaleString()}`
-
-          :
-
-          "Sem preço"
-
-          }
-
-
-          </span>
-
-
-
-
-          <div className={`
-          flex
-          items-center
-          gap-1
-
-          ${
-            positive
-            ?
-            'text-emerald-400'
-            :
-            'text-red-400'
-          }
-
-          `}>
-
-
-            {
-
-            positive
-
-            ?
-
-            <TrendingUp size={14}/>
-
-            :
-
-            <TrendingDown size={14}/>
+              'bg-gray-800/50 border-gray-700'
 
             }
 
+            `}
 
 
-            <span className="text-sm">
+          >
 
-              {change.toFixed(2)}%
+
+
+
+
+
+
+          <div className="
+          flex
+          justify-between
+          mb-3
+          ">
+
+
+
+            <div>
+
+
+              <p className="
+              font-bold
+              text-white
+              ">
+
+                {asset.symbol}
+
+              </p>
+
+
+
+              <p className="
+              text-xs
+              text-gray-400
+              ">
+
+                {asset.name}
+
+              </p>
+
+
+            </div>
+
+
+
+
+
+            <span className="
+            bg-gray-700
+            text-gray-300
+            px-2
+            py-1
+            rounded-lg
+            text-xs
+            ">
+
+
+              {asset.type}
+
 
             </span>
 
 
+
           </div>
 
 
 
-        </div>
+
+
+
+
+
+
+          <div className="
+          flex
+          items-center
+          gap-3
+          ">
+
+
+
+            <span className="
+            text-lg
+            font-bold
+            text-white
+            ">
+
+
+            {
+
+              price > 0
+
+              ?
+
+              `$${price.toLocaleString()}`
+
+              :
+
+              'Sem preço'
+
+            }
+
+
+            </span>
+
+
+
+
+
+            <span
+
+            className={`
+            flex
+            items-center
+            gap-1
+
+            ${
+              positive
+
+              ?
+
+              'text-emerald-400'
+
+              :
+
+              'text-red-400'
+
+            }
+
+            `}
+
+            >
+
+
+              {
+
+              positive
+
+              ?
+
+              <TrendingUp size={14}/>
+
+              :
+
+              <TrendingDown size={14}/>
+
+              }
+
+
+
+              {
+
+                change.toFixed(2)
+
+              }%
+
+
+
+            </span>
+
+
+
+
+          </div>
 
 
 
@@ -525,74 +591,117 @@ export default function MarketScanner() {
 
 
 
-        <div className="
-        mt-3
-        pt-3
-        border-t
-        border-gray-700
-        flex
-        justify-between
-        text-xs
-        ">
+
+
+          <div className="
+          mt-3
+          pt-3
+          border-t
+          border-gray-700
+          text-xs
+          space-y-1
+          ">
 
 
 
-        <span className="text-gray-500">
+            <p className="text-gray-500">
 
-          Vol:
+              Volume:
 
-          {
-            asset.volume_24h
+              {' '}
 
-            ?
+              {
 
-            Number(asset.volume_24h)
-            .toLocaleString()
+              asset.volume_24h
 
-            :
+              ?
 
-            "N/A"
-          }
+              Number(asset.volume_24h)
+              .toLocaleString()
 
+              :
 
-        </span>
+              'N/A'
 
-
-
-
-        <span className="text-gray-500">
+              }
 
 
-        High:
-
-        {
-          asset.high_24h
-
-          ?
-
-          `$${Number(asset.high_24h)
-          .toLocaleString()}`
-
-          :
-
-          "N/A"
-        }
-
-
-        </span>
-
-
-        </div>
+            </p>
 
 
 
 
-        </button>
 
-        );
+            <p className="text-gray-500">
+
+              Máxima 24h:
+
+              {' '}
+
+              {
+
+              asset.high_24h
+
+              ?
+
+              `$${Number(asset.high_24h)
+              .toLocaleString()}`
+
+              :
+
+              'N/A'
+
+              }
 
 
-      })
+            </p>
+
+
+
+
+
+            <p className="text-gray-500">
+
+              Sync:
+
+              {' '}
+
+              {
+
+              asset.last_sync_at
+
+              ?
+
+              new Date(asset.last_sync_at)
+              .toLocaleString()
+
+              :
+
+              'Nunca'
+
+              }
+
+
+            </p>
+
+
+
+          </div>
+
+
+
+
+
+
+          </button>
+
+
+
+          );
+
+
+
+        })
 
 
       }
@@ -600,6 +709,7 @@ export default function MarketScanner() {
 
 
       </div>
+
 
 
 
@@ -607,19 +717,27 @@ export default function MarketScanner() {
 
 
       {
-      filteredAssets.length === 0 &&
+        filteredAssets.length===0 &&
 
-      <div className="
-      text-center
-      py-12
-      text-gray-400
-      ">
 
-        Nenhum ativo encontrado
+        <div className="
+        text-center
+        py-10
+        text-gray-400
+        ">
 
-      </div>
+
+          Nenhum ativo encontrado
+
+
+        </div>
+
 
       }
+
+
+
+
 
 
 
