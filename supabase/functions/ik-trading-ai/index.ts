@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -8,11 +9,12 @@ const corsHeaders = {
 };
 
 
-async function getTwelveData(symbol: string) {
+
+async function getTwelveData(symbol:string){
 
   const key = Deno.env.get("TWELVEDATA_API_KEY");
 
-  if (!key) {
+  if(!key){
     throw new Error("TWELVEDATA_API_KEY não configurada");
   }
 
@@ -23,11 +25,13 @@ async function getTwelveData(symbol: string) {
 
 
   return await response.json();
+
 }
 
 
 
-async function getRSI(symbol: string) {
+
+async function getRSI(symbol:string){
 
   const key = Deno.env.get("TWELVEDATA_API_KEY");
 
@@ -38,479 +42,561 @@ async function getRSI(symbol: string) {
 
 
   return await response.json();
-}
 
-
-
-
-async function getFinnhubNews(symbol: string) {
-
-  const key = Deno.env.get("FINNHUB_API_KEY");
-
-  if (!key) {
-    return [];
-  }
-
-
-  const today = new Date();
-
-  const past = new Date(
-    today.getTime() - 7 * 24 * 60 * 60 * 1000
-  );
-
-
-  const from = past.toISOString().split("T")[0];
-  const to = today.toISOString().split("T")[0];
-
-
-  const response = await fetch(
-    `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${from}&to=${to}&token=${key}`
-  );
-
-
-  return await response.json();
 }
 
 
 
 
 
-serve(async (req) => {
+async function getFinnhubNews(symbol:string){
 
-  if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: corsHeaders,
-    });
-  }
+ const key = Deno.env.get("FINNHUB_API_KEY");
 
 
+ if(!key){
+   return [];
+ }
 
-  try {
+
+ const today = new Date();
+
+ const past = new Date(
+  today.getTime() -
+  7*24*60*60*1000
+ );
 
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: {
-            Authorization:
-              req.headers.get("Authorization")!,
-          },
-        },
-      }
-    );
+ const from =
+ past.toISOString().split("T")[0];
 
-    const body = await req.text();
 
-console.log("BODY RECEBIDO:", body);
+ const to =
+ today.toISOString().split("T")[0];
+
+
+
+ const response = await fetch(
+ `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${from}&to=${to}&token=${key}`
+ );
+
+
+ return await response.json();
+
+}
+
+
+
+
+
+
+serve(async(req)=>{
+
+
+if(req.method==="OPTIONS"){
+
+ return new Response("ok",{
+  headers:corsHeaders
+ });
+
+}
+
+
+
+try{
+
+
+const supabaseClient = createClient(
+
+ Deno.env.get("SUPABASE_URL") ?? "",
+
+ Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+
+);
+
+
+
+
+
+const body = await req.text();
+
+
+console.log(
+"BODY RECEBIDO:",
+body
+);
+
+
 
 let data;
 
-try {
-  data = JSON.parse(body);
-} catch (e) {
-  return new Response(
-    JSON.stringify({
-      error: "JSON inválido recebido",
-      received: body
-    }),
-    {
-      status: 400,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      }
-    }
-  );
+
+try{
+
+ data = JSON.parse(body);
+
+}catch{
+
+ return new Response(
+
+ JSON.stringify({
+  error:"JSON inválido",
+  received:body
+ }),
+
+ {
+ status:400,
+ headers:{
+ ...corsHeaders,
+ "Content-Type":"application/json"
+ }
+ }
+
+ );
+
 }
 
 
+
+
 const {
-  asset_symbol,
-  type,
-  external_context
-} = data;
+ asset_symbol,
+ type,
+ external_context
 
+}=data;
 
 
 
-    /*
-      BUSCA DADOS REAIS
-    */
 
+if(!asset_symbol){
 
-    const marketData =
-      await getTwelveData(asset_symbol);
+ throw new Error(
+ "asset_symbol obrigatório"
+ );
 
+}
 
 
-    const rsiData =
-      await getRSI(asset_symbol);
 
 
+console.log(
+"ANALISANDO:",
+asset_symbol
+);
 
-    const realNews =
-      await getFinnhubNews(asset_symbol);
 
 
 
 
-    const price =
-      Number(
-        marketData.close ??
-        marketData.price ??
-        0
-      );
+const marketData =
+await getTwelveData(asset_symbol);
 
 
 
-    const rsi =
-      Number(
-        rsiData.values?.[0]?.rsi ??
-        50
-      );
+const rsiData =
+await getRSI(asset_symbol);
 
 
 
+const realNews =
+await getFinnhubNews(asset_symbol);
 
-    const news =
-      realNews
-      .slice(0,5)
-      .map((item:any)=>({
 
-        title:item.headline,
 
-        source:item.source,
 
-        sentiment:"Neutral",
+const price =
+Number(
+ marketData.close ??
+ marketData.price ??
+ 0
+);
 
-        time:
-          new Date(
-            item.datetime * 1000
-          ).toISOString()
 
-      }));
 
+const rsi =
+Number(
+ rsiData.values?.[0]?.rsi ??
+ 50
+);
 
 
 
 
+const news =
+realNews
+.slice(0,5)
+.map((item:any)=>({
 
-    const analysis = {
+ title:item.headline,
 
+ source:item.source,
 
-      asset: asset_symbol,
+ sentiment:"Neutral",
 
+ time:
+ new Date(
+ item.datetime*1000
+ ).toISOString()
 
-      timestamp:
-        new Date().toISOString(),
+}));
 
 
 
-      exchange_context:{
 
 
-        price,
 
+const analysis = {
 
-        currency:
-          marketData.currency,
 
+asset:asset_symbol,
 
-        exchange:
-          marketData.exchange,
 
+timestamp:
+new Date().toISOString(),
 
-        market_status:
-          marketData.is_market_open
-          ? "OPEN"
-          : "CLOSED"
 
 
-      },
+exchange_context:{
 
 
+price,
 
 
+currency:
+marketData.currency,
 
-      technical:{
 
+exchange:
+marketData.exchange,
 
-        rsi,
 
+market_status:
+marketData.is_market_open
+?"OPEN"
+:"CLOSED"
 
-        macd:
-          rsi > 50
-          ? "Tendência positiva"
-          : "Tendência fraca",
+},
 
 
 
-        moving_averages:
-          "Calculado através dos dados atuais",
 
+technical:{
 
 
-        signals:
+rsi,
 
 
-          rsi > 70
-          ? [
-              "Mercado sobrecomprado",
-              "Possível correção"
-            ]
+macd:
+rsi>50
+?"Tendência positiva"
+:"Tendência fraca",
 
 
-          :
+moving_averages:
+"Calculado através dos dados atuais",
 
-          rsi < 30
 
-          ? [
-              "Mercado sobrevendido",
-              "Possível recuperação"
-            ]
+signals:
 
+rsi>70
 
-          :
+?
+[
+"Mercado sobrecomprado",
+"Possível correção"
+]
 
-          [
-            "Zona neutra",
-            "Aguardar confirmação"
-          ]
+:
 
-      },
+rsi<30
 
+?
 
+[
+"Mercado sobrevendido",
+"Possível recuperação"
+]
 
+:
 
+[
+"Zona neutra",
+"Aguardar confirmação"
+]
 
+},
 
-      sentiment:{
 
 
-        score:
-          rsi / 100,
 
 
-        label:
+sentiment:{
 
 
-          rsi >= 60
+score:rsi/100,
 
-          ? "Bullish"
 
+label:
 
-          :
+rsi>=60
+?"Bullish"
 
-          rsi <= 40
+:
 
-          ? "Bearish"
+rsi<=40
+?"Bearish"
 
+:
 
-          :
+"Neutral",
 
-          "Neutral",
 
 
+news_summary:
+"Sentimento baseado em dados atuais",
 
-        news_summary:
-          "Sentimento baseado em dados atuais",
 
+recent_news:
+news
 
+},
 
-        recent_news:
-          news
 
-      },
 
 
+mentor:{
 
 
+didactic_explanation:
 
+`
+O ativo ${asset_symbol}
+está sendo analisado.
 
-      mentor:{
+RSI atual:
+${rsi}
 
+Use RSI junto com volume
+e tendência para confirmar entradas.
+`,
 
-        didactic_explanation:
 
-        `
-        O ativo ${asset_symbol}
-        está sendo analisado com dados reais.
+key_concept:
+"Análise técnica",
 
-        O RSI atual é ${rsi}.
-        Valores acima de 70 indicam força excessiva.
-        Valores abaixo de 30 podem indicar oportunidade.
-        `,
 
+pro_tip:
+"Combine vários indicadores antes de operar."
 
+},
 
-        key_concept:
-          "Análise técnica",
 
 
 
-        pro_tip:
-          "Combine RSI, volume e tendência antes de entrar."
+external_intel:{
 
-      },
 
+summary:
+external_context ??
+"Nenhuma inteligência externa fornecida.",
 
 
+aggregated_sources:[
 
+"IK Finance AI",
+"Market Data Feed",
+"External Analytics"
 
-      predictions:{
+]
 
+},
 
-        optimistic:{
 
-          target:"+5%",
 
-          probability:
-            rsi > 50
-            ? 0.60
-            :0.30
 
-        },
 
+predictions:{
 
 
-        neutral:{
+optimistic:{
+target:"+5%",
+probability:
+rsi>50 ? 0.60:0.30
+},
 
-          target:"+1%",
 
-          probability:0.30
+neutral:{
+target:"+1%",
+probability:0.30
+},
 
-        },
 
+pessimistic:{
+target:"-3%",
+probability:
+rsi<40 ? 0.50:0.10
+},
 
 
-        pessimistic:{
+explanation:
 
+`
+Preço atual:
+${price}
 
-          target:"-3%",
+RSI:
+${rsi}
+`
 
+}
 
-          probability:
-            rsi < 40
-            ?0.50
-            :0.10
 
 
-        },
+};
 
 
 
-        explanation:
 
-        `
-        Previsão baseada no preço atual ${price}
-        e RSI ${rsi}.
-        `
 
-      }
 
 
+// ============================
+// SALVAR NO SUPABASE
+// ============================
 
-    };
 
+const {
+data:saved,
+error:saveError
 
+}=await supabaseClient
 
 
+.from("ai_predictions")
 
 
+.insert({
 
-    /*
-      SALVAR NO BANCO
-    */
+asset_symbol,
 
+prediction:
+analysis.predictions,
 
-    await supabaseClient
-    .from("ai_predictions")
-    .insert({
+technical:
+analysis.technical,
 
-      asset_symbol,
+sentiment:
+analysis.sentiment,
 
-      prediction:
-        analysis.predictions,
+created_at:
+new Date().toISOString()
 
+})
 
-      technical:
-        analysis.technical,
 
+.select();
 
-      sentiment:
-        analysis.sentiment,
 
 
-      created_at:
-        new Date().toISOString()
 
-    });
 
+if(saveError){
 
 
+console.error(
+"ERRO AO SALVAR:",
+saveError
+);
 
 
+throw saveError;
 
+}
 
-    return new Response(
 
-      JSON.stringify(analysis),
 
-      {
+console.log(
+"SALVO COM SUCESSO:",
+saved
+);
 
-        headers:{
-          ...corsHeaders,
 
-          "Content-Type":
-            "application/json"
 
-        }
 
-      }
 
-    );
 
+return new Response(
 
+JSON.stringify({
 
+success:true,
 
+saved,
 
-  }
+analysis
 
-  catch(error){
+}),
 
 
-    return new Response(
+{
 
-      JSON.stringify({
+headers:{
+...corsHeaders,
 
-        error:
-          error.message
+"Content-Type":
+"application/json"
 
-      }),
+}
 
+}
 
-      {
+);
 
-        status:400,
 
 
-        headers:{
 
-          ...corsHeaders,
+}catch(error){
 
-          "Content-Type":
-          "application/json"
 
-        }
 
-      }
+console.error(
+"FUNCTION ERROR:",
+error
+);
 
-    );
 
 
-  }
+return new Response(
+
+JSON.stringify({
+
+error:
+error.message
+
+}),
+
+
+{
+
+status:400,
+
+headers:{
+
+...corsHeaders,
+
+"Content-Type":
+"application/json"
+
+}
+
+}
+
+);
+
+
+}
+
 
 
 });
