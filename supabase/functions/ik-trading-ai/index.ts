@@ -101,13 +101,36 @@ serve(async (req) => {
       }
     );
 
+    const body = await req.text();
+
+console.log("BODY RECEBIDO:", body);
+
+let data;
+
+try {
+  data = JSON.parse(body);
+} catch (e) {
+  return new Response(
+    JSON.stringify({
+      error: "JSON inválido recebido",
+      received: body
+    }),
+    {
+      status: 400,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
 
 
-    const {
-      asset_symbol,
-      type,
-      external_context
-    } = await req.json();
+const {
+  asset_symbol,
+  type,
+  external_context
+} = data;
 
 
 
