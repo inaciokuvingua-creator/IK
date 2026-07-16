@@ -127,15 +127,47 @@ export default function Cofres() {
             preco_unitario: Number(itemForm.preco_unitario || 0),
             moeda: itemForm.moeda || 'KZ'
         };
-        try {
-            const { data, error } = await sb.from('goal_items').insert([payload]).select().maybeSingle();
-            if (error) throw error;
-            if (data) setGoalItems((g) => [data as GoalItem].concat(g));
-            setShowItemModal(false);
-        } catch (err) {
-            console.error(err);
-            await notify('cofre', 'Erro ao salvar item', 'Nao foi possivel guardar o item do objetivo.');
-        } finally { setSaving(false); }
+            try {
+        const { data: { user }, error: authError } = await sb.auth.getUser();
+
+        if (authError || !user) {
+            throw new Error('Usuário não autenticado');
+        }
+
+        const payloadWithUser = {
+            ...payload,
+            user_id: user.id,
+        };
+
+        console.log("Salvando goal_item:", payloadWithUser);
+        console.log("Usuário Auth:", user.id);
+
+        const { data, error } = await sb
+            .from('goal_items')
+            .insert([payloadWithUser])
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+            setGoalItems((g) => [data as GoalItem].concat(g));
+        }
+
+        setShowItemModal(false);
+
+    } catch (err) {
+        console.error(err);
+
+        await notify(
+            'cofre',
+            'Erro ao salvar item',
+            'Nao foi possivel guardar o item do objetivo.'
+        );
+
+    } finally {
+        setSaving(false);
+    }
     };
 
   // Keep selected in sync after re-fetch
