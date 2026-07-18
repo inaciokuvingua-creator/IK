@@ -42,7 +42,60 @@ export default function CommunityFeed({ query }: { query?: string }) {
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+  const [sharingPost, setSharingPost] = useState<string | null>(null);
+const sharePost = async (postId: string) => {
+  if (!user) {
+    alert('Faça login para compartilhar');
+    return;
+  }
 
+  if (sharingPost === postId) return;
+
+  setSharingPost(postId);
+
+  try {
+    const { data, error } = await supabase.rpc(
+      'share_post',
+      {
+        p_post_id: postId,
+        p_user_id: user.id,
+        p_shared_to: 'profile'
+      }
+    );
+
+    if (error) throw error;
+
+    console.log('share result:', data);
+
+    if (data?.action === 'shared') {
+
+      setPosts(prev =>
+        prev.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                shares_count:
+                  (post.shares_count || 0) + 1
+              }
+            : post
+        )
+      );
+
+    }
+
+  } catch (e) {
+
+    console.error(
+      'share error',
+      e
+    );
+
+  } finally {
+
+    setSharingPost(null);
+
+  }
+};
 
   const loadComments = async (postId: string) => {
     setLoadingComments(prev => ({
