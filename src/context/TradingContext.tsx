@@ -89,7 +89,13 @@ setLoading(true);
 
 
 
-const {data,error}=await supabase
+cconst {data,error}=await supabase
+.from('trading_assets')
+.select('*')
+.eq('is_active',true);
+
+console.log("ATIVOS SUPABASE:", data);
+console.log("ERRO:", error);
 
 .from('trading_assets')
 
