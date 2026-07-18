@@ -300,7 +300,7 @@ const addComment = async (postId: string) => {
 
 
     await loadComments(postId);
-    await load(); // atualiza contadores reais
+    await load();
 
 
     setCommentText(prev => ({
@@ -318,3 +318,90 @@ const addComment = async (postId: string) => {
 
   }
 };
+  return (
+  <div className="space-y-4">
+
+    {posts.map((post) => (
+
+      <div
+        key={post.id}
+        className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
+      >
+
+        <div className="flex justify-between items-start">
+
+          <div>
+            <p className="text-white font-semibold">
+              {post.nome || "Usuário"}
+            </p>
+
+            <p className="text-xs text-gray-500">
+              {new Date(post.created_at).toLocaleDateString()}
+            </p>
+          </div>
+
+
+          {user?.id === post.user_id && (
+
+            <button
+              onClick={() => deletePost(post.id)}
+              disabled={deletingPost === post.id}
+              className="text-red-500 hover:text-red-400 flex items-center gap-2"
+            >
+
+              {deletingPost === post.id ? (
+
+                <>
+                  <Loader2 size={16} className="animate-spin"/>
+                  Excluindo...
+                </>
+
+              ) : (
+
+                <>
+                  <X size={16}/>
+                  Excluir
+                </>
+
+              )}
+
+            </button>
+
+          )}
+
+        </div>
+
+
+        <p className="text-white mt-4">
+          {post.content}
+        </p>
+
+
+        <div className="flex gap-5 mt-4 text-gray-400">
+
+          <button>
+            <Heart size={18}/>
+            {post.reactions_count || 0}
+          </button>
+
+
+          <button onClick={() => loadComments(post.id)}>
+            <MessageCircle size={18}/>
+            {post.comments_count || 0}
+          </button>
+
+
+          <button onClick={() => sharePost(post.id)}>
+            <Share2 size={18}/>
+            {post.shares_count || 0}
+          </button>
+
+        </div>
+
+
+      </div>
+
+    ))}
+
+  </div>
+);
