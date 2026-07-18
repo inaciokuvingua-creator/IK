@@ -37,66 +37,132 @@ export default function CommunityFeed({ query }: { query?: string }) {
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
 
-  const [commentsByPost, setCommentsByPost] = useState<Record<string, PostComment[]>>({});
-  const [commentText, setCommentText] = useState<Record<string, string>>({});
-  const [showComments, setShowComments] = useState<Record<string, boolean>>({});
-  const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
-  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
-  const [sharingPost, setSharingPost] = useState<string | null>(null);
-const sharePost = async (postId: string) => {
-  if (!user) {
-    alert('Faça login para compartilhar');
-    return;
-  }
+const [commentsByPost, setCommentsByPost] = useState<Record<string, PostComment[]>>({});
+const [commentText, setCommentText] = useState<Record<string, string>>({});
+const [showComments, setShowComments] = useState<Record<string, boolean>>({});
+const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
+const [sharingPost, setSharingPost] = useState<string | null>(null);
 
-  if (sharingPost === postId) return;
 
-  setSharingPost(postId);
+const load = async () => {
+  setLoading(true);
 
   try {
-    const { data, error } = await supabase.rpc(
-      'share_post',
-      {
-        p_post_id: postId,
-        p_user_id: user.id,
-        p_shared_to: 'profile'
-      }
-    );
+
+    const { data: postsData, error } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        post_reactions(count),
+        post_comments(count),
+        post_shares(count)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
 
     if (error) throw error;
 
-    console.log('share result:', data);
 
-    if (data?.action === 'shared') {
+    const formattedPosts = (postsData ?? []).map((post:any)=>({
 
-      setPosts(prev =>
-        prev.map(post =>
-          post.id === postId
-            ? {
-                ...post,
-                shares_count:
-                  (post.shares_count || 0) + 1
-              }
-            : post
-        )
-      );
+      ...post,
 
-    }
+      reactions_count:
+        post.post_reactions?.[0]?.count ?? 0,
 
-  } catch (e) {
+      comments_count:
+        post.post_comments?.[0]?.count ?? 0,
+
+      shares_count:
+        post.post_shares?.[0]?.count ?? 0
+
+    }));
+
+
+    setPosts(formattedPosts);
+
+
+  } catch(error){
 
     console.error(
-      'share error',
-      e
+      "Erro carregando feed:",
+      error
     );
 
   } finally {
 
-    setSharingPost(null);
+    setLoading(false);
 
   }
 };
+const sharePost = async (postId:string)=>{
 
+  if(!user){
+    alert("Faça login para compartilhar");
+    return;
+  }
+
+
+  if(sharingPost === postId) return;
+
+
+  setSharingPost(postId);
+
+
+  try {
+
+
+    const {data,error}=await supabase.rpc(
+      "share_post",
+      {
+        p_post_id:postId,
+        p_user_id:user.id,
+        p_shared_to:"profile"
+      }
+    );
+
+
+    if(error) throw error;
+
+
+    console.log("Compartilhamento:",data);
+
+
+
+    if(data?.action==="shared"){
+
+      await load();
+
+    }
+
+
+
+    if(data?.action==="already_shared"){
+
+      alert(
+        "Você já compartilhou esta publicação"
+      );
+
+    }
+
+
+
+  }catch(error){
+
+    console.error(
+      "share error",
+      error
+    );
+
+
+  }finally{
+
+    setSharingPost(null);
+
+  }
+
+};
   const loadComments = async (postId: string) => {
     setLoadingComments(prev => ({
       ...prev,
