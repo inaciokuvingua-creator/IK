@@ -76,80 +76,118 @@ const [error,setError]=useState<string|null>(null);
 
 
 
-const fetchAssets=useCallback(async()=>{
+const fetchAssets = useCallback(async()=>{
+
+  console.log("========== FETCH ASSETS INICIO ==========");
+  console.log("USER:", user);
 
 
-if(!user)return;
+  if(!user){
+
+    console.log("SEM USER - FETCH CANCELADO");
+
+    return;
+
+  }
 
 
-try{
+  try{
 
 
-setLoading(true);
+    setLoading(true);
 
 
+    const {data,error}=await supabase
 
-const {data,error}=await supabase
+      .from('trading_assets')
 
-.from('trading_assets')
+      .select('*')
 
-.select('*')
-
-.eq('is_active',true);
-
-
-if(error) throw error;
-
-
-
-const formatted=(data||[]).map((asset:any)=>({
-
-...asset,
-
-price: asset.last_price ?? null,
-
-change24h:
-asset.price_change_percent_24h ?? 0,
-
-lastSync:
-asset.last_sync_at ?? null,
-
-metadata:
-asset.metadata ?? {}
-
-}));
+      .eq('is_active',true);
 
 
 
-setAssets(formatted);
+    console.log("DATA SUPABASE:", data);
+
+    console.log("ERROR SUPABASE:", error);
 
 
 
-}catch(err){
+    if(error)
+
+      throw error;
 
 
-console.error(err);
 
-setError(
-err instanceof Error
-?err.message
-:'Erro ao carregar ativos'
-);
+    const formatted=(data || []).map((asset:any)=>({
 
 
-}finally{
+      ...asset,
 
-setLoading(false);
 
-}
+      price:
+      asset.last_price ?? null,
+
+
+      change24h:
+      asset.price_change_percent_24h ?? 0,
+
+
+      lastSync:
+      asset.last_sync_at ?? null,
+
+
+      metadata:
+      asset.metadata ?? {}
+
+
+    }));
+
+
+
+    console.log("FORMATADOS:", formatted);
+
+    console.log(
+      "TOTAL FORMATADOS:",
+      formatted.length
+    );
+
+
+
+    setAssets(formatted);
+
+
+
+  }catch(err){
+
+
+    console.error(
+      "ERRO FETCH ASSETS:",
+      err
+    );
+
+
+    setError(
+
+      err instanceof Error
+
+      ? err.message
+
+      : 'Erro ao carregar ativos'
+
+    );
+
+
+  }finally{
+
+
+    setLoading(false);
+
+
+  }
 
 
 },[user]);
-
-
-
-
-
 
 
 const analyzeAsset=useCallback(async(symbol:string)=>{
