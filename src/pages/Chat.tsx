@@ -43,31 +43,30 @@ async function ensureDirectConversation(currentUserId: string, targetUserId: str
   const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', currentUserId).is('left_at', null);
   const ids = (myParts ?? []).map((item) => item.conversation_id);
   if (ids.length > 0) {
-    const { data: convs } = await supabase.from('chat_conversations').select('id').eq('type', 'direct').in('id', ids);
-    for (const conversation of convs ?? []) {
-      const { data: other } = await supabase.from('chat_participants').select('id').eq('conversation_id', conversation.id).eq('user_id', targetUserId).maybeSingle();
-      if (other) return conversation.id as string;
-    }
-  }
-  const { data: created, error } = await supabase
+    cconst { data: created, error } = await supabase
   .from('chat_conversations')
   .insert({
     type: 'direct',
-    created_by: currentUserId
+    created_by: currentUserId,
   })
   .select()
   .single();
 
-console.log("CREATE CONVERSATION DATA:", created);
-console.log("CREATE CONVERSATION ERROR:", error);
+console.log("================================");
+console.log("CREATE CONVERSATION");
+console.log("DATA:", created);
+console.log("ERROR:", error);
+console.log("CURRENT USER:", currentUserId);
+console.log("================================");
 
 if (error) {
   throw error;
 }
 
 if (!created) {
-  throw new Error("Conversa não criada.");
+  throw new Error("Falha ao criar conversa");
 }
+
   await supabase.from('chat_participants').insert([
     { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
     { conversation_id: created.id, user_id: targetUserId, role: 'member' },
