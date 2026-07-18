@@ -42,6 +42,7 @@ const [commentText, setCommentText] = useState<Record<string, string>>({});
 const [showComments, setShowComments] = useState<Record<string, boolean>>({});
 const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
 const [sharingPost, setSharingPost] = useState<string | null>(null);
+  const [deletingPost,setDeletingPost] = useState<string | null>(null);
 
 
 const load = async () => {
@@ -163,11 +164,84 @@ const sharePost = async (postId:string)=>{
   }
 
 };
+  const deletePost = async (postId:string)=>{
+
+  if(!user) return;
+
+
+  const confirmDelete = window.confirm(
+    "Tem certeza que deseja excluir esta publicação?"
+  );
+
+
+  if(!confirmDelete) return;
+
+
+  setDeletingPost(postId);
+
+
+  try{
+
+
+    const {data,error}=await supabase.rpc(
+      "delete_post",
+      {
+        p_post_id:postId,
+        p_user_id:user.id
+      }
+    );
+
+
+    if(error) throw error;
+
+
+    console.log(
+      "delete:",
+      data
+    );
+
+
+    if(data?.action==="deleted"){
+
+      setPosts(prev =>
+        prev.filter(
+          post=>post.id !== postId
+        )
+      );
+
+    }
+
+
+    if(data?.action==="not_owner"){
+
+      alert(
+        "Você não pode excluir esta publicação"
+      );
+
+    }
+
+
+  }catch(error){
+
+    console.error(
+      "delete error:",
+      error
+    );
+
+
+  }finally{
+
+    setDeletingPost(null);
+
+  }
+
+};
   const loadComments = async (postId: string) => {
     setLoadingComments(prev => ({
       ...prev,
       [postId]: true
     }));
+    
 
     try {
 
