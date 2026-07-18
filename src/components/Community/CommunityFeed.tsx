@@ -19,22 +19,6 @@ type PostComment = {
   updated_at: string;
 };
 
-type PostComment = {
-  id: string;
-  post_id: string;
-  user_id: string;
-  parent_id: string | null;
-  content: string;
-
-  nome: string | null;
-  username: string | null;
-  avatar_url: string | null;
-
-  likes_count: number;
-  replies_count?: number;
-  created_at: string;
-  updated_at: string;
-};
 const REACTION_EMOJIS: Record<string, { emoji: string; label: string; color: string }> = {
   like: { emoji: '👍', label: 'Gostar', color: 'text-blue-400' },
   love: { emoji: '❤️', label: 'Adorar', color: 'text-red-400' },
@@ -103,14 +87,7 @@ export default function CommunityFeed({ query }: { query?: string }) {
   };
 
 
-  const addComment = async (postId: string) => {
-
-    if (!user || !commentText[postId]?.trim()) return;
-
-
-    try {
-
-     const addComment = async (postId: string) => {
+ const addComment = async (postId: string) => {
 
   if (!user || !commentText[postId]?.trim()) return;
 
