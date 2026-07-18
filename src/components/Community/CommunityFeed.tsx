@@ -280,7 +280,7 @@ const sharePost = async (postId:string)=>{
   };
 
 
- const addComment = async (postId: string) => {
+const addComment = async (postId: string) => {
 
   if (!user || !commentText[postId]?.trim()) return;
 
@@ -300,19 +300,7 @@ const sharePost = async (postId:string)=>{
 
 
     await loadComments(postId);
-
-
-    setPosts(prev =>
-      prev.map(post =>
-        post.id === postId
-          ? {
-              ...post,
-              comments_count:
-                (post.comments_count || 0) + 1
-            }
-          : post
-      )
-    );
+    await load(); // atualiza contadores reais
 
 
     setCommentText(prev => ({
