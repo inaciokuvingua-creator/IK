@@ -89,29 +89,13 @@ setLoading(true);
 
 
 
-cconst {data,error}=await supabase
+const {data,error}=await supabase
+
 .from('trading_assets')
+
 .select('*')
-.eq('is_active',true);
-
-console.log("ATIVOS SUPABASE:", data);
-console.log("ERRO:", error);
-
-.from('trading_assets')
-
-.select(`
- *,
- market_data(
-   last_price,
-   price_change_24h,
-   price_change_percent_24h,
-   last_sync_at,
-   metadata
- )
-`)
 
 .eq('is_active',true);
-
 
 
 if(error) throw error;
@@ -120,26 +104,18 @@ if(error) throw error;
 
 const formatted=(data||[]).map((asset:any)=>({
 
-
 ...asset,
 
-
-price:
-asset.market_data?.last_price ?? null,
-
+price: asset.last_price ?? null,
 
 change24h:
-asset.market_data?.price_change_percent_24h ?? 0,
-
+asset.price_change_percent_24h ?? 0,
 
 lastSync:
-asset.market_data?.last_sync_at ?? null,
-
+asset.last_sync_at ?? null,
 
 metadata:
-asset.market_data?.metadata ?? {}
-
-
+asset.metadata ?? {}
 
 }));
 
