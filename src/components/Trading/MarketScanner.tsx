@@ -33,55 +33,42 @@ export default function MarketScanner() {
   const [searchTerm, setSearchTerm] =
     useState('');
 
+const filteredAssets = useMemo(()=>{
+
+  return assets.filter(asset=>{
+
+const matchesType =
+  filterType === 'all'
+  ||
+  asset.asset_class?.toLowerCase() === filterType.toLowerCase();
+
+    const matchesSearch =
+      asset.symbol
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase())
+
+      ||
+
+      asset.name
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase());
 
 
+    return matchesType && matchesSearch;
+
+  });
 
 
-  const filteredAssets = useMemo(()=>{
+},[
+  assets,
+  filterType,
+  searchTerm
+]);
 
 
-    return assets.filter(asset=>{
-
-
-      const matchesType =
-        filterType === 'all'
-        ||
-        asset.type === filterType;
-
-
-
-      const matchesSearch =
-
-        asset.symbol
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase())
-
-        ||
-
-        asset.name
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
-
-
-
-      return matchesType && matchesSearch;
-
-
-    });
-
-
-  },[
-    assets,
-    filterType,
-    searchTerm
-  ]);
-
-
-
-
-
-
-
+console.log("ASSETS RECEBIDOS:", assets);
+console.log("TOTAL:", assets.length);
+console.log("FILTRADOS:", filteredAssets.length);
 
   const assetTypes = [
 
