@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, CheckCheck, FileText, MessageCircle, Paperclip, Search, Send } from 'lucide-react';
+import { Check, CheckCheck, FileText, MessageCircle, Mic, Paperclip, Search, Send, Trash2, X } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -42,30 +42,24 @@ type UserMini = {
 async function ensureDirectConversation(currentUserId: string, targetUserId: string) {
   const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', currentUserId).is('left_at', null);
   const ids = (myParts ?? []).map((item) => item.conversation_id);
+
   if (ids.length > 0) {
-    cconst { data: created, error } = await supabase
-  .from('chat_conversations')
-  .insert({
-    type: 'direct',
-    created_by: currentUserId,
-  })
-  .select()
-  .single();
+    const { data: targetParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', targetUserId).is('left_at', null).in('conversation_id', ids);
+    const sharedIds = (targetParts ?? []).map((item) => item.conversation_id);
+    if (sharedIds.length > 0) {
+      const { data: existing } = await supabase.from('chat_conversations').select('id').eq('type', 'direct').in('id', sharedIds).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      if (existing?.id) return existing.id as string;
+    }
+  }
 
-console.log("================================");
-console.log("CREATE CONVERSATION");
-console.log("DATA:", created);
-console.log("ERROR:", error);
-console.log("CURRENT USER:", currentUserId);
-console.log("================================");
+  const { data: created, error } = await supabase
+    .from('chat_conversations')
+    .insert({ type: 'direct', created_by: currentUserId })
+    .select()
+    .single();
 
-if (error) {
-  throw error;
-}
-
-if (!created) {
-  throw new Error("Falha ao criar conversa");
-}
+  if (error) throw error;
+  if (!created) throw new Error('Falha ao criar conversa');
 
   await supabase.from('chat_participants').insert([
     { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
@@ -87,8 +81,14 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
   const [starting, setStarting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelledRef = useRef(false);
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? null;
 
@@ -113,6 +113,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const { data: messageRows } = await supabase.from('chat_messages').select('*').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1);
       const { count: unread } = await supabase.from('chat_messages').select('*', { count: 'exact', head: true }).eq('conversation_id', conversation.id).neq('sender_id', user.id).gt('created_at', (participantRows ?? []).find((row) => row.conversation_id === conversation.id)?.last_read_at ?? '1970-01-01');
       const lastMessage = (messageRows as ChatMessage[] | null)?.[0];
+      const lastLabel = lastMessage?.type === 'deleted' ? 'Mensagem apagada' : lastMessage?.type === 'audio' ? '🎤 Mensagem de voz' : lastMessage?.content ?? lastMessage?.media_name ?? 'Sem mensagens';
       return {
         id: conversation.id,
         type: conversation.type,
@@ -120,7 +121,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
         otherUserId: otherParticipant?.user_id ?? null,
         otherName: otherProfile?.nome ?? otherProfile?.email ?? otherParticipant?.user_id ?? 'Conversa',
         otherAvatar: otherProfile?.avatar_url ?? null,
-        lastMessage: lastMessage?.content ?? lastMessage?.media_name ?? 'Sem mensagens',
+        lastMessage: lastLabel,
         unread: unread ?? 0,
       } satisfies ConversationSummary;
     }));
@@ -171,9 +172,30 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         loadConversations();
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${activeConversationId}` }, (payload) => {
+        const updated = payload.new as ChatMessage;
+        setMessages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, () => {
+        loadMessages(activeConversationId);
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeConversationId, loadConversations, loadMessages]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      cancelledRef.current = true;
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
+
+  const notifyOther = async (body: string) => {
+    if (activeConversation?.otherUserId) {
+      await sendNotification('Nova mensagem privada', body, 'marketplace_message', { userId: activeConversation.otherUserId, url: '/?page=chat' });
+    }
+  };
 
   const sendMessage = async () => {
     if (!user || !activeConversationId || (!text.trim() && !attachment)) return;
@@ -196,6 +218,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const { error } = await supabase.storage.from('chat-media').upload(path, attachment, { upsert: true });
       if (error) {
         setUploading(false);
+        alert('Não foi possível enviar o ficheiro.');
         return;
       }
       const { data: { publicUrl } } = supabase.storage.from('chat-media').getPublicUrl(path);
@@ -205,39 +228,132 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const detected = detectMediaType(attachment.name, attachment.type);
       messageType = detected === 'document' ? 'file' : detected;
     }
- const { data, error } = await supabase
-  .from('chat_messages')
-  .insert({
-    conversation_id: activeConversationId,
-    sender_id: user.id,
-    type: messageType,
-    content: text.trim() || null,
-    media_url: mediaUrl,
-    media_name: mediaName,
-    media_mime: mediaMime,
-    media_size: attachment?.size ?? null,
-  })
-  .select();
-
-console.log("CHAT MESSAGE DATA:", data);
-console.log("CHAT MESSAGE ERROR:", error);
-
-if (error) {
-  alert(error.message);
-  return;
-}
-    await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversationId);
-    if (activeConversation?.otherUserId) {
-      await sendNotification(
-        'Nova mensagem privada',
-        text.trim() || `Recebeu um novo anexo de ${user.email ?? 'um utilizador'}.`,
-        'marketplace_message',
-        { userId: activeConversation.otherUserId, url: '/?page=chat' }
-      );
+    const { error } = await supabase.from('chat_messages').insert({
+      conversation_id: activeConversationId,
+      sender_id: user.id,
+      type: messageType,
+      content: text.trim() || null,
+      media_url: mediaUrl,
+      media_name: mediaName,
+      media_mime: mediaMime,
+      media_size: attachment?.size ?? null,
+    });
+    if (error) {
+      alert(error.message);
+      setUploading(false);
+      return;
     }
+    await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversationId);
+    await notifyOther(text.trim() || `Recebeu um novo anexo de ${user.email ?? 'um utilizador'}.`);
     setText('');
     setAttachment(null);
     setUploading(false);
+  };
+
+  const sendAudio = async (blob: Blob) => {
+    if (!user || !activeConversationId) return;
+    setUploading(true);
+    try {
+      const ext = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const path = `${user.id}/${activeConversationId}/${Date.now()}-voz.${ext}`;
+      const { error } = await supabase.storage.from('chat-media').upload(path, blob, { upsert: true, contentType: blob.type || 'audio/webm' });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('chat-media').getPublicUrl(path);
+      const { error: insertError } = await supabase.from('chat_messages').insert({
+        conversation_id: activeConversationId,
+        sender_id: user.id,
+        type: 'audio',
+        content: null,
+        media_url: publicUrl,
+        media_name: 'Mensagem de voz',
+        media_mime: blob.type || 'audio/webm',
+        media_size: blob.size,
+      });
+      if (insertError) throw insertError;
+      await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversationId);
+      await notifyOther('Recebeu uma mensagem de voz.');
+    } catch (error) {
+      console.error('audio error', error);
+      alert('Não foi possível enviar a mensagem de voz.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!user || !activeConversationId || recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      cancelledRef.current = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setRecording(false);
+        setRecordSeconds(0);
+        if (!cancelledRef.current && chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+          await sendAudio(blob);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setRecordSeconds(0);
+      timerRef.current = setInterval(() => setRecordSeconds((value) => value + 1), 1000);
+    } catch (error) {
+      console.error('mic error', error);
+      alert('Não foi possível aceder ao microfone. Verifique as permissões do navegador.');
+    }
+  };
+
+  const stopRecording = (cancel: boolean) => {
+    cancelledRef.current = cancel;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return;
+    if (!window.confirm('Apagar esta mensagem?')) return;
+    try {
+      const { data, error } = await supabase.rpc('delete_chat_message', { p_message_id: messageId, p_user_id: user.id });
+      if (error) throw error;
+      if (data?.action === 'deleted') {
+        setMessages((prev) => prev.map((item) => (item.id === messageId ? { ...item, type: 'deleted' as const, content: null, media_url: null, media_name: null, media_mime: null, media_size: null } : item)));
+        await loadConversations();
+      }
+      if (data?.action === 'not_owner') {
+        alert('Só pode apagar as suas próprias mensagens.');
+      }
+    } catch (error) {
+      console.error('delete message error', error);
+      alert('Não foi possível apagar a mensagem.');
+    }
+  };
+
+  const clearConversation = async () => {
+    if (!user || !activeConversationId) return;
+    if (!window.confirm('Apagar TODAS as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
+    try {
+      const { data, error } = await supabase.rpc('clear_chat_conversation', { p_conversation_id: activeConversationId, p_user_id: user.id });
+      if (error) throw error;
+      if (data?.action === 'cleared') {
+        setMessages([]);
+        await loadConversations();
+      }
+    } catch (error) {
+      console.error('clear conversation error', error);
+      alert('Não foi possível limpar a conversa.');
+    }
   };
 
   const startChat = async () => {
@@ -262,6 +378,7 @@ if (error) {
 
   const filtered = useMemo(() => conversations.filter((conversation) => conversation.otherName.toLowerCase().includes(search.toLowerCase())), [conversations, search]);
   const fmt = (value: string) => new Date(value).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' });
+  const fmtSecs = (value: number) => `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
 
   return (
     <div className="h-[calc(100vh-12rem)] flex flex-col">
@@ -313,10 +430,11 @@ if (error) {
               <div className="w-8 h-8 rounded-xl bg-gray-700 overflow-hidden flex items-center justify-center text-white font-bold text-sm">
                 {activeConversation.otherAvatar ? <img src={activeConversation.otherAvatar} alt="" className="w-full h-full object-cover" /> : activeConversation.otherName[0]?.toUpperCase()}
               </div>
-              <div>
-                <p className="text-white font-semibold text-sm">{activeConversation.otherName}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm truncate">{activeConversation.otherName}</p>
                 <p className="text-gray-500 text-xs">Conversa privada</p>
               </div>
+              <button onClick={clearConversation} title="Apagar todas as mensagens" className="text-gray-500 hover:text-red-400 p-2 transition-colors shrink-0"><Trash2 size={16} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -327,23 +445,34 @@ if (error) {
               ) : messages.map((message) => {
                 const mine = message.sender_id === user?.id;
                 return (
-                  <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div key={message.id} className={`group flex items-center gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                    {mine && message.type !== 'deleted' && (
+                      <button onClick={() => deleteMessage(message.id)} title="Apagar mensagem" className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-opacity shrink-0"><Trash2 size={14} /></button>
+                    )}
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${mine ? 'bg-emerald-600 rounded-br-sm' : 'bg-gray-800 rounded-bl-sm'}`}>
-                      {message.media_url && (
-                        <button type="button" onClick={() => openIKViewer({ url: message.media_url ?? '', name: message.media_name ?? 'Anexo', mimeType: message.media_mime ?? undefined, size: message.media_size ?? undefined, description: message.content ?? 'Anexo da conversa' })} className="block mb-2 w-full text-left rounded-xl bg-black/20 border border-white/10 px-3 py-2 hover:bg-black/30 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <FileText size={14} className="text-white/80" />
-                            <div className="min-w-0">
-                              <p className="text-white text-xs font-medium truncate">{message.media_name ?? 'Anexo'}</p>
-                              <p className="text-white/60 text-[11px] uppercase">{message.type}</p>
-                            </div>
-                          </div>
-                        </button>
+                      {message.type === 'deleted' ? (
+                        <p className="text-white/50 text-sm italic">🚫 Mensagem apagada</p>
+                      ) : message.type === 'audio' && message.media_url ? (
+                        <audio controls src={message.media_url} className="max-w-full h-10" preload="metadata" />
+                      ) : (
+                        <>
+                          {message.media_url && (
+                            <button type="button" onClick={() => openIKViewer({ url: message.media_url ?? '', name: message.media_name ?? 'Anexo', mimeType: message.media_mime ?? undefined, size: message.media_size ?? undefined, description: message.content ?? 'Anexo da conversa' })} className="block mb-2 w-full text-left rounded-xl bg-black/20 border border-white/10 px-3 py-2 hover:bg-black/30 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <FileText size={14} className="text-white/80" />
+                                <div className="min-w-0">
+                                  <p className="text-white text-xs font-medium truncate">{message.media_name ?? 'Anexo'}</p>
+                                  <p className="text-white/60 text-[11px] uppercase">{message.type}</p>
+                                </div>
+                              </div>
+                            </button>
+                          )}
+                          {message.content && <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>}
+                        </>
                       )}
-                      {message.content && <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>}
                       <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
                         <span className="text-xs opacity-60">{fmt(message.created_at)}</span>
-                        {mine && (message.created_at ? <CheckCheck size={11} className="opacity-70" /> : <Check size={11} className="opacity-50" />)}
+                        {mine && message.type !== 'deleted' && (message.created_at ? <CheckCheck size={11} className="opacity-70" /> : <Check size={11} className="opacity-50" />)}
                       </div>
                     </div>
                   </div>
@@ -353,18 +482,33 @@ if (error) {
             </div>
 
             <div className="p-3 border-t border-gray-800 space-y-2">
-              {attachment && (
+              {attachment && !recording && (
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-800 border border-gray-700 px-3 py-2">
                   <p className="text-gray-300 text-xs truncate">{attachment.name}</p>
                   <button onClick={() => setAttachment(null)} className="text-gray-500 hover:text-white text-xs">Remover</button>
                 </div>
               )}
-              <div className="flex gap-2">
-                <input value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !event.shiftKey && (event.preventDefault(), sendMessage())} placeholder="Escreva uma mensagem..." className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
-                <input ref={fileRef} type="file" className="hidden" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} />
-                <button type="button" onClick={() => fileRef.current?.click()} className="h-10 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors shrink-0"><Paperclip size={16} /></button>
-                <button onClick={sendMessage} disabled={(!text.trim() && !attachment) || uploading} className="w-10 h-10 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0"><Send size={16} /></button>
-              </div>
+
+              {recording ? (
+                <div className="flex items-center gap-3 bg-gray-800 border border-red-500/40 rounded-xl px-4 py-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  <span className="text-white text-sm font-medium tabular-nums">{fmtSecs(recordSeconds)}</span>
+                  <span className="text-gray-400 text-xs flex-1">A gravar mensagem de voz...</span>
+                  <button onClick={() => stopRecording(true)} title="Cancelar" className="text-gray-400 hover:text-red-400 p-2 transition-colors"><X size={18} /></button>
+                  <button onClick={() => stopRecording(false)} title="Enviar áudio" className="w-10 h-10 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl flex items-center justify-center transition-colors"><Send size={16} /></button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !event.shiftKey && (event.preventDefault(), sendMessage())} placeholder="Escreva uma mensagem..." className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+                  <input ref={fileRef} type="file" className="hidden" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} />
+                  <button type="button" onClick={() => fileRef.current?.click()} className="h-10 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors shrink-0" title="Anexar ficheiro"><Paperclip size={16} /></button>
+                  {text.trim() || attachment ? (
+                    <button onClick={sendMessage} disabled={uploading} className="w-10 h-10 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0"><Send size={16} /></button>
+                  ) : (
+                    <button onClick={startRecording} disabled={uploading} title="Gravar mensagem de voz" className="w-10 h-10 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0"><Mic size={16} /></button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (
