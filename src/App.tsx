@@ -27,7 +27,7 @@ function lazyWithRetry<T extends { default: ComponentType<any> }>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const isChunkLoadError = /ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message);
-
+ 
       if (typeof window !== 'undefined' && isChunkLoadError) {
         const retryKey = `lazy-retry:${cacheKey}`;
         if (!sessionStorage.getItem(retryKey)) {
@@ -121,8 +121,7 @@ export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
   | 'relatorios' | 'financeiro' | 'configuracoes'
   | 'perfil' | 'empresas' | 'marketplace' | 'minha-loja'
-  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile'
-  | 'storeProfile' | 'trade' | 'post';
+  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade' | 'post';
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'cofres', 'negocios', 'patrimonio', 'relatorios', 'financeiro',
@@ -238,8 +237,8 @@ function AppContent() {
       setActivePostId(id);
       setPage('post');
     };
-    window.addEventListener('openPost', handler as EventListener);
-    return () => window.removeEventListener('openPost', handler as EventListener);
+    window.addEventListener('openPostView', handler as EventListener);
+    return () => window.removeEventListener('openPostView', handler as EventListener);
   }, []);
 
   const navigate = (p: string) => setPage(isPage(p) ? p : 'dashboard');
@@ -264,7 +263,7 @@ function AppContent() {
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
-      case 'post': return <PostView postId={activePostId ?? ''} />;
+      case 'post': return activePostId ? <PostView postId={activePostId} /> : <Comunidades />;
       default: return <Dashboard onNavigate={navigate} />;
     }
   };
