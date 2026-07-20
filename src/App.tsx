@@ -27,7 +27,7 @@ function lazyWithRetry<T extends { default: ComponentType<any> }>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const isChunkLoadError = /ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message);
- 
+
       if (typeof window !== 'undefined' && isChunkLoadError) {
         const retryKey = `lazy-retry:${cacheKey}`;
         if (!sessionStorage.getItem(retryKey)) {
@@ -107,6 +107,7 @@ const Planos        = lazyWithRetry(() => import('./pages/Planos'), 'planos');
 const Chat          = lazyWithRetry(() => import('./pages/Chat'), 'chat');
 const Search        = lazyWithRetry(() => import('./pages/Search'), 'search');
 const Trade         = lazyWithRetry(() => import('./pages/Trade'), 'trade');
+const PostView      = lazyWithRetry(() => import('./pages/PostView'), 'post-view');
 
 function PageLoader() {
   return (
@@ -120,12 +121,13 @@ export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
   | 'relatorios' | 'financeiro' | 'configuracoes'
   | 'perfil' | 'empresas' | 'marketplace' | 'minha-loja'
-  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade';
+  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile'
+  | 'storeProfile' | 'trade' | 'post';
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'cofres', 'negocios', 'patrimonio', 'relatorios', 'financeiro',
   'configuracoes', 'perfil', 'empresas', 'marketplace', 'minha-loja', 'planos',
-  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade',
+  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade', 'post',
 ];
 
 function isPage(value: string): value is Page {
@@ -139,6 +141,7 @@ function AppContent() {
   const [storeProfileId, setStoreProfileId] = useState<string | null>(null);
   const [marketplaceProductId, setMarketplaceProductId] = useState<string | null>(null);
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
 
   // All hooks must be declared before any conditional return (Rules of Hooks)
@@ -149,6 +152,7 @@ function AppContent() {
     const marketplaceView = params.get('view');
     const productId = params.get('product');
     const storeId = params.get('store');
+    const postId = params.get('post');
     if (requestedPage === 'marketplace') {
       setPage('marketplace');
       if (marketplaceView === 'product' && productId) setMarketplaceProductId(productId);
@@ -160,6 +164,10 @@ function AppContent() {
     }
     if (requestedPage === 'chat') {
       setPage('chat');
+    }
+    if (requestedPage === 'post' && postId) {
+      setActivePostId(postId);
+      setPage('post');
     }
   }, [user]);
 
@@ -223,6 +231,17 @@ function AppContent() {
     return () => window.removeEventListener('openChatWith', handler as EventListener);
   }, []);
 
+  useEffect(() => {
+    const handler = (e: any) => {
+      const id = e?.detail?.id;
+      if (!id) return;
+      setActivePostId(id);
+      setPage('post');
+    };
+    window.addEventListener('openPost', handler as EventListener);
+    return () => window.removeEventListener('openPost', handler as EventListener);
+  }, []);
+
   const navigate = (p: string) => setPage(isPage(p) ? p : 'dashboard');
 
   const renderPage = () => {
@@ -245,6 +264,7 @@ function AppContent() {
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
+      case 'post': return <PostView postId={activePostId ?? ''} />;
       default: return <Dashboard onNavigate={navigate} />;
     }
   };
