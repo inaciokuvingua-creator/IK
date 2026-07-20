@@ -109,6 +109,8 @@ const Chat          = lazyWithRetry(() => import('./pages/Chat'), 'chat');
 const Search        = lazyWithRetry(() => import('./pages/Search'), 'search');
 const Trade         = lazyWithRetry(() => import('./pages/Trade'), 'trade');
 const PostView      = lazyWithRetry(() => import('./pages/PostView'), 'post-view');
+const PublicStore   = lazyWithRetry(() => import('./pages/PublicStore'), 'public-store');
+const PublicCompany = lazyWithRetry(() => import('./pages/PublicCompany'), 'public-company');
 
 function PageLoader() {
   return (
@@ -122,12 +124,14 @@ export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
   | 'relatorios' | 'financeiro' | 'configuracoes'
   | 'perfil' | 'empresas' | 'marketplace' | 'minha-loja'
-  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade' | 'post';
+  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile'
+  | 'trade' | 'post' | 'publicStore' | 'publicCompany';
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'cofres', 'negocios', 'patrimonio', 'relatorios', 'financeiro',
   'configuracoes', 'perfil', 'empresas', 'marketplace', 'minha-loja', 'planos',
   'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade', 'post',
+  'publicStore', 'publicCompany',
 ];
 
 function isPage(value: string): value is Page {
@@ -143,17 +147,37 @@ function AppContent() {
   const [marketplaceProductId, setMarketplaceProductId] = useState<string | null>(null);
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [publicStoreSlug, setPublicStoreSlug] = useState<string | null>(null);
+  const [publicStoreId, setPublicStoreId] = useState<string | null>(null);
+  const [publicCompanySlug, setPublicCompanySlug] = useState<string | null>(null);
+  const [publicCompanyId, setPublicCompanyId] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
 
   // Leitura de query params (link directo) — usa replace para não poluir histórico
   useEffect(() => {
-    if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const requestedPage = params.get('page');
     const marketplaceView = params.get('view');
     const productId = params.get('product');
     const storeId = params.get('store');
     const postId = params.get('post');
+    const publicStoreParam = params.get('store') ?? params.get('slug');
+    const publicCompanyParam = params.get('company') ?? params.get('slug');
+
+    // Páginas públicas — não exigem autenticação
+    if (requestedPage === 'publicStore' && publicStoreParam) {
+      setPublicStoreSlug(publicStoreParam);
+      replace('publicStore');
+      return;
+    }
+    if (requestedPage === 'publicCompany' && publicCompanyParam) {
+      setPublicCompanySlug(publicCompanyParam);
+      replace('publicCompany');
+      return;
+    }
+
+    if (!user) return;
+
     if (requestedPage === 'marketplace') {
       if (marketplaceView === 'product' && productId) setMarketplaceProductId(productId);
       if (marketplaceView === 'store' && storeId) {
@@ -261,6 +285,32 @@ function AppContent() {
     return () => window.removeEventListener('openPostView', handler as EventListener);
   }, [navigate]);
 
+  useEffect(() => {
+    const handler = (e: any) => {
+      const slug = e?.detail?.slug;
+      const id = e?.detail?.id;
+      if (!slug && !id) return;
+      setPublicStoreSlug(slug ?? null);
+      setPublicStoreId(id ?? null);
+      navigate('publicStore');
+    };
+    window.addEventListener('openPublicStore', handler as EventListener);
+    return () => window.removeEventListener('openPublicStore', handler as EventListener);
+  }, [navigate]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const slug = e?.detail?.slug;
+      const id = e?.detail?.id;
+      if (!slug && !id) return;
+      setPublicCompanySlug(slug ?? null);
+      setPublicCompanyId(id ?? null);
+      navigate('publicCompany');
+    };
+    window.addEventListener('openPublicCompany', handler as EventListener);
+    return () => window.removeEventListener('openPublicCompany', handler as EventListener);
+  }, [navigate]);
+
   const renderPage = () => {
     switch (page) {
       case 'dashboard': return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
@@ -282,11 +332,16 @@ function AppContent() {
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
       case 'post': return activePostId ? <PostView postId={activePostId} /> : <Comunidades />;
+      case 'publicStore': return <PublicStore slug={publicStoreSlug ?? undefined} storeId={publicStoreId ?? undefined} />;
+      case 'publicCompany': return <PublicCompany slug={publicCompanySlug ?? undefined} companyId={publicCompanyId ?? undefined} />;
       default: return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
     }
   };
 
-  if (loading) {
+  // Páginas públicas não exigem autenticação nem Layout interno
+  const isPublicPage = page === 'publicStore' || page === 'publicCompany';
+
+  if (loading && !isPublicPage) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -296,6 +351,16 @@ function AppContent() {
 
   if (isPasswordRecovery) {
     return <Suspense fallback={<PageLoader />}><Login forceReset /></Suspense>;
+  }
+
+  if (isPublicPage) {
+    return (
+      <PageErrorBoundary key={page} onGoDashboard={() => navigate('dashboard')}>
+        <Suspense fallback={<PageLoader />}>
+          {renderPage()}
+        </Suspense>
+      </PageErrorBoundary>
+    );
   }
 
   if (!user) {
