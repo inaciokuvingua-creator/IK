@@ -50,7 +50,6 @@ export default function CallModal(props: Props) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
-  // Liga streams locais e remotos aos elementos
   useEffect(() => {
     if (localVideoRef.current && localStream) localVideoRef.current.srcObject = localStream;
   }, [localStream]);
@@ -61,9 +60,9 @@ export default function CallModal(props: Props) {
     if (remoteAudioRef.current && remoteStream) remoteAudioRef.current.srcObject = remoteStream;
   }, [remoteStream]);
 
-  if (status === 'idle' || status === 'ended' || status === 'declined' || status === 'missed' || status === 'cancelled' || status === 'failed') {
-    if (status === 'idle') return null;
-    // Mostra brevemente o estado final
+  if (status === 'idle') return null;
+
+  if (status === 'ended' || status === 'declined' || status === 'missed' || status === 'cancelled' || status === 'failed') {
     return (
       <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center text-white">
         <div className="w-28 h-28 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-4xl font-bold mb-4">
@@ -81,7 +80,6 @@ export default function CallModal(props: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between px-5 py-4 text-white">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center font-bold">
@@ -99,9 +97,7 @@ export default function CallModal(props: Props) {
         </span>
       </div>
 
-      {/* Área principal */}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-        {/* Vídeo remoto (ecrã inteiro) */}
         {showRemoteVideo && (
           <video
             ref={remoteVideoRef}
@@ -111,10 +107,8 @@ export default function CallModal(props: Props) {
           />
         )}
 
-        {/* Áudio remoto (sempre, mesmo em chamada de voz) */}
         <audio ref={remoteAudioRef} autoPlay className="hidden" />
 
-        {/* Quando não há vídeo remoto, mostra avatar grande */}
         {!showRemoteVideo && (
           <div className="flex flex-col items-center">
             <div className="w-32 h-32 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-5xl font-bold text-white mb-4">
@@ -125,7 +119,6 @@ export default function CallModal(props: Props) {
           </div>
         )}
 
-        {/* Vídeo local (pip) */}
         {showLocalVideo && (
           <div className="absolute top-4 right-4 w-32 h-44 sm:w-40 sm:h-52 rounded-2xl overflow-hidden border-2 border-gray-700 bg-gray-900 shadow-lg z-10">
             <video
@@ -144,13 +137,11 @@ export default function CallModal(props: Props) {
         )}
       </div>
 
-      {/* Controles */}
       <div className="px-6 py-8 flex items-center justify-center gap-4">
-        {/* Incoming: Aceitar / Recusar */}
         {status === 'incoming' && (
           <>
             <button
-n              onClick={onReject}
+              onClick={onReject}
               className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white transition-colors"
               title="Recusar"
             >
@@ -166,7 +157,6 @@ n              onClick={onReject}
           </>
         )}
 
-        {/* Outgoing: Cancelar */}
         {status === 'outgoing' && (
           <button
             onClick={onCancel}
@@ -177,7 +167,6 @@ n              onClick={onReject}
           </button>
         )}
 
-        {/* Connecting / active: controles de chamada */}
         {(status === 'connecting' || status === 'active') && (
           <>
             <button
