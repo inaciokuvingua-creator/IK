@@ -25,6 +25,10 @@ type PostComment = {
   created_at: string;
 };
 
+function goBack() {
+  window.dispatchEvent(new CustomEvent('navigatePage', { detail: { page: 'comunidades' } }));
+}
+
 export default function PostView({ postId }: { postId: string }) {
   const { user } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
@@ -33,13 +37,13 @@ export default function PostView({ postId }: { postId: string }) {
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
 
-  const goBack = () => {
-    window.history.pushState({}, '', '/?page=comunidades');
-    window.dispatchEvent(new CustomEvent('navigatePage', { detail: { page: 'comunidades' } }));
-  };
-
   useEffect(() => {
     const load = async () => {
+      if (!postId) {
+        setPost(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const { data, error } = await supabase
@@ -59,7 +63,7 @@ export default function PostView({ postId }: { postId: string }) {
         setLoading(false);
       }
     };
-    if (postId) load();
+    load();
   }, [postId]);
 
   const addComment = async () => {
@@ -101,6 +105,17 @@ export default function PostView({ postId }: { postId: string }) {
     );
   }
 
+  const postUrl = `${window.location.origin}/?page=post&post=${post.id}`;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(postUrl);
+      alert('Link copiado para a área de transferência!');
+    } catch {
+      window.prompt('Copia o link:', postUrl);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <button onClick={goBack} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm">
@@ -132,6 +147,12 @@ export default function PostView({ postId }: { postId: string }) {
             ))}
           </div>
         )}
+
+        <div className="mt-4 pt-3 border-t border-gray-800">
+          <button onClick={copyLink} className="text-xs text-emerald-400 hover:text-emerald-300">
+            Copiar link desta publicação
+          </button>
+        </div>
       </div>
 
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
