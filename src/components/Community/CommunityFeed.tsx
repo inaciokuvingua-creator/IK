@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Send, Heart, MessageCircle, Share2, Loader2, Trash2, ImagePlus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Send, Heart, MessageCircle, Share2, Loader2, Trash2, ImagePlus, Link2, Repeat, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile } from '../../context/ProfileContext';
@@ -51,6 +51,20 @@ export default function CommunityFeed({ query }: { query?: string }) {
   const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
   const [sharingPost, setSharingPost] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState<string | null>(null);
+  const [shareMenuOpen, setShareMenuOpen] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShareMenuOpen(null);
+      }
+    };
+    if (shareMenuOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [shareMenuOpen]);
 
   const load = async () => {
     setLoading(true);
@@ -155,6 +169,7 @@ export default function CommunityFeed({ query }: { query?: string }) {
     }
     if (sharingPost === postId) return;
 
+    setShareMenuOpen(null);
     setSharingPost(postId);
     try {
       const { data, error } = await supabase.rpc('share_post', {
@@ -176,6 +191,45 @@ export default function CommunityFeed({ query }: { query?: string }) {
     } finally {
       setSharingPost(null);
     }
+  };
+
+  const getPostLink = (postId: string) => {
+    const base = window.location.origin + window.location.pathname;
+    return `${base}?page=post&post=${postId}`;
+  };
+
+  const copyLink = async (postId: string) => {
+    setShareMenuOpen(null);
+    const link = getPostLink(postId);
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(postId);
+      setTimeout(() => setLinkCopied(null), 2500);
+    } catch {
+      window.prompt('Copia o link desta publicação:', link);
+    }
+  };
+
+  const shareLinkNative = async (postId: string) => {
+    setShareMenuOpen(null);
+    const link = getPostLink(postId);
+    const post = posts.find(p => p.id === postId);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${post?.nome ?? 'IK Finance'} — publicação`,
+          text: post?.content ?? 'Vê esta publicação no IK Finance',
+          url: link,
+        });
+      } catch {}
+    } else {
+      await copyLink(postId);
+    }
+  };
+
+  const openPost = (postId: string) => {
+    setShareMenuOpen(null);
+    window.dispatchEvent(new CustomEvent('openPostView', { detail: { id: postId } }));
   };
 
   const loadComments = async (postId: string) => {
@@ -338,6 +392,13 @@ export default function CommunityFeed({ query }: { query?: string }) {
             </div>
           )}
 
+          {linkCopied === post.id && (
+            <div className="mt-3 text-xs text-emerald-400 flex items-center gap-1.5">
+              <Link2 size={14} />
+              Link copiado! Qualquer pessoa com o link consegue ver esta publicação.
+            </div>
+          )}
+
           <div className="flex gap-6 mt-4 text-gray-400">
             <button className="flex items-center gap-1.5 hover:text-red-400">
               <Heart size={18} />
@@ -349,14 +410,65 @@ export default function CommunityFeed({ query }: { query?: string }) {
               {post.comments_count || 0}
             </button>
 
-            <button
-              onClick={() => sharePost(post.id)}
-              disabled={sharingPost === post.id}
-              className="flex items-center gap-1.5 hover:text-cyan-400"
-            >
-              {sharingPost === post.id ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
-              {post.shares_count || 0}
-            </button>
+            {/* Menu de partilha */}
+            <div className="relative" ref={shareMenuOpen === post.id ? menuRef : undefined}>
+              <button
+n                onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)}
+                disabled={sharingPost === post.id}
+                className="flex items-center gap-1.5 hover:text-cyan-400"
+              >
+                {sharingPost === post.id ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
+                {post.shares_count || 0}
+              </button>
+
+              {shareMenuOpen === post.id && (
+                <div className="absolute right-0 top-full mt-2 w-60 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden">
+                  <button
+                    onClick={() => sharePost(post.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors text-left"
+                  >
+                    <Repeat size={16} className="text-cyan-400 shrink-0" />
+                    <div>
+                      <p className="font-medium">Partilhar no feed</p>
+                      <p className="text-xs text-gray-500">Republica no teu perfil</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => copyLink(post.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors text-left border-t border-gray-700"
+                  >
+                    <Link2 size={16} className="text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="font-medium">Copiar link direto</p>
+                      <p className="text-xs text-gray-500">Link clicável para este post</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => shareLinkNative(post.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors text-left border-t border-gray-700"
+                  >
+                    <Share2 size={16} className="text-violet-400 shrink-0" />
+                    <div>
+                      <p className="font-medium">Partilhar via...</p>
+                      <p className="text-xs text-gray-500">WhatsApp, e-mail, etc.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => openPost(post.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors text-left border-t border-gray-700"
+                  >
+                    <MessageCircle size={16} className="text-amber-400 shrink-0" />
+                    <div>
+                      <p className="font-medium">Abrir post</p>
+                      <p className="text-xs text-gray-500">Ver página individual</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {showComments[post.id] && (
