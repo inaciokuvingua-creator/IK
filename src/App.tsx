@@ -12,6 +12,7 @@ import InstallPrompt from './components/InstallPrompt';
 import PWAManager from './components/PWAManager';
 import FloatingCalculator from './components/FloatingCalculator';
 import IKViewer from './components/IKViewer';
+import { useNavHistory } from './hooks/useNavHistory';
 
 function lazyWithRetry<T extends { default: ComponentType<any> }>(
   importer: () => Promise<T>,
@@ -27,7 +28,7 @@ function lazyWithRetry<T extends { default: ComponentType<any> }>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const isChunkLoadError = /ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message);
- 
+
       if (typeof window !== 'undefined' && isChunkLoadError) {
         const retryKey = `lazy-retry:${cacheKey}`;
         if (!sessionStorage.getItem(retryKey)) {
@@ -135,7 +136,8 @@ function isPage(value: string): value is Page {
 
 function AppContent() {
   const { user, loading, isPasswordRecovery } = useAuth();
-  const [page, setPage] = useState<Page>('dashboard');
+  const nav = useNavHistory<Page>('dashboard');
+  const { current: page, navigate, replace, goBack, goForward, canGoBack, canGoForward } = nav;
   const [userProfileId, setUserProfileId] = useState<string | null>(null);
   const [storeProfileId, setStoreProfileId] = useState<string | null>(null);
   const [marketplaceProductId, setMarketplaceProductId] = useState<string | null>(null);
@@ -143,7 +145,7 @@ function AppContent() {
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
 
-  // All hooks must be declared before any conditional return (Rules of Hooks)
+  // Leitura de query params (link directo) — usa replace para não poluir histórico
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
@@ -153,99 +155,126 @@ function AppContent() {
     const storeId = params.get('store');
     const postId = params.get('post');
     if (requestedPage === 'marketplace') {
-      setPage('marketplace');
       if (marketplaceView === 'product' && productId) setMarketplaceProductId(productId);
       if (marketplaceView === 'store' && storeId) {
         setStoreProfileId(storeId);
-        setPage('storeProfile');
+        replace('storeProfile');
+        return;
       }
+      replace('marketplace');
       return;
     }
     if (requestedPage === 'chat') {
-      setPage('chat');
+      replace('chat');
+      return;
     }
     if (requestedPage === 'post' && postId) {
       setActivePostId(postId);
-      setPage('post');
+      replace('post');
+      return;
     }
-  }, [user]);
+  }, [user, replace]);
 
+  // Sincroniza histórico do navegador (botão back/forward do device)
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const dir = e.state?.dir;
+      if (dir === 'back') goBack();
+      else if (dir === 'forward') goForward();
+      else goBack();
+    };
+    window.addEventListener('popstate', onPop);
+    // Semeia o estado inicial do histórico do browser
+    if (typeof window !== 'undefined' && !window.history.state) {
+      window.history.replaceState({ dir: 'root' }, '');
+    }
+    return () => window.removeEventListener('popstate', onPop);
+  }, [goBack, goForward]);
+
+  // Empurra entrada no histórico do browser sempre que a página muda (excepto root)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.history.state?.dir === 'root' || !window.history.state) {
+      window.history.pushState({ dir: 'back' }, '', `?page=${page}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  // Eventos de navegação interna
   useEffect(() => {
     const handler = (e: any) => {
       const id = e?.detail?.id;
       if (!id) return;
       setUserProfileId(id);
-      setPage('userProfile');
+      navigate('userProfile');
     };
     window.addEventListener('openUserProfile', handler as EventListener);
     return () => window.removeEventListener('openUserProfile', handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: any) => {
       const id = e?.detail?.id;
       if (!id) return;
       setStoreProfileId(id);
-      setPage('storeProfile');
+      navigate('storeProfile');
     };
     window.addEventListener('openStoreProfile', handler as EventListener);
     return () => window.removeEventListener('openStoreProfile', handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: any) => {
       const id = e?.detail?.id;
       if (!id) return;
       setMarketplaceProductId(id);
-      setPage('marketplace');
+      navigate('marketplace');
     };
     window.addEventListener('openMarketplaceProduct', handler as EventListener);
     return () => window.removeEventListener('openMarketplaceProduct', handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: any) => {
       const pg = e?.detail?.page;
       if (!pg) return;
-      setPage(isPage(pg) ? pg : 'dashboard');
+      navigate(isPage(pg) ? pg : 'dashboard');
     };
     window.addEventListener('navigatePage', handler as EventListener);
     return () => window.removeEventListener('navigatePage', handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
-    const h2 = () => setPage('chat');
+    const h2 = () => navigate('chat');
     window.addEventListener('openChat', h2 as EventListener);
     return () => window.removeEventListener('openChat', h2 as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: any) => {
       const id = e?.detail?.id;
       if (!id) return;
       setChatTargetId(id);
-      setPage('chat');
+      navigate('chat');
     };
     window.addEventListener('openChatWith', handler as EventListener);
     return () => window.removeEventListener('openChatWith', handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: any) => {
       const id = e?.detail?.id;
       if (!id) return;
       setActivePostId(id);
-      setPage('post');
+      navigate('post');
     };
     window.addEventListener('openPostView', handler as EventListener);
     return () => window.removeEventListener('openPostView', handler as EventListener);
-  }, []);
-
-  const navigate = (p: string) => setPage(isPage(p) ? p : 'dashboard');
+  }, [navigate]);
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard onNavigate={navigate} />;
+      case 'dashboard': return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
       case 'cofres': return <Cofres />;
       case 'comunidades': return <Comunidades />;
       case 'financeiro': return <Financeiro />;
@@ -258,13 +287,13 @@ function AppContent() {
       case 'storeProfile': return <StoreProfile storeId={storeProfileId} />;
       case 'search': return <Search />;
       case 'empresas': return <Empresas />;
-      case 'marketplace': return <Marketplace onNavigate={navigate} initialProductId={marketplaceProductId ?? undefined} />;
-      case 'minha-loja': return <MinhaLoja onNavigate={navigate} />;
+      case 'marketplace': return <Marketplace onNavigate={(p) => navigate(p as Page)} initialProductId={marketplaceProductId ?? undefined} />;
+      case 'minha-loja': return <MinhaLoja onNavigate={(p) => navigate(p as Page)} />;
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
       case 'post': return activePostId ? <PostView postId={activePostId} /> : <Comunidades />;
-      default: return <Dashboard onNavigate={navigate} />;
+      default: return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
     }
   };
 
@@ -288,8 +317,15 @@ function AppContent() {
   return (
     <>
       <SeasonalOverlay />
-      <Layout currentPage={page} onNavigate={setPage}>
-        <PageErrorBoundary key={page} onGoDashboard={() => setPage('dashboard')}>
+      <Layout
+        currentPage={page}
+        onNavigate={navigate}
+        onBack={goBack}
+        onForward={goForward}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+      >
+        <PageErrorBoundary key={page} onGoDashboard={() => navigate('dashboard')}>
           <Suspense fallback={<PageLoader />}>
             {renderPage()}
           </Suspense>
