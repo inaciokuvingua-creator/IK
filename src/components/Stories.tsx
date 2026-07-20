@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ImagePlus, Loader2, Plus, Type, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImagePlus, Loader2, Plus, Type, Video as VideoIcon, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -32,17 +32,18 @@ type StoryGroup = {
 };
 
 const BG_COLORS = ['#1f2937', '#0f766e', '#7c2d12', '#7e22ce', '#1e40af', '#be123c', '#a16207'];
+const MAX_VIDEO_MB = 50;
 
 export default function Stories() {
   const { user } = useAuth();
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
-  const [creatorMode, setCreatorMode] = useState<'text' | 'image'>('text');
+  const [creatorMode, setCreatorMode] = useState<'text' | 'image' | 'video'>('text');
   const [textContent, setTextContent] = useState('');
   const [bgColor, setBgColor] = useState(BG_COLORS[0]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -133,13 +134,19 @@ export default function Stories() {
   const publish = async () => {
     if (!user) return;
     if (creatorMode === 'text' && !textContent.trim()) return;
-    if (creatorMode === 'image' && !imageFile) return;
+    if ((creatorMode === 'image' || creatorMode === 'video') && !mediaFile) return;
     setPublishing(true);
     try {
       let mediaUrl: string | null = null;
-      if (creatorMode === 'image' && imageFile) {
-        const path = `${user.id}/stories/${Date.now()}-${imageFile.name.replace(/\s+/g, '_')}`;
-        const { error } = await supabase.storage.from('chat-media').upload(path, imageFile, { upsert: true });
+      if ((creatorMode === 'image' || creatorMode === 'video') && mediaFile) {
+        const ext = creatorMode === 'video'
+          ? (mediaFile.name.split('.').pop()?.toLowerCase() || 'mp4')
+          : mediaFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const path = `${user.id}/stories/${Date.now()}-${mediaFile.name.replace(/\s+/g, '_').replace(/\.[^.]+$/, '')}.${ext}`;
+        const contentType = creatorMode === 'video'
+          ? (mediaFile.type || 'video/mp4')
+          : (mediaFile.type || 'image/jpeg');
+        const { error } = await supabase.storage.from('chat-media').upload(path, mediaFile, { upsert: true, contentType });
         if (error) throw error;
         const { data: { publicUrl } } = supabase.storage.from('chat-media').getPublicUrl(path);
         mediaUrl = publicUrl;
@@ -156,8 +163,8 @@ export default function Stories() {
       if (error) throw error;
       setShowCreator(false);
       setTextContent('');
-      setImageFile(null);
-      setImagePreview(null);
+      setMediaFile(null);
+      setMediaPreview(null);
       await loadStories();
     } catch (e) {
       console.error('publish story', e);
@@ -203,6 +210,7 @@ export default function Stories() {
     recordView(current.id);
     setProgress(0);
     stopProgress();
+    // Vídeos usam a própria duração (15s de timeout como fallback); imagens/texto 5s
     const duration = current.type === 'video' ? 15000 : 5000;
     const tick = duration / 100;
     progressTimer.current = setInterval(() => {
@@ -228,16 +236,35 @@ export default function Stories() {
     setProgress(0);
   };
 
-  const onPickImage = (file: File | null) => {
-    setImageFile(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setImagePreview(null);
+  const onPickMedia = (file: File | null) => {
+    if (!file) { setMediaFile(null); setMediaPreview(null); return; }
+    // Validação para vídeo
+    if (creatorMode === 'video') {
+      if (!file.type.startsWith('video/')) {
+        alert('Por favor, escolhe um ficheiro de vídeo.');
+        return;
+      }
+      if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+        alert(`O vídeo é muito grande. O máximo é ${MAX_VIDEO_MB}MB.`);
+        return;
+      }
+    } else if (creatorMode === 'image') {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, escolhe um ficheiro de imagem.');
+        return;
+      }
     }
+    setMediaFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setMediaPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
   };
+
+  // Reset do media ao mudar de modo
+  useEffect(() => {
+    setMediaFile(null);
+    setMediaPreview(null);
+  }, [creatorMode]);
 
   const current = viewingGroup?.stories[viewingIndex] ?? null;
 
@@ -309,6 +336,10 @@ export default function Stories() {
                 onClick={() => setCreatorMode('image')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm ${creatorMode === 'image' ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400'}`}
               ><ImagePlus size={14} /> Imagem</button>
+              <button
+                onClick={() => setCreatorMode('video')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm ${creatorMode === 'video' ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400'}`}
+              ><VideoIcon size={14} /> Vídeo</button>
             </div>
 
             {creatorMode === 'text' ? (
@@ -331,16 +362,27 @@ export default function Stories() {
               </>
             ) : (
               <div className="mb-3">
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
-                {imagePreview ? (
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept={creatorMode === 'video' ? 'video/*' : 'image/*'}
+                  className="hidden"
+                  onChange={(e) => onPickMedia(e.target.files?.[0] ?? null)}
+                />
+                {mediaPreview ? (
                   <div className="relative">
-                    <img src={imagePreview} alt="" className="w-full max-h-[300px] object-contain rounded-xl" />
-                    <button onClick={() => onPickImage(null)} className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-full text-white"><X size={14} /></button>
+                    {creatorMode === 'video' ? (
+                      <video src={mediaPreview} controls className="w-full max-h-[300px] object-contain rounded-xl bg-black" />
+                    ) : (
+                      <img src={mediaPreview} alt="" className="w-full max-h-[300px] object-contain rounded-xl" />
+                    )}
+                    <button onClick={() => onPickMedia(null)} className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-full text-white"><X size={14} /></button>
                   </div>
                 ) : (
                   <button onClick={() => fileRef.current?.click()} className="w-full h-44 rounded-xl border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-emerald-500 hover:text-emerald-400">
-                    <ImagePlus size={28} />
-                    <span className="text-sm mt-2">Escolher imagem</span>
+                    {creatorMode === 'video' ? <VideoIcon size={28} /> : <ImagePlus size={28} />}
+                    <span className="text-sm mt-2">{creatorMode === 'video' ? 'Escolher vídeo' : 'Escolher imagem'}</span>
+                    {creatorMode === 'video' && <span className="text-xs text-gray-600 mt-1">Máx. {MAX_VIDEO_MB}MB · MP4, WebM, MOV</span>}
                   </button>
                 )}
               </div>
@@ -348,7 +390,7 @@ export default function Stories() {
 
             <button
               onClick={publish}
-              disabled={publishing || (creatorMode === 'text' ? !textContent.trim() : !imageFile)}
+              disabled={publishing || (creatorMode === 'text' ? !textContent.trim() : !mediaFile)}
               className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
             >
               {publishing ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
@@ -375,7 +417,7 @@ export default function Stories() {
               {viewingGroup.avatar_url ? <img src={viewingGroup.avatar_url} alt="" className="w-full h-full object-cover" /> : viewingGroup.nome[0]?.toUpperCase()}
             </div>
             <span className="text-white text-sm font-medium">{viewingGroup.nome}</span>
-            <span className="text-gray-400 text-xs">{new Date(current.created_at).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="text-gray-500 text-xs ml-auto">{new Date(current.created_at).toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
 
           <div className="flex-1 relative flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
@@ -394,7 +436,14 @@ export default function Stories() {
             ) : current.type === 'image' ? (
               <img src={current.media_url ?? ''} alt="" className="max-w-full max-h-full object-contain" />
             ) : (
-              <video src={current.media_url ?? ''} autoPlay controls={false} onEnded={() => advance(1)} className="max-w-full max-h-full object-contain" />
+              <video
+                src={current.media_url ?? ''}
+                autoPlay
+                playsInline
+                controls
+                onEnded={() => advance(1)}
+                className="max-w-full max-h-full object-contain"
+              />
             )}
           </div>
 
