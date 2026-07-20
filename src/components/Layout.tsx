@@ -3,7 +3,7 @@ import {
   TrendingUp, LayoutDashboard, Vault, Briefcase, Building2 as BuildingIcon,
   BarChart3, Wallet, LogOut, Menu, X, ChevronDown, RefreshCw,
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
-  Users, ChevronRight, Search, LineChart,
+  Users, Search, LineChart, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -16,10 +16,44 @@ import type { Page } from '../App';
 type Props = {
   currentPage: Page;
   onNavigate: (page: Page) => void;
+  onBack?: () => void;
+  onForward?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
   children: React.ReactNode;
 };
-  
-export default function Layout({ currentPage, onNavigate, children }: Props) {
+
+const PAGE_TITLES: Record<Page, string> = {
+  dashboard: 'Dashboard',
+  cofres: 'Cofres',
+  negocios: 'Negócios',
+  patrimonio: 'Património',
+  relatorios: 'Relatórios',
+  financeiro: 'Financeiro',
+  configuracoes: 'Configurações',
+  perfil: 'Perfil',
+  empresas: 'Empresas',
+  marketplace: 'Marketplace',
+  'minha-loja': 'Minha Loja',
+  planos: 'Planos',
+  chat: 'Mensagens',
+  comunidades: 'Comunidades',
+  search: 'Pesquisa',
+  userProfile: 'Perfil',
+  storeProfile: 'Loja',
+  trade: 'Trade',
+  post: 'Publicação',
+};
+
+export default function Layout({
+  currentPage,
+  onNavigate,
+  onBack,
+  onForward,
+  canGoBack = false,
+  canGoForward = false,
+  children,
+}: Props) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { currency, setCurrencyCode, ratesLoading, lastUpdated } = useCurrency();
@@ -41,7 +75,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         { id: 'negocios' as Page,   label: t('nav.negocios'),     icon: Briefcase },
         { id: 'patrimonio' as Page, label: t('nav.patrimonio'),   icon: BuildingIcon },
         { id: 'relatorios' as Page, label: t('nav.relatorios'),   icon: BarChart3 },
-        { id: 'trade'      as Page, label: 'Trade',               icon: LineChart }, 
+        { id: 'trade'      as Page, label: 'Trade',               icon: LineChart },
       ],
     },
     {
@@ -81,6 +115,8 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
   const trialExpired = isTrialExpired(profile);
   const inTrial = profile?.plan === 'free' && profile?.trial_active && !trialExpired;
 
+  const pageTitle = PAGE_TITLES[currentPage] ?? 'IK Finance';
+
   return (
     <div className="min-h-screen bg-gray-950 flex">
       {mobileOpen && (
@@ -88,7 +124,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-60 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-40 w-60 sm:w-64 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-gray-800">
           <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0">
@@ -120,7 +156,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
             </button>
 
             {currencyOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl z-50">
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl z-50 max-h-72 overflow-y-auto">
                 {CURRENCIES.map((c) => (
                   <button
                     key={c.code}
@@ -147,7 +183,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         </div>
 
         {/* Nav groups */}
-        <nav className="flex-1 p-3 space-y-4 mt-2 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-4 mt-2 overflow-y-auto overscroll-contain">
           {NAV_GROUPS.map(group => (
             <div key={group.label}>
               <p className="text-xs text-gray-600 font-semibold uppercase tracking-wider px-2 mb-1.5">{group.label}</p>
@@ -159,7 +195,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover-lift ${currentPage === id ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
                   >
                     <Icon size={17} />
-                    {label}
+                    <span className="truncate">{label}</span>
                     {id === 'chat' && unreadCount > 0 && (
                       <span className="ml-auto bg-emerald-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
                         {unreadCount > 9 ? '9+' : unreadCount}
@@ -173,34 +209,34 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         </nav>
 
         {/* Bottom: Language + Account + Settings */}
-        <div className="p-3 border-t border-gray-800 space-y-0.5">
+        <div className="p-3 border-t border-gray-800 space-y-0.5 shrink-0">
           <div className="px-1 pb-1">
             <LanguageSwitcher variant="sidebar" />
           </div>
           <button onClick={() => handleNavigate('planos')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'planos' ? 'bg-emerald-500/10 text-emerald-400' : trialExpired ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-950/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <CreditCard size={17} />
-            {t('nav.planos')}
+            <span className="truncate">{t('nav.planos')}</span>
             {inTrial && daysLeft <= 14 && (
-              <span className="ml-auto text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-600/30 px-1.5 py-0.5 rounded-lg">{daysLeft}d</span>
+              <span className="ml-auto text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-600/30 px-1.5 py-0.5 rounded-lg shrink-0">{daysLeft}d</span>
             )}
             {trialExpired && !inTrial && (
-              <span className="ml-auto text-xs font-bold bg-red-500/20 text-red-400 border border-red-600/30 px-1.5 py-0.5 rounded-lg">!</span>
+              <span className="ml-auto text-xs font-bold bg-red-500/20 text-red-400 border border-red-600/30 px-1.5 py-0.5 rounded-lg shrink-0">!</span>
             )}
             {!inTrial && !trialExpired && profile && (
-              <span className={`ml-auto text-xs font-bold capitalize ${PLAN_COLORS[profile.plan]}`}>{profile.plan}</span>
+              <span className={`ml-auto text-xs font-bold capitalize shrink-0 ${PLAN_COLORS[profile.plan]}`}>{profile.plan}</span>
             )}
           </button>
           <button onClick={() => handleNavigate('perfil')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'perfil' ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <User size={17} />
-            {t('nav.perfil')}
-            {profile?.verified && <span className="ml-auto text-blue-400 text-xs">✓</span>}
+            <span className="truncate">{t('nav.perfil')}</span>
+            {profile?.verified && <span className="ml-auto text-blue-400 text-xs shrink-0">✓</span>}
           </button>
           <button onClick={() => handleNavigate('configuracoes')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${currentPage === 'configuracoes' ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <Settings size={17} />
-            {t('nav.configuracoes')}
+            <span className="truncate">{t('nav.configuracoes')}</span>
           </button>
 
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl mt-1">
@@ -221,34 +257,61 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile header */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3.5 bg-gray-900 border-b border-gray-800">
-          <button onClick={() => setMobileOpen(true)} className="text-gray-400 hover:text-white transition-colors">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        {/* Cabeçalho unificado — todos os dispositivos */}
+        <header className="sticky top-0 z-20 flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gray-900/95 backdrop-blur border-b border-gray-800">
+          {/* Botão menu (mobile) */}
+          <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800 shrink-0">
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2 flex-1">
+
+          {/* Voltar / Avançar */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={onBack}
+              disabled={!canGoBack}
+              title="Voltar"
+              className="p-2 text-gray-400 hover:text-white disabled:text-gray-700 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-gray-800"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={onForward}
+              disabled={!canGoForward}
+              title="Avançar"
+              className="p-2 text-gray-400 hover:text-white disabled:text-gray-700 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-gray-800"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          {/* Título da página atual */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <h1 className="text-white font-semibold text-sm sm:text-base truncate">{pageTitle}</h1>
+          </div>
+
+          {/* Logo compacto (mobile) */}
+          <div className="lg:hidden flex items-center gap-1.5 shrink-0">
             <div className="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center">
               <TrendingUp size={13} className="text-white" />
             </div>
-            <span className="text-white font-bold text-sm">IK FINANCE</span>
           </div>
 
           <LanguageSwitcher variant="compact" />
 
-          {/* Mobile notification bell */}
+          {/* Sino de notificações */}
           <div className="relative" ref={notifRef}>
-            <button onClick={handleNotifOpen} className="relative p-1.5 text-gray-400 hover:text-white transition-colors">
-              <Bell size={19} />
+            <button onClick={handleNotifOpen} className="relative p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800 shrink-0">
+              <Bell size={18} />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-emerald-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute top-1 right-1 bg-emerald-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
 
             {notifOpen && (
-              <div className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+              <div className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
                   <p className="text-white font-semibold text-sm">{t('nav.notificacoes')}</p>
                   <button onClick={() => handleNavigate('configuracoes')} className="text-xs text-emerald-400 hover:text-emerald-300">{t('nav.configurar')}</button>
@@ -272,13 +335,15 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
             )}
           </div>
 
-          <button onClick={() => setMobileOpen(true)} className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5">
+          {/* Currency badge compacto */}
+          <button onClick={() => setMobileOpen(true)} className="hidden sm:flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 shrink-0">
             <span className="text-sm leading-none">{currency.flag}</span>
             <span className="text-xs font-semibold text-white">{currency.code}</span>
           </button>
         </header>
 
-        <main className="flex-1 p-5 lg:p-7 max-w-6xl w-full mx-auto overflow-auto">
+        {/* Conteúdo — preenche o espaço disponível em todos os dispositivos */}
+        <main className="flex-1 p-3 sm:p-5 lg:p-7 w-full max-w-7xl mx-auto overflow-auto">
           {children}
         </main>
       </div>
