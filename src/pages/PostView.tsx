@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, Loader2, MessageCircle, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageCircle, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,12 +27,16 @@ type PostComment = {
 
 export default function PostView({ postId }: { postId: string }) {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
+
+  const goBack = () => {
+    window.history.pushState({}, '', '/?page=comunidades');
+    window.dispatchEvent(new CustomEvent('navigatePage', { detail: { page: 'comunidades' } }));
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -91,7 +94,7 @@ export default function PostView({ postId }: { postId: string }) {
     return (
       <div className="text-center py-20">
         <p className="text-gray-400">Publicação não encontrada.</p>
-        <button onClick={() => navigate('/?page=comunidades')} className="mt-4 text-emerald-400 text-sm hover:underline">
+        <button onClick={goBack} className="mt-4 text-emerald-400 text-sm hover:underline">
           Voltar à comunidade
         </button>
       </div>
@@ -100,10 +103,7 @@ export default function PostView({ postId }: { postId: string }) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <button
-        onClick={() => navigate('/?page=comunidades')}
-        className="flex items-center gap-2 text-gray-400 hover:text-white text-sm"
-      >
+      <button onClick={goBack} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm">
         <ArrowLeft size={16} />
         Voltar à comunidade
       </button>
@@ -134,7 +134,6 @@ export default function PostView({ postId }: { postId: string }) {
         )}
       </div>
 
-      {/* Comentários */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
         <p className="text-sm font-semibold text-white flex items-center gap-2">
           <MessageCircle size={16} className="text-emerald-400" />
