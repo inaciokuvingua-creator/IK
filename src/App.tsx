@@ -178,27 +178,16 @@ function AppContent() {
   // Sincroniza histórico do navegador (botão back/forward do device)
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
-      const dir = e.state?.dir;
-      if (dir === 'back') goBack();
-      else if (dir === 'forward') goForward();
+      const dir = (e.state as any)?.dir;
+      if (dir === 'forward') goForward();
       else goBack();
     };
     window.addEventListener('popstate', onPop);
-    // Semeia o estado inicial do histórico do browser
     if (typeof window !== 'undefined' && !window.history.state) {
       window.history.replaceState({ dir: 'root' }, '');
     }
     return () => window.removeEventListener('popstate', onPop);
   }, [goBack, goForward]);
-
-  // Empurra entrada no histórico do browser sempre que a página muda (excepto root)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.history.state?.dir === 'root' || !window.history.state) {
-      window.history.pushState({ dir: 'back' }, '', `?page=${page}`);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
 
   // Eventos de navegação interna
   useEffect(() => {
