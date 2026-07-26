@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Shield, BarChart3, Briefcase, Home, ArrowRight, CheckCircle } from 'lucide-react';
+import AutoPresentationSlides from '../components/AutoPresentationSlides';
 
 type Props = { onGetStarted: () => void };
 
@@ -26,25 +27,29 @@ export default function HomePage({ onGetStarted }: Props) {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
+      {/* Hero with Presentation Slides */}
+      <section className="max-w-6xl mx-auto px-6 pt-12 pb-16 text-center">
         <div className="inline-flex items-center gap-2 bg-emerald-950/60 border border-emerald-900/60 rounded-full px-4 py-1.5 text-emerald-400 text-sm font-medium mb-6">
           <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
           {t('home.badge')}
         </div>
-        <h1 className="text-5xl md:text-6xl font-bold leading-tight mb-6 max-w-3xl mx-auto">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6 max-w-3xl mx-auto">
           {t('home.heroTitle')}{' '}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
             IK FINANCE
           </span>
         </h1>
-        <p className="text-gray-400 text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto mb-8 leading-relaxed">
           {t('home.heroSub')}
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+        {/* Slides de Apresentação Automática com 60% Transparência no fundo */}
+        <AutoPresentationSlides onExplore={() => onGetStarted()} />
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
           <button
             onClick={onGetStarted}
-            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-8 py-3.5 rounded-xl transition-colors text-sm"
+            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-8 py-3.5 rounded-xl transition-colors text-sm shadow-lg shadow-emerald-950/80"
           >
             {t('home.ctaPrimary')} <ArrowRight size={16} />
           </button>

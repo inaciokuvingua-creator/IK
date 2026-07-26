@@ -98,12 +98,18 @@ export default function Cofres() {
     }
   };
 
+  const selectedRef = useRef(selected);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
   useEffect(() => {
     fetchAll();
     const ch = supabase
       .channel('cofres-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cofres' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'goal_items' }, () => {
+        if (selectedRef.current) fetchGoalItems(selectedRef.current.id);
+      })
       .subscribe();
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
@@ -115,59 +121,122 @@ export default function Cofres() {
         setShowItemModal(true);
     };
 
+    const openEditItem = (item: GoalItem) => {
+        setEditingItem(item);
+        setItemForm({
+            nome: item.nome,
+            categoria: item.categoria || '',
+            descricao: item.descricao || '',
+            quantidade: String(item.quantidade || 1),
+            preco_unitario: String(item.preco_unitario || 0),
+            moeda: item.moeda || 'KZ',
+        });
+        setShowItemModal(true);
+    };
+
+    const deleteItem = async (itemId: string, itemName: string) => {
+        if (!confirm(`Deseja eliminar o item "${itemName}" da meta?`)) return;
+        setDeleting(itemId);
+        try {
+            const { error } = await sb.from('goal_items').delete().eq('id', itemId);
+            if (error) throw error;
+            setGoalItems((prev) => prev.filter((i) => i.id !== itemId));
+            await notify('cofre', 'Item eliminado', `O item "${itemName}" foi removido da meta.`);
+            if (selected) {
+                try {
+                    const res = await computeSimulationForCofre(selected.id, 'KZ');
+                    setSimResult(res);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao eliminar item:', err);
+            await notify('cofre', 'Erro ao eliminar item', 'Não foi possível remover o item da meta.');
+        } finally {
+            setDeleting(null);
+        }
+    };
+
     const saveItem = async () => {
         if (!selected) return;
         setSaving(true);
         const payload = {
             cofre_id: selected.id,
-            nome: itemForm.nome,
+            nome: itemForm.nome.trim(),
             categoria: itemForm.categoria || null,
             descricao: itemForm.descricao || null,
             quantidade: Number(itemForm.quantidade || 1),
             preco_unitario: Number(itemForm.preco_unitario || 0),
             moeda: itemForm.moeda || 'KZ'
         };
+        try {
+            const { data: { user }, error: authError } = await sb.auth.getUser();
+
+            if (authError || !user) {
+                throw new Error('Usuário não autenticado');
+            }
+
+            const payloadWithUser = {
+                ...payload,
+                user_id: user.id,
+            };
+
+            let data;
+            let error;
+
+            if (editingItem) {
+                const res = await sb
+                    .from('goal_items')
+                    .update(payload)
+                    .eq('id', editingItem.id)
+                    .select()
+                    .maybeSingle();
+                data = res.data;
+                error = res.error;
+            } else {
+                const res = await sb
+                    .from('goal_items')
+                    .insert([payloadWithUser])
+                    .select()
+                    .maybeSingle();
+                data = res.data;
+                error = res.error;
+            }
+
+            if (error) throw error;
+
+            if (data) {
+                if (editingItem) {
+                    setGoalItems((prev) => prev.map((i) => (i.id === editingItem.id ? (data as GoalItem) : i)));
+                } else {
+                    setGoalItems((prev) => [data as GoalItem].concat(prev));
+                }
+            }
+
+            // Realtime recompute simulation
             try {
-        const { data: { user }, error: authError } = await sb.auth.getUser();
+                const res = await computeSimulationForCofre(selected.id, 'KZ');
+                setSimResult(res);
+            } catch (e) {
+                console.error(e);
+            }
 
-        if (authError || !user) {
-            throw new Error('Usuário não autenticado');
+            setShowItemModal(false);
+            await notify('cofre', editingItem ? 'Item atualizado' : 'Item salvo', `${payload.nome} guardado com sucesso.`);
+
+        } catch (err) {
+            console.error(err);
+
+            await notify(
+                'cofre',
+                'Erro ao salvar item',
+                'Não foi possível guardar o item do objetivo.'
+            );
+
+        } finally {
+            setSaving(false);
         }
-
-        const payloadWithUser = {
-            ...payload,
-            user_id: user.id,
-        };
-
-        console.log("Salvando goal_item:", payloadWithUser);
-        console.log("Usuário Auth:", user.id);
-
-        const { data, error } = await sb
-            .from('goal_items')
-            .insert([payloadWithUser])
-            .select()
-            .maybeSingle();
-
-        if (error) throw error;
-
-        if (data) {
-            setGoalItems((g) => [data as GoalItem].concat(g));
-        }
-
-        setShowItemModal(false);
-
-    } catch (err) {
-        console.error(err);
-
-        await notify(
-            'cofre',
-            'Erro ao salvar item',
-            'Nao foi possivel guardar o item do objetivo.'
-        );
-
-    } finally {
-        setSaving(false);
-    }
     };
 
   // Keep selected in sync after re-fetch
@@ -488,7 +557,14 @@ export default function Cofres() {
               <div className="grid xl:grid-cols-2 gap-4 mb-5">
                 <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Itens da meta</h3>
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">Itens da meta</h3>
+                      {goalItems.length > 0 && (
+                        <p className="text-[11px] text-emerald-400 font-medium">
+                          Total: {format(goalItems.reduce((acc, it) => acc + (it.quantidade || 1) * (it.preco_unitario || 0), 0))}
+                        </p>
+                      )}
+                    </div>
                     <button onClick={openNewItem} className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-200">
                       + Novo item
                     </button>
@@ -506,9 +582,17 @@ export default function Cofres() {
                                 <p className="text-sm text-white font-medium">{item.nome}</p>
                                 <p className="text-xs text-gray-500">{item.categoria || 'Sem categoria'}</p>
                               </div>
-                              <button onClick={() => openQuotes(item)} className="text-xs px-2 py-1 rounded-lg bg-amber-900/50 hover:bg-amber-900 text-amber-200">
-                                Cotações
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => openQuotes(item)} className="text-xs px-2 py-1 rounded-lg bg-amber-900/50 hover:bg-amber-900 text-amber-200">
+                                  Cotações
+                                </button>
+                                <button onClick={() => openEditItem(item)} className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" title="Editar item">
+                                  <Pencil size={13} />
+                                </button>
+                                <button onClick={() => deleteItem(item.id, item.nome)} disabled={deleting === item.id} className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50" title="Eliminar item">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-xs text-gray-400 mt-2">
                               {item.quantidade} x {format(item.preco_unitario || 0)} ({item.moeda || 'KZ'}) · Total {format(total)}

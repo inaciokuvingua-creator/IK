@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import type { Cofre, Negocio, PatrimonioItem, Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
 import { useCurrency } from '../context/CurrencyContext';
+import IKHealthScore from '../components/IKHealthScore';
  
 type Props = { onNavigate: (page: string) => void };
 
@@ -132,6 +133,15 @@ export default function Dashboard({ onNavigate }: Props) {
           <MiniStat label={t('dashboard.patrimonio')} value={format(totalPatrimonio)} positive />
         </div>
       </div>
+
+      {/* IK Financial Health Score */}
+      <IKHealthScore
+        cofres={cofres}
+        transacoes={transacoes}
+        negocios={negocios}
+        patrimonio={patrimonio}
+        onNavigate={onNavigate}
+      />
 
       {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
