@@ -1,0 +1,6 @@
+{
+  "name": "IK Finance",
+  "description": "Seu gestor inteligente de cofres, negócios e patrimônio",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
