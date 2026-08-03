@@ -92,29 +92,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const prefsRef = useRef<NotificationPreferences | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  const showLocalNotification = useCallback((titulo: string, corpo: string, url = '/') => {
-    if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    try {
-      const notif = new Notification(titulo, {
-        body: corpo,
-        icon: '/icon-192x192.png',
-        badge: '/icon-96x96.png',
-        data: { url },
-      });
-      notif.onclick = () => {
-        window.focus();
-        window.location.assign(url);
-      };
-    } catch {
-      // Ignore browser-specific notification issues.
-    }
-    playNotificationSound();
-  }, [playNotificationSound]);
-
-  useEffect(() => {
-    prefsRef.current = prefs;
-  }, [prefs]);
-
   const playNotificationSound = useCallback((force = false) => {
     if (typeof window === 'undefined') return;
     const allowAudio = force || (prefsRef.current?.push_enabled ?? true);
@@ -149,6 +126,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       console.warn('[Notification] unable to play sound:', error);
     }
   }, []);
+
+  const showLocalNotification = useCallback((titulo: string, corpo: string, url = '/') => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      const notif = new Notification(titulo, {
+        body: corpo,
+        icon: '/icon-192x192.png',
+        badge: '/icon-96x96.png',
+        data: { url },
+      });
+      notif.onclick = () => {
+        window.focus();
+        window.location.assign(url);
+      };
+    } catch {
+      // Ignore browser-specific notification issues.
+    }
+    playNotificationSound();
+  }, [playNotificationSound]);
+
+  useEffect(() => {
+    prefsRef.current = prefs;
+  }, [prefs]);
 
   // Load prefs + notification log + check current push subscription status
   useEffect(() => {
