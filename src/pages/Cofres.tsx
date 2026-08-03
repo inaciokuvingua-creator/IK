@@ -11,6 +11,7 @@ import { supabase as sb } from '../lib/supabase';
 import type { GoalItem } from '../lib/supabase';
 import { computeQuoteTotal } from '../lib/costEngine';
 import { computeSimulationForCofre } from '../lib/costEngine';
+import { createSimulationAlertIfNeeded } from '../lib/costEngine';
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 const TX_CATS = ['alimentação', 'moradia', 'transporte', 'saúde', 'educação', 'lazer', 'investimento', 'salário', 'negócio', 'outros'];
@@ -356,7 +357,7 @@ export default function Cofres() {
       setSimResult(res);
       setShowSimModal(true);
       // create alert if needed
-      try { await (await import('../lib/costEngine')).createSimulationAlertIfNeeded(res); } catch (e) { console.error('alert create failed', e); }
+      try { await createSimulationAlertIfNeeded(res); } catch (e) { console.error('alert create failed', e); }
     } catch (e) { console.error(e); await notify('cofre', 'Erro ao simular', 'Nao foi possivel executar a simulacao do cofre.'); }
     finally { setSimLoading(false); }
   };

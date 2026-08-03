@@ -12,19 +12,51 @@ function windowKey(now: number, windowMs: number) {
   return String(Math.floor(now / windowMs));
 }
 
+function safeReadLocalRateLimit(key: string) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { attempts?: number; resetAt?: number };
+    if (typeof parsed?.attempts !== 'number' || typeof parsed?.resetAt !== 'number') {
+      return null;
+    }
+    return { attempts: parsed.attempts, resetAt: parsed.resetAt };
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteLocalRateLimit(key: string, value: { attempts: number; resetAt: number }) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage failures (private mode/quota exceeded).
+  }
+}
+
 export async function checkMarketplaceRateLimit(config: RateLimitConfig) {
   const now = Date.now();
   const key = `${config.action}:${config.userId ?? 'anon'}:${windowKey(now, config.windowMs)}`;
-  const raw = window.localStorage.getItem(key);
-  const current = raw ? JSON.parse(raw) as { attempts: number; resetAt: number } : null;
+  const current = safeReadLocalRateLimit(key);
+
+  if (current && current.resetAt <= now) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore cleanup failures.
+    }
+  }
+
   if (current && current.attempts >= config.limit && current.resetAt > now) {
     return { allowed: false, remainingMs: current.resetAt - now };
   }
+
   const next = {
-    attempts: (current?.attempts ?? 0) + 1,
-    resetAt: current?.resetAt ?? (now + config.windowMs),
+    attempts: current && current.resetAt > now ? current.attempts + 1 : 1,
+    resetAt: current && current.resetAt > now ? current.resetAt : (now + config.windowMs),
   };
-  window.localStorage.setItem(key, JSON.stringify(next));
+
+  safeWriteLocalRateLimit(key, next);
 
   if (config.userId) {
     await supabase.from('marketplace_rate_limits').upsert({

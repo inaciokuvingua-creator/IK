@@ -135,11 +135,54 @@ export function detectMediaType(name: string, mime?: string | null) {
   return 'document';
 }
 
+const CHAT_ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
+  'audio/webm',
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/zip',
+  'text/plain',
+]);
+
+const MAX_CHAT_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+export function sanitizeStorageFileName(fileName: string) {
+  const normalized = fileName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (!normalized) return 'upload.bin';
+  if (normalized.length <= 120) return normalized;
+
+  const dotIdx = normalized.lastIndexOf('.');
+  if (dotIdx <= 0 || dotIdx === normalized.length - 1) {
+    return normalized.slice(0, 120);
+  }
+  const ext = normalized.slice(dotIdx);
+  const stem = normalized.slice(0, Math.max(1, 120 - ext.length));
+  return `${stem}${ext}`;
+}
+
 export function isMarketplaceFileAllowed(file: File) {
   const blockedExtensions = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.dll', '.scr', '.js'];
   const lowerName = file.name.toLowerCase();
   if (blockedExtensions.some((ext) => lowerName.endsWith(ext))) return false;
-  if (file.size > 500 * 1024 * 1024) return false;
+  if (file.size > MAX_CHAT_FILE_SIZE_BYTES) return false;
+  const mime = (file.type ?? '').toLowerCase().trim();
+  if (!mime || !CHAT_ALLOWED_MIME_TYPES.has(mime)) return false;
   return true;
 }
 

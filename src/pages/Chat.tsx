@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { openIKViewer } from '../components/IKViewer';
-import { detectMediaType, isMarketplaceFileAllowed } from '../lib/marketplace';
+import { detectMediaType, isMarketplaceFileAllowed, sanitizeStorageFileName } from '../lib/marketplace';
 import { checkMarketplaceRateLimit } from '../lib/marketplaceGuardrails';
 
 type ConversationSummary = {
@@ -38,6 +38,18 @@ type UserMini = {
   avatar_url: string | null;
   email?: string | null;
 };
+
+type ParticipantMini = {
+  conversation_id: string;
+  last_read_at: string | null;
+};
+
+type ConversationParticipantMini = {
+  conversation_id: string;
+  user_id: string;
+};
+
+const CHAT_MESSAGE_MAX_LENGTH = 4000;
 
 async function listActiveParticipants(userId: string, fields = 'conversation_id,last_read_at') {
   const withLeftAt = await supabase
@@ -77,7 +89,7 @@ async function listConversationParticipants(conversationIds: string[]) {
 
 async function ensureDirectConversation(currentUserId: string, targetUserId: string) {
   const { data: myParts } = await listActiveParticipants(currentUserId, 'conversation_id');
-  const ids = (myParts ?? []).map((item) => item.conversation_id);
+  const ids = ((myParts ?? []) as unknown as Array<Pick<ParticipantMini, 'conversation_id'>>).map((item) => item.conversation_id);
 
   if (ids.length > 0) {
     const byType = await supabase
@@ -164,7 +176,8 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
   const loadConversations = useCallback(async (preferredConversationId?: string | null) => {
     if (!user) return;
     const { data: participantRows } = await listActiveParticipants(user.id);
-    const conversationIds = (participantRows ?? []).map((item) => item.conversation_id);
+    const typedParticipantRows = (participantRows ?? []) as unknown as ParticipantMini[];
+    const conversationIds = typedParticipantRows.map((item) => item.conversation_id);
     if (conversationIds.length === 0) {
       setConversations([]);
       setActiveConversationId(null);
@@ -177,15 +190,16 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       .in('id', conversationIds)
       .order('updated_at', { ascending: false });
     const { data: participantsData } = await listConversationParticipants(conversationIds);
-    const otherUserIds = Array.from(new Set((participantsData ?? []).filter((item) => item.user_id !== user.id).map((item) => item.user_id)));
+    const typedParticipantsData = (participantsData ?? []) as ConversationParticipantMini[];
+    const otherUserIds = Array.from(new Set(typedParticipantsData.filter((item) => item.user_id !== user.id).map((item) => item.user_id)));
     const { data: profiles } = otherUserIds.length > 0 ? await supabase.from('user_profiles').select('user_id,nome,avatar_url,email').in('user_id', otherUserIds) : { data: [] };
     const profileMap = new Map((profiles as UserMini[] ?? []).map((profile) => [profile.user_id, profile]));
 
     const summaries = await Promise.all((conversationsData ?? []).map(async (conversation: any) => {
-      const otherParticipant = (participantsData ?? []).find((item) => item.conversation_id === conversation.id && item.user_id !== user.id);
+      const otherParticipant = typedParticipantsData.find((item) => item.conversation_id === conversation.id && item.user_id !== user.id);
       const otherProfile = otherParticipant ? profileMap.get(otherParticipant.user_id) : null;
       const { data: messageRows } = await supabase.from('chat_messages').select('*').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1);
-      const { count: unread } = await supabase.from('chat_messages').select('*', { count: 'exact', head: true }).eq('conversation_id', conversation.id).neq('sender_id', user.id).gt('created_at', (participantRows ?? []).find((row) => row.conversation_id === conversation.id)?.last_read_at ?? '1970-01-01');
+      const { count: unread } = await supabase.from('chat_messages').select('*', { count: 'exact', head: true }).eq('conversation_id', conversation.id).neq('sender_id', user.id).gt('created_at', typedParticipantRows.find((row) => row.conversation_id === conversation.id)?.last_read_at ?? '1970-01-01');
       const lastMessage = (messageRows as ChatMessage[] | null)?.[0];
       return {
         id: conversation.id,
@@ -263,6 +277,12 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
 
   const sendMessage = async () => {
     if (!user || !activeConversationId || (!text.trim() && !attachment)) return;
+    const content = text.trim();
+    if (content.length > CHAT_MESSAGE_MAX_LENGTH) {
+      alert(`A mensagem é muito longa. Limite: ${CHAT_MESSAGE_MAX_LENGTH} caracteres.`);
+      return;
+    }
+
     const rateLimit = await checkMarketplaceRateLimit({ action: 'chat_message', limit: 30, windowMs: 10 * 60 * 1000, userId: user.id, metadata: { conversationId: activeConversationId } });
     if (!rateLimit.allowed) {
       alert('Está a enviar mensagens rápido demais. Aguarde um pouco.');
@@ -278,7 +298,8 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
         return;
       }
       setUploading(true);
-      const path = `${user.id}/${activeConversationId}/${Date.now()}-${attachment.name.replace(/\s+/g, '_')}`;
+      const safeName = sanitizeStorageFileName(attachment.name);
+      const path = `${user.id}/${activeConversationId}/${Date.now()}-${safeName}`;
       const { error } = await supabase.storage.from('chat-media').upload(path, attachment, { upsert: true });
       if (error) {
         setUploading(false);
@@ -295,7 +316,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       conversation_id: activeConversationId,
       sender_id: user.id,
       type: messageType,
-      content: text.trim() || null,
+      content: content || null,
       media_url: mediaUrl,
       media_name: mediaName,
       media_mime: mediaMime,

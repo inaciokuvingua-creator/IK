@@ -100,6 +100,22 @@ async function handleEvent(event: Stripe.Event) {
           currency,
         } = stripeData as Stripe.Checkout.Session;
 
+        if (!checkout_session_id) {
+          console.error('checkout.session.completed sem checkout_session_id');
+          return;
+        }
+
+        const { data: existingOrder } = await supabase
+          .from('stripe_orders')
+          .select('id')
+          .eq('checkout_session_id', checkout_session_id)
+          .maybeSingle();
+
+        if (existingOrder?.id) {
+          console.info(`Order already processed for session: ${checkout_session_id}`);
+          return;
+        }
+
         // Insert the order into the stripe_orders table
         const { error: orderError } = await supabase.from('stripe_orders').insert({
           checkout_session_id,
@@ -152,6 +168,8 @@ async function syncCustomerFromStripe(customerId: string) {
         console.error('Error updating subscription status:', noSubError);
         throw new Error('Failed to update subscription status in database');
       }
+
+        return;
     }
 
     // assumes that a customer can only have a single subscription

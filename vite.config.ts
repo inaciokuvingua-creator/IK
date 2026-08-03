@@ -63,6 +63,7 @@ export default defineConfig({
           'vendor-react':    ['react', 'react-dom'],
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-i18n':     ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          'vendor-charts':   ['recharts'],
           'page-marketplace': ['./src/pages/Marketplace.tsx'],
           'page-minha-loja':  ['./src/pages/MinhaLoja.tsx'],
           'page-relatorios':  ['./src/pages/Relatorios.tsx'],

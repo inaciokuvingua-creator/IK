@@ -7,8 +7,7 @@ function createLocalAdmin(username: string): AdminUser {
     username,
     email: `${username}@local.ik`,
     role: 'admin',
-    full_name: 'Admin local',
-    created_at: new Date().toISOString(),
+    nome: 'Admin local',
   };
 }
 
