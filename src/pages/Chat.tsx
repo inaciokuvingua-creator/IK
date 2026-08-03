@@ -39,22 +39,107 @@ type UserMini = {
   email?: string | null;
 };
 
+async function listActiveParticipants(userId: string, fields = 'conversation_id,last_read_at') {
+  const withLeftAt = await supabase
+    .from('chat_participants')
+    .select(fields)
+    .eq('user_id', userId)
+    .is('left_at', null);
+
+  if (!withLeftAt.error) {
+    return withLeftAt;
+  }
+
+  const fallback = await supabase
+    .from('chat_participants')
+    .select(fields)
+    .eq('user_id', userId);
+
+  return fallback;
+}
+
+async function listConversationParticipants(conversationIds: string[]) {
+  const withLeftAt = await supabase
+    .from('chat_participants')
+    .select('conversation_id,user_id')
+    .in('conversation_id', conversationIds)
+    .is('left_at', null);
+
+  if (!withLeftAt.error) {
+    return withLeftAt;
+  }
+
+  return supabase
+    .from('chat_participants')
+    .select('conversation_id,user_id')
+    .in('conversation_id', conversationIds);
+}
+
 async function ensureDirectConversation(currentUserId: string, targetUserId: string) {
-  const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', currentUserId).is('left_at', null);
+  const { data: myParts } = await listActiveParticipants(currentUserId, 'conversation_id');
   const ids = (myParts ?? []).map((item) => item.conversation_id);
+
   if (ids.length > 0) {
-    const { data: convs } = await supabase.from('chat_conversations').select('id').eq('type', 'direct').in('id', ids);
-    for (const conversation of convs ?? []) {
-      const { data: other } = await supabase.from('chat_participants').select('id').eq('conversation_id', conversation.id).eq('user_id', targetUserId).maybeSingle();
-      if (other) return conversation.id as string;
+    const byType = await supabase
+      .from('chat_conversations')
+      .select('id,type')
+      .eq('type', 'direct')
+      .in('id', ids);
+
+    let directConversationIds: string[] = [];
+
+    if (!byType.error) {
+      directConversationIds = (byType.data ?? []).map((conversation: any) => conversation.id);
+    } else {
+      const byGroupFlag = await supabase
+        .from('chat_conversations')
+        .select('id,is_group')
+        .eq('is_group', false)
+        .in('id', ids);
+      directConversationIds = (byGroupFlag.data ?? []).map((conversation: any) => conversation.id);
+    }
+
+    for (const conversationId of directConversationIds) {
+      const { data: other } = await supabase.from('chat_participants').select('id').eq('conversation_id', conversationId).eq('user_id', targetUserId).maybeSingle();
+      if (other) return conversationId;
     }
   }
-  const { data: created } = await supabase.from('chat_conversations').insert({ type: 'direct', created_by: currentUserId }).select().single();
+
+  let created: { id: string } | null = null;
+
+  const createByType = await supabase
+    .from('chat_conversations')
+    .insert({ type: 'direct', created_by: currentUserId })
+    .select('id')
+    .single();
+
+  if (!createByType.error) {
+    created = createByType.data as { id: string };
+  } else {
+    const createByFlag = await supabase
+      .from('chat_conversations')
+      .insert({ is_group: false, created_by: currentUserId })
+      .select('id')
+      .single();
+    created = (createByFlag.data as { id: string } | null) ?? null;
+  }
+
   if (!created) throw new Error('Falha ao criar conversa');
-  await supabase.from('chat_participants').insert([
-    { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
-    { conversation_id: created.id, user_id: targetUserId, role: 'member' },
-  ]);
+
+  await supabase
+    .from('chat_participants')
+    .upsert(
+      { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
+      { onConflict: 'conversation_id,user_id' }
+    );
+
+  await supabase
+    .from('chat_participants')
+    .upsert(
+      { conversation_id: created.id, user_id: targetUserId, role: 'member' },
+      { onConflict: 'conversation_id,user_id' }
+    );
+
   return created.id as string;
 }
 
@@ -78,7 +163,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
 
   const loadConversations = useCallback(async (preferredConversationId?: string | null) => {
     if (!user) return;
-    const { data: participantRows } = await supabase.from('chat_participants').select('conversation_id,last_read_at').eq('user_id', user.id).is('left_at', null);
+    const { data: participantRows } = await listActiveParticipants(user.id);
     const conversationIds = (participantRows ?? []).map((item) => item.conversation_id);
     if (conversationIds.length === 0) {
       setConversations([]);
@@ -86,8 +171,12 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       return;
     }
 
-    const { data: conversationsData } = await supabase.from('chat_conversations').select('*').in('id', conversationIds).order('updated_at', { ascending: false });
-    const { data: participantsData } = await supabase.from('chat_participants').select('conversation_id,user_id').in('conversation_id', conversationIds).is('left_at', null);
+    const { data: conversationsData } = await supabase
+      .from('chat_conversations')
+      .select('*')
+      .in('id', conversationIds)
+      .order('updated_at', { ascending: false });
+    const { data: participantsData } = await listConversationParticipants(conversationIds);
     const otherUserIds = Array.from(new Set((participantsData ?? []).filter((item) => item.user_id !== user.id).map((item) => item.user_id)));
     const { data: profiles } = otherUserIds.length > 0 ? await supabase.from('user_profiles').select('user_id,nome,avatar_url,email').in('user_id', otherUserIds) : { data: [] };
     const profileMap = new Map((profiles as UserMini[] ?? []).map((profile) => [profile.user_id, profile]));
@@ -100,7 +189,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const lastMessage = (messageRows as ChatMessage[] | null)?.[0];
       return {
         id: conversation.id,
-        type: conversation.type,
+        type: conversation.type ?? (conversation.is_group ? 'group' : 'direct'),
         updated_at: conversation.updated_at,
         otherUserId: otherParticipant?.user_id ?? null,
         otherName: otherProfile?.nome ?? otherProfile?.email ?? otherParticipant?.user_id ?? 'Conversa',
@@ -202,27 +291,50 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       const detected = detectMediaType(attachment.name, attachment.type);
       messageType = detected === 'document' ? 'file' : detected;
     }
- const { data, error } = await supabase
-  .from('chat_messages')
-  .insert({
-    conversation_id: activeConversationId,
-    sender_id: user.id,
-    type: messageType,
-    content: text.trim() || null,
-    media_url: mediaUrl,
-    media_name: mediaName,
-    media_mime: mediaMime,
-    media_size: attachment?.size ?? null,
-  })
-  .select();
+    const basePayload = {
+      conversation_id: activeConversationId,
+      sender_id: user.id,
+      type: messageType,
+      content: text.trim() || null,
+      media_url: mediaUrl,
+      media_name: mediaName,
+      media_mime: mediaMime,
+      media_size: attachment?.size ?? null,
+    };
 
-console.log("CHAT MESSAGE DATA:", data);
-console.log("CHAT MESSAGE ERROR:", error);
+    let insertResult = await supabase
+      .from('chat_messages')
+      .insert(basePayload)
+      .select();
 
-if (error) {
-  alert(error.message);
-  return;
-}
+    if (insertResult.error && /media_name/i.test(insertResult.error.message)) {
+      const { media_name: _ignoredMediaName, ...withoutMediaName } = basePayload;
+      insertResult = await supabase
+        .from('chat_messages')
+        .insert(withoutMediaName)
+        .select();
+    }
+
+    if (insertResult.error && /violates check constraint|type/i.test(insertResult.error.message) && basePayload.type === 'file') {
+      const retryPayload = { ...basePayload, type: 'document' };
+      insertResult = await supabase
+        .from('chat_messages')
+        .insert(retryPayload)
+        .select();
+      if (insertResult.error && /media_name/i.test(insertResult.error.message)) {
+        const { media_name: _ignoredMediaName, ...withoutMediaName } = retryPayload;
+        insertResult = await supabase
+          .from('chat_messages')
+          .insert(withoutMediaName)
+          .select();
+      }
+    }
+
+    if (insertResult.error) {
+      alert(insertResult.error.message);
+      setUploading(false);
+      return;
+    }
     await supabase.from('chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversationId);
     if (activeConversation?.otherUserId) {
       await sendNotification(
