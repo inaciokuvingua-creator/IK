@@ -108,6 +108,7 @@ const Planos        = lazyWithRetry(() => import('./pages/Planos'), 'planos');
 const Chat          = lazyWithRetry(() => import('./pages/Chat'), 'chat');
 const Search        = lazyWithRetry(() => import('./pages/Search'), 'search');
 const Trade         = lazyWithRetry(() => import('./pages/Trade'), 'trade');
+const Academia      = lazyWithRetry(() => import('./pages/Academia'), 'academy');
 
 function PageLoader() {
   return (
@@ -121,12 +122,12 @@ export type Page =
   | 'dashboard' | 'cofres' | 'negocios' | 'patrimonio'
   | 'relatorios' | 'financeiro' | 'configuracoes'
   | 'perfil' | 'empresas' | 'marketplace' | 'minha-loja'
-  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade';
+  | 'planos' | 'chat' | 'comunidades' | 'search' | 'userProfile' | 'storeProfile' | 'trade' | 'academy';
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'cofres', 'negocios', 'patrimonio', 'relatorios', 'financeiro',
   'configuracoes', 'perfil', 'empresas', 'marketplace', 'minha-loja', 'planos',
-  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade',
+  'chat', 'comunidades', 'search', 'userProfile', 'storeProfile', 'trade', 'academy',
 ];
 
 function isPage(value: string): value is Page {
@@ -159,8 +160,8 @@ function AppContent() {
       }
       return;
     }
-    if (requestedPage === 'chat') {
-      setPage('chat');
+    if (requestedPage && isPage(requestedPage)) {
+      setPage(requestedPage);
     }
   }, [user]);
 
@@ -246,6 +247,7 @@ function AppContent() {
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
+      case 'academy': return <Academia />;
       default: return <Dashboard onNavigate={navigate} />;
     }
   };

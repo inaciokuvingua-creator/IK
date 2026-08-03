@@ -3,7 +3,7 @@ import {
   TrendingUp, LayoutDashboard, Vault, Briefcase, Building2 as BuildingIcon,
   BarChart3, Wallet, LogOut, Menu, X, ChevronDown, RefreshCw,
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
-  Users, ChevronRight, Search, LineChart, DatabaseZap,
+  Users, ChevronRight, Search, LineChart, DatabaseZap, BookOpen,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +44,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
         { id: 'patrimonio' as Page, label: t('nav.patrimonio'),   icon: BuildingIcon },
         { id: 'relatorios' as Page, label: t('nav.relatorios'),   icon: BarChart3 },
         { id: 'trade' as Page,      label: 'Trade',                icon: LineChart },
+        { id: 'academy' as Page,    label: 'Academia 360',         icon: BookOpen },
       ],
     },
     {
