@@ -82,7 +82,7 @@ export default function MarketScanner() {
             key={asset.id}
             onClick={() => {
               setSelectedAsset(asset);
-              analyzeAsset(asset.symbol);
+              analyzeAsset(asset.symbol, asset.id);
             }}
             className={`p-4 rounded-xl border transition-all text-left ${
               selectedAsset?.id === asset.id

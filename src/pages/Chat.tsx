@@ -76,12 +76,13 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? null;
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (preferredConversationId?: string | null) => {
     if (!user) return;
     const { data: participantRows } = await supabase.from('chat_participants').select('conversation_id,last_read_at').eq('user_id', user.id).is('left_at', null);
     const conversationIds = (participantRows ?? []).map((item) => item.conversation_id);
     if (conversationIds.length === 0) {
       setConversations([]);
+      setActiveConversationId(null);
       return;
     }
 
@@ -109,11 +110,23 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       } satisfies ConversationSummary;
     }));
     setConversations(summaries);
-    setActiveConversationId((prev) => prev ?? summaries[0]?.id ?? null);
+
+    if (preferredConversationId) {
+      setActiveConversationId(preferredConversationId);
+      return;
+    }
+
+    setActiveConversationId((prev) => {
+      if (prev && summaries.some((item) => item.id === prev)) {
+        return prev;
+      }
+      return summaries[0]?.id ?? null;
+    });
   }, [user]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     setLoading(true);
+    setMessages([]);
     const { data } = await supabase.from('chat_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     setMessages((data ?? []) as ChatMessage[]);
     await supabase.from('chat_participants').update({ last_read_at: new Date().toISOString() }).eq('conversation_id', conversationId).eq('user_id', user!.id);
@@ -130,7 +143,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     (async () => {
       const conversationId = await ensureDirectConversation(user.id, initialUserId);
       setActiveConversationId(conversationId);
-      await loadConversations();
+      await loadConversations(conversationId);
     })();
   }, [initialUserId, loadConversations, user]);
 
@@ -140,7 +153,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
       if (!id || !user) return;
       const conversationId = await ensureDirectConversation(user.id, id);
       setActiveConversationId(conversationId);
-      await loadConversations();
+      await loadConversations(conversationId);
     };
     window.addEventListener('openChatWith', handler as EventListener);
     return () => window.removeEventListener('openChatWith', handler as EventListener);
@@ -239,7 +252,7 @@ if (error) {
       const conversationId = await ensureDirectConversation(user.id, targetProfile.user_id);
       setActiveConversationId(conversationId);
       setNewIdentifier('');
-      await loadConversations();
+      await loadConversations(conversationId);
     }
     setStarting(false);
   };

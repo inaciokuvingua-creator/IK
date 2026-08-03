@@ -14,7 +14,7 @@ interface TradingContextType {
   
   setSelectedAsset: (asset: TradingAsset | null) => void;
   fetchAssets: () => Promise<void>;
-  analyzeAsset: (symbol: string) => Promise<void>;
+  analyzeAsset: (symbol: string, assetId?: string) => Promise<void>;
   fetchEconomicEvents: () => Promise<void>;
   clearError: () => void;
 } 
@@ -49,7 +49,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const analyzeAsset = useCallback(async (symbol: string) => {
+  const analyzeAsset = useCallback(async (symbol: string, assetId?: string) => {
     if (!user) return;
     try {
       setLoading(true);
@@ -94,12 +94,16 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       const { data: predData } = await supabase
         .from('ai_predictions')
         .select('*')
-        .eq('asset_id', selectedAsset?.id)
+        .eq('asset_id', assetId ?? selectedAsset?.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
       
-      if (predData) setPredictions(predData);
+      if (predData) {
+        setPredictions(predData);
+      } else {
+        setPredictions(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro na análise');
     } finally {

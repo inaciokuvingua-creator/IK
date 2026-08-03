@@ -41,12 +41,12 @@ export default function UserProfile({ userId }: { userId: string | null }) {
     if (!user || !userId) return;
     (async () => {
       try {
-        const { data } = await supabase.from('follows').select('*').match({ from_id: user.id, to_id: userId });
-        setIsFollowing(!!(data?.length));
-      } catch (e) { console.error(e); }
-      try {
-        const { data } = await supabase.from('blocks').select('*').match({ blocker_id: user.id, blocked_id: userId });
-        setIsBlocked(!!(data?.length));
+        const [followsRes, blocksRes] = await Promise.all([
+          supabase.from('follows').select('*').match({ from_id: user.id, to_id: userId }),
+          supabase.from('blocks').select('*').match({ blocker_id: user.id, blocked_id: userId }),
+        ]);
+        if (!followsRes.error) setIsFollowing(!!(followsRes.data?.length));
+        if (!blocksRes.error) setIsBlocked(!!(blocksRes.data?.length));
       } catch (e) { console.error(e); }
     })();
   }, [user, userId]);
@@ -71,25 +71,29 @@ export default function UserProfile({ userId }: { userId: string | null }) {
                   if (!user) return alert('Login necessário');
                   try {
                     if (isFollowing) {
-                      await supabase.from('follows').delete().match({ from_id: user.id, to_id: userId });
+                      const { error } = await supabase.from('follows').delete().match({ from_id: user.id, to_id: userId });
+                      if (error) throw error;
                       setIsFollowing(false);
                     } else {
-                      await supabase.from('follows').insert({ from_id: user.id, to_id: userId, created_at: new Date() });
+                      const { error } = await supabase.from('follows').insert({ from_id: user.id, to_id: userId, created_at: new Date().toISOString() });
+                      if (error) throw error;
                       setIsFollowing(true);
                     }
-                  } catch (e) { console.error(e); }
+                  } catch (e) { console.error(e); alert('Não foi possível atualizar a relação de seguimento.'); }
                 }}>{isFollowing ? 'A seguir' : 'Seguir'}</button>
                 <button className="btn" onClick={async () => {
                   if (!user) return alert('Login necessário');
                   try {
                     if (isBlocked) {
-                      await supabase.from('blocks').delete().match({ blocker_id: user.id, blocked_id: userId });
+                      const { error } = await supabase.from('blocks').delete().match({ blocker_id: user.id, blocked_id: userId });
+                      if (error) throw error;
                       setIsBlocked(false);
                     } else {
-                      await supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: userId, created_at: new Date() });
+                      const { error } = await supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: userId, created_at: new Date().toISOString() });
+                      if (error) throw error;
                       setIsBlocked(true);
                     }
-                  } catch (e) { console.error(e); }
+                  } catch (e) { console.error(e); alert('Não foi possível atualizar o bloqueio.'); }
                 }}>{isBlocked ? 'Bloqueado' : 'Bloquear'}</button>
                 <button className="btn" onClick={() => setShowDeal(true)}>Fazer Negócio</button>
               </div>

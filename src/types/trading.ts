@@ -4,7 +4,7 @@ export type AssetType = 'crypto' | 'forex' | 'stocks' | 'indices' | 'commodities
 export type MarketSentiment = 'bullish' | 'bearish' | 'neutral';
 export type ImpactLevel = 'low' | 'medium' | 'high';
 
-export interface TradingAsset {
+export interface TradingAssetBase {
   id: string;
   symbol: string;
   name: string;
@@ -79,6 +79,85 @@ export interface AIPrediction {
   created_at: string;
 }
 
+export interface MarketCandle {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface TradingAsset extends TradingAssetBase {
+  price: number;
+  change: number;
+  volume: string;
+  trend: MarketSentiment;
+  volatility: number;
+  description: string;
+  candles: MarketCandle[];
+}
+
+export interface TradingPosition {
+  id: string;
+  assetId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  entryPrice: number;
+  currentPrice: number;
+  quantity: number;
+  leverage: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  marginUsed: number;
+  unrealizedPnl: number;
+  openedAt: string;
+}
+
+export interface LearningModule {
+  id: string;
+  title: string;
+  category: string;
+  completed: boolean;
+  progress: number;
+}
+
+export interface EconomicNews {
+  id: string;
+  title: string;
+  impact: 'low' | 'medium' | 'high';
+  time: string;
+  summary: string;
+  category: string;
+}
+
+export interface TradingPsychology {
+  fear: number;
+  greed: number;
+  impulsiveTrades: number;
+  discipline: number;
+  focus: number;
+}
+
+export type TradingTimeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D';
+export type TradingIndicator = 'EMA' | 'RSI' | 'MACD' | 'Bollinger' | 'Fibonacci' | 'Volume' | 'Support/Resistance';
+export type DrawingTool = 'Trend' | 'Support' | 'Resistance' | 'Fibonacci';
+
+export interface TradingChallenge {
+  id: string;
+  title: string;
+  description: string;
+  reward: string;
+  completed: boolean;
+}
+
+export interface TradingRankingEntry {
+  id: string;
+  name: string;
+  xp: number;
+  winRate: number;
+  badge: string;
+}
+
 export interface TradeAnalysisResponse {
   asset: string;
   timestamp: string;
@@ -88,11 +167,24 @@ export interface TradeAnalysisResponse {
     score: number;
     label: MarketSentiment;
     news_summary: string;
+    recent_news?: Array<{
+      title: string;
+      source: string;
+      sentiment: string;
+      time: string;
+    }>;
   };
   predictions: {
     optimistic: ScenarioPrediction;
     neutral: ScenarioPrediction;
     pessimistic: ScenarioPrediction;
     explanation: string;
+  };
+  exchange_context?: {
+    rates: Record<string, number>;
+  };
+  external_intel?: {
+    summary: string;
+    aggregated_sources: string[];
   };
 }

@@ -9,6 +9,7 @@ import { useProfile, getTrialDaysLeft, isTrialExpired, type SocialLinks } from '
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { hashSecurityAnswer } from '../lib/accountSecurity';
+import { analyzeDocumentUpload } from '../lib/authIntelligence';
 import PaymentMethodsManager from '../components/PaymentMethodsManager';
 
 const PLAN_INFO = {
@@ -288,23 +289,42 @@ export default function Perfil() {
     if (!user) return;
     setDocumentUploading(true);
     try {
+      const analysis = await analyzeDocumentUpload(file, {
+        documentType: form.document_type || 'bi',
+        documentNumber: form.document_number || undefined,
+        issuerCountry: form.issuer_country || profile?.country || 'AO',
+        holderName: profile?.full_name ?? profile?.nome ?? undefined,
+      });
+
       const path = `${user.id}/${Date.now()}-${file.name}`;
       const { error } = await supabase.storage.from('identity-documents').upload(path, file, { upsert: true });
       if (error) throw error;
+
+      const documentPayload = {
+        user_id: user.id,
+        document_type: analysis.detectedType === 'other' ? (form.document_type || 'bi') : analysis.detectedType,
+        document_number: analysis.documentNumber || form.document_number || 'pendente',
+        issuer_country: analysis.issuerCountry || form.issuer_country || profile?.country || 'AO',
+        issued_at: analysis.issuedAt || form.issued_at || null,
+        expires_at: analysis.expiresAt || form.expires_at || null,
+        document_url: path,
+        verification_status: analysis.confidence > 0.7 ? 'analise_local' : 'pendente',
+        metadata: {
+          analysis_summary: analysis.summary,
+          confidence: analysis.confidence,
+          recommendations: analysis.recommendations,
+        },
+        updated_at: new Date().toISOString(),
+      };
+
       const primaryDocument = documents[0];
       if (primaryDocument) {
-        await supabase.from('user_identity_documents').update({ document_url: path, updated_at: new Date().toISOString() }).eq('id', primaryDocument.id);
+        await supabase.from('user_identity_documents').update(documentPayload).eq('id', primaryDocument.id);
       } else {
-        await supabase.from('user_identity_documents').insert({
-          user_id: user.id,
-          document_type: form.document_type || 'bi',
-          document_number: form.document_number || 'pendente',
-          issuer_country: form.issuer_country || profile?.country || 'AO',
-          document_url: path,
-        });
+        await supabase.from('user_identity_documents').insert(documentPayload);
       }
       await fetchSecurityData();
-      showToast(true, 'Documento privado enviado com sucesso.');
+      showToast(true, `Documento privado enviado com sucesso. ${analysis.summary}`);
     } catch (error) {
       showToast(false, (error as Error).message);
     }
@@ -329,20 +349,27 @@ export default function Perfil() {
     if (!verifType) return;
     setVerifLoading(true);
     try {
-      const { error } = await supabase.from('verifications').insert({ tipo: verifType });
+      const { error } = await supabase.from('verifications').insert({ tipo: verifType, user_id: user?.id ?? null, created_at: new Date().toISOString() });
       if (error) throw error;
       setShowVerifModal(false);
       showToast(true, t('perfil.pedidoEnviado'));
     } catch (error) {
-      showToast(false, (error as Error).message);
+      console.error('request verification', error);
+      showToast(false, 'Não foi possível submeter o pedido de verificação neste momento.');
     }
     setVerifLoading(false);
   };
 
   const revokeDevice = async (deviceId: string) => {
-    await supabase.from('user_devices').update({ revoked_at: new Date().toISOString(), trusted: false, updated_at: new Date().toISOString() }).eq('id', deviceId);
-    await fetchSecurityData();
-    showToast(true, 'Dispositivo removido da lista autorizada.');
+    try {
+      const { error } = await supabase.from('user_devices').update({ revoked_at: new Date().toISOString(), trusted: false, updated_at: new Date().toISOString() }).eq('id', deviceId);
+      if (error) throw error;
+      await fetchSecurityData();
+      showToast(true, 'Dispositivo removido da lista autorizada.');
+    } catch (error) {
+      console.error('revoke device', error);
+      showToast(false, 'Não foi possível revogar o dispositivo.');
+    }
   };
 
   const exportData = async () => {

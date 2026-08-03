@@ -151,14 +151,19 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
     setSavingFollow(true);
     try {
       if (isFollowing) {
-        await supabase.from('store_follows').delete().match({ from_id: user.id, store_id: storeId });
+        const { error } = await supabase.from('store_follows').delete().match({ from_id: user.id, store_id: storeId });
+        if (error) throw error;
         setIsFollowing(false);
         setFollowCount((count) => Math.max(0, count - 1));
       } else {
-        await supabase.from('store_follows').insert({ from_id: user.id, store_id: storeId, created_at: new Date() });
+        const { error } = await supabase.from('store_follows').insert({ from_id: user.id, store_id: storeId, created_at: new Date().toISOString() });
+        if (error) throw error;
         setIsFollowing(true);
         setFollowCount((count) => count + 1);
       }
+    } catch (error) {
+      console.error('toggle follow store', error);
+      alert('Não foi possível atualizar o seguimento da loja.');
     } finally {
       setSavingFollow(false);
     }
@@ -168,11 +173,15 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
     if (!user || !storeId || !reviewRating) return;
     setSubmittingReview(true);
     try {
-      await supabase.from('store_reviews').upsert({ store_id: storeId, rating: reviewRating, comment: reviewComment.trim() || null }, { onConflict: 'store_id,reviewer_id' });
+      const { error } = await supabase.from('store_reviews').insert({ store_id: storeId, reviewer_id: user.id, rating: reviewRating, comment: reviewComment.trim() || null, created_at: new Date().toISOString() });
+      if (error) throw error;
       const { data } = await supabase.from('store_reviews').select('*, reviewer:reviewer_id(nome,avatar_url)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(12);
       setReviews((data ?? []) as StoreReview[]);
       setReviewRating(0);
       setReviewComment('');
+    } catch (error) {
+      console.error('submit review', error);
+      alert('Não foi possível publicar a avaliação.');
     } finally {
       setSubmittingReview(false);
     }
@@ -180,17 +189,24 @@ export default function StoreProfile({ storeId }: { storeId: string | null }) {
 
   const likeReview = async (reviewId: string, currentLikes: number) => {
     if (!user) return;
-    if (likedReviewIds.includes(reviewId)) {
-      await supabase.from('store_review_likes').delete().eq('review_id', reviewId).eq('user_id', user.id);
-      await supabase.from('store_reviews').update({ likes: Math.max(0, currentLikes - 1) }).eq('id', reviewId);
-      setLikedReviewIds((prev) => prev.filter((id) => id !== reviewId));
-      setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: Math.max(0, review.likes - 1) } : review));
-      return;
+    try {
+      if (likedReviewIds.includes(reviewId)) {
+        const { error } = await supabase.from('store_review_likes').delete().eq('review_id', reviewId).eq('user_id', user.id);
+        if (error) throw error;
+        await supabase.from('store_reviews').update({ likes: Math.max(0, currentLikes - 1) }).eq('id', reviewId);
+        setLikedReviewIds((prev) => prev.filter((id) => id !== reviewId));
+        setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: Math.max(0, review.likes - 1) } : review));
+        return;
+      }
+      const { error } = await supabase.from('store_review_likes').insert({ review_id: reviewId, user_id: user.id, created_at: new Date().toISOString() });
+      if (error) throw error;
+      await supabase.from('store_reviews').update({ likes: currentLikes + 1 }).eq('id', reviewId);
+      setLikedReviewIds((prev) => [...prev, reviewId]);
+      setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: review.likes + 1 } : review));
+    } catch (error) {
+      console.error('like review', error);
+      alert('Não foi possível registar a reação à avaliação.');
     }
-    await supabase.from('store_review_likes').upsert({ review_id: reviewId, user_id: user.id }, { onConflict: 'review_id,user_id', ignoreDuplicates: true });
-    await supabase.from('store_reviews').update({ likes: currentLikes + 1 }).eq('id', reviewId);
-    setLikedReviewIds((prev) => [...prev, reviewId]);
-    setReviews((prev) => prev.map((review) => review.id === reviewId ? { ...review, likes: review.likes + 1 } : review));
   };
 
   if (!storeId) return <div className="p-6">Loja não encontrada.</div>;

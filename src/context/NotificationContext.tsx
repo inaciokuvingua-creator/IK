@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useCallback, useRef, useState, ReactNode } from 'react';
 import { supabase, VAPID_PUBLIC_KEY, type NotificationLog, type NotificationPreferences } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -89,6 +89,66 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [notifications, setNotifications] = useState<NotificationLog[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const prefsRef = useRef<NotificationPreferences | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const showLocalNotification = useCallback((titulo: string, corpo: string, url = '/') => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      const notif = new Notification(titulo, {
+        body: corpo,
+        icon: '/icon-192x192.png',
+        badge: '/icon-96x96.png',
+        data: { url },
+      });
+      notif.onclick = () => {
+        window.focus();
+        window.location.assign(url);
+      };
+    } catch {
+      // Ignore browser-specific notification issues.
+    }
+    playNotificationSound();
+  }, [playNotificationSound]);
+
+  useEffect(() => {
+    prefsRef.current = prefs;
+  }, [prefs]);
+
+  const playNotificationSound = useCallback((force = false) => {
+    if (typeof window === 'undefined') return;
+    const allowAudio = force || (prefsRef.current?.push_enabled ?? true);
+    if (!allowAudio) return;
+
+    try {
+      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+
+      const ctx = audioContextRef.current ?? new AudioContextCtor();
+      audioContextRef.current = ctx;
+      if (ctx.state === 'suspended') {
+        void ctx.resume();
+      }
+
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+
+      gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.24);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.24);
+    } catch (error) {
+      console.warn('[Notification] unable to play sound:', error);
+    }
+  }, []);
 
   // Load prefs + notification log + check current push subscription status
   useEffect(() => {
@@ -138,15 +198,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notification_log', filter: `user_id=eq.${user.id}` }, (payload) => {
         const n = payload.new as NotificationLog;
         setNotifications((prev) => [n, ...prev].slice(0, 50));
-        // Tier 2 fallback: show OS notification via Notification API if push not subscribed
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && !document.hasFocus()) {
-          try {
-            new Notification(n.titulo ?? 'IK Finance', {
-              body: n.corpo ?? '',
-              icon: '/icon-192x192.png',
-            });
-          } catch { /* ignore */ }
+          showLocalNotification(n.titulo ?? 'IK Finance', n.corpo ?? '', '/?page=configuracoes');
         }
+        playNotificationSound();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notification_log', filter: `user_id=eq.${user.id}` }, () => {
         supabase.from('notification_log').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
@@ -196,6 +251,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         icon: '/icon-192x192.png',
         badge: '/icon-96x96.png',
       });
+      playNotificationSound(true);
 
       return true;
     } catch (err) {
@@ -228,7 +284,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         new Notification('IK Finance ativado!', {
           body: 'Notificações locais ativas. Receberá alertas quando o app estiver aberto.',
           icon: '/icon-192x192.png',
+          badge: '/icon-96x96.png',
         });
+        playNotificationSound(true);
         await updatePrefs({ push_enabled: true });
         return true;
       }
@@ -254,7 +312,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       const supabaseUrl = env.VITE_SUPABASE_URL as string;
       const anonKey = env.VITE_SUPABASE_ANON_KEY as string;
-      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -263,8 +321,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({ titulo, corpo, tipo, url: options?.url, userId: options?.userId }),
       });
+      if (!response.ok) {
+        throw new Error(`notification request failed: ${response.status}`);
+      }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        showLocalNotification(titulo, corpo, options?.url ?? '/');
+      }
     } catch (err) {
       console.error('[Notification] send failed:', err);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        showLocalNotification(titulo, corpo, options?.url ?? '/');
+      }
     }
   };
 

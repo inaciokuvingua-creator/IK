@@ -105,6 +105,7 @@ export default function Login({ forceReset = false }: { forceReset?: boolean }) 
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
   useEffect(() => {
     if (!resetFlowActive) return;
@@ -164,7 +165,7 @@ export default function Login({ forceReset = false }: { forceReset?: boolean }) 
     setLoading(true);
     setError(null);
     setSuccess(null);
-    const { error: authError } = await signIn(identifier, password);
+    const { error: authError } = await signIn(identifier, password, otpCode);
     if (authError) setError(authError);
     setLoading(false);
   };
@@ -426,6 +427,10 @@ export default function Login({ forceReset = false }: { forceReset?: boolean }) 
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-gray-400">
+                    <label className="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Código 2FA (opcional)</label>
+                    <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="000000" className="w-full bg-slate-900 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500" />
                   </div>
                   <div className="grid sm:grid-cols-3 gap-3 text-xs">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-gray-400">E-mail autenticado</div>

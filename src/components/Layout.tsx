@@ -3,12 +3,13 @@ import {
   TrendingUp, LayoutDashboard, Vault, Briefcase, Building2 as BuildingIcon,
   BarChart3, Wallet, LogOut, Menu, X, ChevronDown, RefreshCw,
   Bell, Settings, User, ShoppingBag, Store, CreditCard, MessageCircle,
-  Users, ChevronRight, Search, LineChart,
+  Users, ChevronRight, Search, LineChart, DatabaseZap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES, type CurrencyCode } from '../context/CurrencyContext';
 import { useNotifications } from '../context/NotificationContext';
+import { getSupabaseHealthStatus } from '../lib/supabaseHealth';
 import { useProfile, getTrialDaysLeft, isTrialExpired } from '../context/ProfileContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import type { Page } from '../App';
@@ -24,6 +25,7 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
   const { user, signOut } = useAuth();
   const { currency, setCurrencyCode, ratesLoading, lastUpdated } = useCurrency();
   const { unreadCount, notifications, markAllRead } = useNotifications();
+  const health = getSupabaseHealthStatus();
   const { profile } = useProfile();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
@@ -83,6 +85,12 @@ export default function Layout({ currentPage, onNavigate, children }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-950 flex">
+      {!health.configured && (
+        <div className="fixed top-0 left-0 right-0 z-[60] border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[11px] text-amber-200 flex items-center justify-center gap-2 backdrop-blur">
+          <DatabaseZap size={14} />
+          <span>{health.summary}</span>
+        </div>
+      )}
       {mobileOpen && (
         <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}

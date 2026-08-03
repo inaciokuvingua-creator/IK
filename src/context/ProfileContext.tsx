@@ -272,36 +272,46 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   const updateProfile = async (patch: Partial<UserProfile>) => {
-  if (!user) return;
+    if (!user) return;
 
-  const nextPatch = {
-    ...patch,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!('profile_completion' in nextPatch)) {
-    nextPatch.profile_completion = buildProfileCompletion({
-      ...(profile ?? {}),
+    const nextPatch = {
       ...patch,
-    });
-  }
+      updated_at: new Date().toISOString(),
+    };
 
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .update(nextPatch)
-    .eq('user_id', user.id)
-    .select()
-    .single();
+    if (!('profile_completion' in nextPatch)) {
+      nextPatch.profile_completion = buildProfileCompletion({
+        ...(profile ?? {}),
+        ...patch,
+      });
+    }
 
-  if (error) {
-    console.error('Erro ao atualizar perfil:', error);
-    throw error;
-  }
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update(nextPatch)
+        .eq('user_id', user.id)
+        .select()
+        .single();
 
-   if (data) {
-    setProfile(normalizeProfile(data, user.email ?? null));
-  }
-};
+      if (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        throw error;
+      }
+
+      if (data) {
+        setProfile(normalizeProfile(data, user.email ?? null));
+      }
+    } catch (error) {
+      console.warn('fallback profile update', error);
+      setProfile(normalizeProfile({
+        ...(profile ?? {}),
+        ...patch,
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      }, user.email ?? null));
+    }
+  };
 
 return (
   <Ctx.Provider

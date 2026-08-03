@@ -5,6 +5,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ProfileProvider } from './context/ProfileContext';
 import { AIProvider } from './context/AIContext';
 import { AnimationProvider } from './context/AnimationContext';
+import { TradingProvider } from './context/TradingContext';
 import Layout from './components/Layout';
 import AIAssistant from './components/AIAssistant';
 import SeasonalOverlay from './components/SeasonalOverlay';
@@ -291,9 +292,11 @@ export default function App() {
           <ProfileProvider>
             <AnimationProvider>
               <AIProvider>
-                <PWAManager />
-                <AppContent />
-                <InstallPrompt />
+                <TradingProvider>
+                  <PWAManager />
+                  <AppContent />
+                  <InstallPrompt />
+                </TradingProvider>
               </AIProvider>
             </AnimationProvider>
           </ProfileProvider>
