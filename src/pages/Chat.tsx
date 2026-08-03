@@ -206,6 +206,29 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     setLoading(true);
     const { data } = await supabase.from('chat_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     setMessages((data ?? []) as ChatMessage[]);
+    const { error: participantError } = await supabase
+  .from('chat_participants')
+  .insert([
+    { 
+      conversation_id: created.id,
+      user_id: currentUserId,
+      role: 'admin'
+    },
+    {
+      conversation_id: created.id,
+      user_id: targetUserId,
+      role: 'member'
+    }
+  ]);
+
+if (participantError) {
+  await supabase
+    .from('chat_conversations')
+    .delete()
+    .eq('id', created.id);
+
+  throw participantError;
+}
     await supabase.from('chat_participants').update({ last_read_at: new Date().toISOString() }).eq('conversation_id', conversationId).eq('user_id', user!.id);
     setLoading(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
