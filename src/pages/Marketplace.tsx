@@ -724,26 +724,75 @@ function ContactSupplierModal({
 
       // Find or create DM conversation
       let convId: string | null = null;
-      const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', userId).is('left_at', null);
+      let myPartsQuery = await supabase
+        .from('chat_participants')
+        .select('conversation_id')
+        .eq('user_id', userId)
+        .is('left_at', null);
+      if (myPartsQuery.error) {
+        myPartsQuery = await supabase
+          .from('chat_participants')
+          .select('conversation_id')
+          .eq('user_id', userId);
+      }
+      const myParts = myPartsQuery.data;
       if (myParts?.length) {
         const ids = myParts.map(p => p.conversation_id);
-        const { data: convs } = await supabase.from('chat_conversations').select('id').eq('type','direct').in('id', ids);
-        if (convs?.length) {
-          for (const c of convs) {
-            const { data: other } = await supabase.from('chat_participants').select('id').eq('conversation_id', c.id).eq('user_id', supplierId).maybeSingle();
-            if (other) { convId = c.id; break; }
+        const byType = await supabase
+          .from('chat_conversations')
+          .select('id,type')
+          .eq('type', 'direct')
+          .in('id', ids);
+        let directIds: string[] = [];
+        if (!byType.error) {
+          directIds = (byType.data ?? []).map((c: any) => c.id);
+        } else {
+          const byGroup = await supabase
+            .from('chat_conversations')
+            .select('id,is_group')
+            .eq('is_group', false)
+            .in('id', ids);
+          directIds = (byGroup.data ?? []).map((c: any) => c.id);
+        }
+
+        if (directIds.length) {
+          for (const id of directIds) {
+            const { data: other } = await supabase
+              .from('chat_participants')
+              .select('id')
+              .eq('conversation_id', id)
+              .eq('user_id', supplierId)
+              .maybeSingle();
+            if (other) { convId = id; break; }
           }
         }
       }
 
       if (!convId) {
-        const { data: conv } = await supabase.from('chat_conversations').insert({ type: 'direct', created_by: userId }).select().single();
-        if (!conv) throw new Error('Falha ao criar conversa');
+        const createByType = await supabase
+          .from('chat_conversations')
+          .insert({ type: 'direct', created_by: userId })
+          .select('id')
+          .single();
+        const conv = !createByType.error
+          ? createByType.data
+          : (await supabase
+              .from('chat_conversations')
+              .insert({ is_group: false, created_by: userId })
+              .select('id')
+              .single()).data;
+
+        if (!conv?.id) throw new Error('Falha ao criar conversa');
         convId = conv.id;
-        await supabase.from('chat_participants').insert([
-          { conversation_id: convId, user_id: userId,     role: 'admin' },
+
+        await supabase.from('chat_participants').upsert(
+          { conversation_id: convId, user_id: userId, role: 'admin' },
+          { onConflict: 'conversation_id,user_id' }
+        );
+        await supabase.from('chat_participants').upsert(
           { conversation_id: convId, user_id: supplierId, role: 'member' },
-        ]);
+          { onConflict: 'conversation_id,user_id' }
+        );
       }
 
       // Create order in pending state
@@ -758,12 +807,14 @@ function ContactSupplierModal({
       // Send initial message with product context
       await supabase.from('chat_messages').insert({
         conversation_id: convId,
+        sender_id: userId,
         type: 'text',
         content: `🛍️ *Interesse em produto*\n\nProduto: ${product.nome}\nPreço: ${format(product.preco)}\n\n${message}`,
       });
       if ((paymentProfiles ?? []).length > 0) {
         await supabase.from('chat_messages').insert({
           conversation_id: convId,
+          sender_id: userId,
           type: 'text',
           content: `💳 *Métodos de pagamento disponíveis*\n\n${paymentInstructions}`,
         });
