@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, BadgeCheck, BarChart3, BookOpen, BrainCircuit, ChevronRight, Clock3, Coins, DollarSign, Flame, GraduationCap, LineChart, Shield, Sparkles, Target, TrendingUp, Zap } from 'lucide-react';
-import AIAnalysisPanel from '../components/Trading/AIAnalysisPanel';
-import EconomicCalendar from '../components/Trading/EconomicCalendar';
-import ExchangeTicker from '../components/Trading/ExchangeTicker';
-import IntelligenceAggregator from '../components/Trading/IntelligenceAggregator';
-import MarketScanner from '../components/Trading/MarketScanner';
-import PredictionCard from '../components/Trading/PredictionCard';
-import TradingMentorAI from '../components/Trading/TradingMentorAI';
 import type { EconomicNews, LearningModule, MarketCandle, TradingAsset, TradingChallenge, TradingIndicator, TradingPosition, TradingPsychology, TradingRankingEntry, TradingTimeframe } from '../types/trading';
 
 const createCandles = (basePrice: number, volatility: number, count = 48): MarketCandle[] => {
@@ -336,9 +329,6 @@ export default function Trade() {
             </div>
           </div>
         </header>
-
-        <ExchangeTicker />
-
         <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
           <section className="space-y-6 rounded-3xl border border-slate-800 bg-slate-950/70 p-4 shadow-2xl shadow-black/30">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -483,7 +473,7 @@ export default function Trade() {
             <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
               <div className="flex items-center gap-2 text-white">
                 <BrainCircuit size={16} className="text-cyan-400" />
-                <h2 className="font-semibold">IK Trading AI</h2>
+                <h2 className="font-semibold">Mentor de treinamento</h2>
               </div>
               <div className="mt-3 rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-3 text-sm text-slate-300">
                 <p className="font-medium text-white">{aiInsight}</p>
@@ -663,33 +653,6 @@ export default function Trade() {
                 ))}
               </div>
             </div>
-          </section>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <MarketScanner />
-          </section>
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <TradingMentorAI />
-          </section>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <PredictionCard />
-          </section>
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <IntelligenceAggregator />
-          </section>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <AIAnalysisPanel />
-          </section>
-          <section className="rounded-3xl border border-slate-800 bg-slate-950/70 p-4">
-            <EconomicCalendar />
           </section>
         </div>
 
