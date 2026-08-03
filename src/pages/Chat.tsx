@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCheck, FileText, Loader2, MessageCircle, Mic, Paperclip, Phone, Search, Send, Trash2, UserPlus, Video, X } from 'lucide-react';
-
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -51,6 +50,13 @@ type MemberRow = {
 };
 
 async function ensureDirectConversation(currentUserId: string, targetUserId: string) {
+
+  const { data: authData } = await supabase.auth.getUser();
+
+  console.log("PARAM currentUserId:", currentUserId);
+  console.log("AUTH user.id:", authData.user?.id);
+  console.log("TARGET:", targetUserId);
+  
   const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', currentUserId).is('left_at', null);
   const ids = (myParts ?? []).map((item) => item.conversation_id);
 
