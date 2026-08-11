@@ -85,7 +85,7 @@
     "title": "Cajas", "subtitle": "Organiza tu dinero en cajas con metas",
     "novoCofre": "Nueva caja", "nenhumCofre": "Sin cajas",
     "meta": "Meta: {{val}}", "selecionar": "Selecciona una caja para ver transacciones",
-    "txCount": "{{n}} transacciones · Saldo: {{val}}", "addTx": "+ Transacción",
+    "txCount": "{{n}} transacciones · Saldo: {{val}}", "addTx": "Transacción",
     "nenhumaTx": "Sin transacciones en esta caja",
     "editar": "Editar", "excluir": "Eliminar",
     "confirmarCofre": "¿Eliminar esta caja? Las transacciones quedarán desvinculadas.",

@@ -20,6 +20,7 @@ import { firstProductImage, parseProductImages } from '../lib/format';
 import { slugify } from '../lib/marketplace';
 import { checkMarketplaceRateLimit, queueMarketplaceModeration } from '../lib/marketplaceGuardrails';
 import { buildPaymentInstructions, type PaymentProfile } from '../lib/paymentProfiles';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import PaymentMethodsManager from '../components/PaymentMethodsManager';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   const [orders, setOrders]         = useState<Order[]>([]);
   const [tokens, setTokens]         = useState<DownloadToken[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState<string | null>(null);
   const [tab, setTab]               = useState<'overview'|'products'|'orders'|'downloads'|'trash'>('overview');
 
   // Forms
@@ -221,32 +223,50 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    const { data: storeData } = await supabase.from('stores').select('*').eq('owner_id', user.id).is('deleted_at', null).maybeSingle();
-    setStore(storeData as Store ?? null);
-    if (!storeData) {
-      const { data: removedStore } = await supabase.from('stores').select('*').eq('owner_id', user.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(1).maybeSingle();
-      setDeletedStore(removedStore as Store ?? null);
-    } else {
-      setDeletedStore(null);
+    if (!user) {
+      setLoading(false);
+      return;
     }
 
-    if (storeData) {
-      const [prods, trashProds, ordsData, toks, payments] = await Promise.all([
-        supabase.from('products').select('*').eq('store_id', storeData.id).is('deleted_at', null).order('created_at',{ascending:false}),
-        supabase.from('products').select('*').eq('store_id', storeData.id).not('deleted_at','is',null).order('deleted_at',{ascending:false}),
-        supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo,arquivo_url), profiles:buyer_id(nome,avatar_url), order_proofs(id,url,name,created_at)').eq('store_id', storeData.id).order('created_at',{ascending:false}),
-        supabase.from('download_tokens').select('*, products:product_id(nome), profiles:buyer_id(nome)').in('product_id', (await supabase.from('products').select('id').eq('store_id',storeData.id)).data?.map(p=>p.id) ?? []).order('created_at',{ascending:false}),
-        supabase.from('payment_profiles').select('*').eq('owner_type', 'store').eq('store_id', storeData.id).eq('is_active', true).order('is_default', { ascending: false }),
-      ]);
-      setProducts(prods.data as Product[] ?? []);
-      setTrash(trashProds.data as Product[] ?? []);
-      setOrders(ordsData.data as Order[] ?? []);
-      setTokens(toks.data as DownloadToken[] ?? []);
-      setStorePaymentMethods(payments.data as StorePaymentProfile[] ?? []);
+    if (!isSupabaseConfigured) {
+      setLoadError('O backend da loja não está configurado neste ambiente. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para gerir a loja.');
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    setLoading(true);
+    setLoadError(null);
+
+    try {
+      const { data: storeData } = await supabase.from('stores').select('*').eq('owner_id', user.id).is('deleted_at', null).maybeSingle();
+      setStore(storeData as Store ?? null);
+      if (!storeData) {
+        const { data: removedStore } = await supabase.from('stores').select('*').eq('owner_id', user.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(1).maybeSingle();
+        setDeletedStore(removedStore as Store ?? null);
+      } else {
+        setDeletedStore(null);
+      }
+
+      if (storeData) {
+        const [prods, trashProds, ordsData, toks, payments] = await Promise.all([
+          supabase.from('products').select('*').eq('store_id', storeData.id).is('deleted_at', null).order('created_at',{ascending:false}),
+          supabase.from('products').select('*').eq('store_id', storeData.id).not('deleted_at','is',null).order('deleted_at',{ascending:false}),
+          supabase.from('orders').select('*, products:product_id(nome,imagem_url,tipo,arquivo_url), profiles:buyer_id(nome,avatar_url), order_proofs(id,url,name,created_at)').eq('store_id', storeData.id).order('created_at',{ascending:false}),
+          supabase.from('download_tokens').select('*, products:product_id(nome), profiles:buyer_id(nome)').in('product_id', (await supabase.from('products').select('id').eq('store_id',storeData.id)).data?.map(p=>p.id) ?? []).order('created_at',{ascending:false}),
+          supabase.from('payment_profiles').select('*').eq('owner_type', 'store').eq('store_id', storeData.id).eq('is_active', true).order('is_default', { ascending: false }),
+        ]);
+        setProducts(prods.data as Product[] ?? []);
+        setTrash(trashProds.data as Product[] ?? []);
+        setOrders(ordsData.data as Order[] ?? []);
+        setTokens(toks.data as DownloadToken[] ?? []);
+        setStorePaymentMethods(payments.data as StorePaymentProfile[] ?? []);
+      }
+    } catch (error) {
+      console.error('[MinhaLoja] falha ao carregar dados da loja', error);
+      setLoadError('Não foi possível carregar os dados da loja. Verifique a ligação ao Supabase e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -519,6 +539,27 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
     </div>
   );
 
+  if (loadError && !store && !showStoreForm) return (
+    <div className={`space-y-6 ${entryClass()}`}>
+      <h1 className="text-white text-2xl font-bold">Minha Loja</h1>
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto">
+          <AlertTriangle size={28} className="text-red-400" />
+        </div>
+        <p className="text-white font-bold text-xl">Não foi possível carregar a loja</p>
+        <p className="text-gray-400 text-sm max-w-lg mx-auto">{loadError}</p>
+        <div className="flex gap-3 justify-center flex-wrap">
+          <button onClick={() => void loadAll()} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-5 py-3 rounded-xl">
+            <RefreshCw size={16} /> Tentar novamente
+          </button>
+          <button onClick={openStoreForm} className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-semibold px-5 py-3 rounded-xl border border-gray-700">
+            <Plus size={16} /> Criar loja
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ── No store yet ───────────────────────────────────────────────────────────
   if (!store && deletedStore && !showStoreForm) return (
     <div className={`space-y-6 ${entryClass()}`}>
@@ -554,6 +595,15 @@ export default function MinhaLoja({ onNavigate }: { onNavigate?: (p: string)=>vo
   return (
     <div className={`space-y-5 ${entryClass()}`}>
       {/* ── Header ── */}
+      {loadError && (
+        <div className="bg-red-950/30 border border-red-500/30 rounded-2xl p-4 text-red-100 flex items-start gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-400" />
+          <div>
+            <p className="font-semibold text-sm">Sincronização incompleta</p>
+            <p className="text-sm text-red-100/80 mt-1">{loadError}</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-white text-2xl font-bold">Minha Loja</h1>

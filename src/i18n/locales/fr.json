@@ -85,7 +85,7 @@
     "title": "Coffres", "subtitle": "Organisez votre argent en coffres avec des objectifs",
     "novoCofre": "Nouveau coffre", "nenhumCofre": "Aucun coffre créé",
     "meta": "Objectif : {{val}}", "selecionar": "Sélectionnez un coffre pour voir les transactions",
-    "txCount": "{{n}} transactions · Solde : {{val}}", "addTx": "+ Transaction",
+    "txCount": "{{n}} transactions · Solde : {{val}}", "addTx": "Transaction",
     "nenhumaTx": "Aucune transaction dans ce coffre",
     "editar": "Modifier", "excluir": "Supprimer",
     "confirmarCofre": "Supprimer ce coffre ? Les transactions seront dissociées.",

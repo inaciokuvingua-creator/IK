@@ -85,7 +85,7 @@
     "title": "金庫", "subtitle": "目標付き金庫でお金を整理",
     "novoCofre": "新規金庫", "nenhumCofre": "金庫なし",
     "meta": "目標：{{val}}", "selecionar": "取引を表示する金庫を選択",
-    "txCount": "{{n}} 件の取引 · 残高：{{val}}", "addTx": "+ 取引",
+    "txCount": "{{n}} 件の取引 · 残高：{{val}}", "addTx": "取引",
     "nenhumaTx": "この金庫に取引なし",
     "editar": "編集", "excluir": "削除",
     "confirmarCofre": "この金庫を削除しますか？取引のリンクが解除されます。",

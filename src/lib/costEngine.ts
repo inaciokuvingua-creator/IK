@@ -2,6 +2,60 @@ import { supabase } from './supabase';
 
 export type Money = { amount: number; currency: string };
 
+export type CofreSimulationItem = {
+  item: any;
+  bestTotal: number;
+  bestQuote: any;
+  quantity: number;
+};
+
+export type CofreSimulation = {
+  cofreId: string;
+  cofreName: string | null;
+  balance: number;
+  goalTotal: number;
+  goalProgress: number;
+  totalNeeded: number;
+  canBuyAll: boolean;
+  currency: string;
+  items: CofreSimulationItem[];
+  purchases: Array<{ item: any; cost: number; fornecedor: string | null }>;
+  remaining: number;
+  reserve: number;
+  safeBudget: number;
+  inflows30Days: number;
+  outflows30Days: number;
+  net30Days: number;
+  projectedMonthlyNet: number;
+  estimatedDaysToGoal: number | null;
+  runwayDays: number | null;
+  riskLevel: 'low' | 'medium' | 'high';
+  healthScore: number;
+  recommendations: string[];
+  summary: string;
+  message: string;
+  saldo_atual: number;
+  meta_total: number;
+};
+
+function asDate(value: string | null | undefined) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+function daysBetween(a: Date, b: Date) {
+  return Math.max(0, Math.floor((b.getTime() - a.getTime()) / 86400000));
+}
+
+function getTxValue(tx: any) {
+  const amount = Number(tx?.valor ?? 0);
+  return tx?.tipo === 'saida' ? -Math.abs(amount) : Math.abs(amount);
+}
+
+function round(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 export async function getLatestRate(currency: string, base = 'KZ'): Promise<number | null> {
   if (!currency || currency === base) return 1;
   const { data, error } = await supabase.from('exchange_rates').select('rate').eq('currency', currency).order('fetched_at', { ascending: false }).limit(1).maybeSingle();
@@ -115,15 +169,35 @@ export async function batchConvertAmounts(items: { amount: number; currency: str
   return items.map((it) => ({ original: it, converted: (it.currency === target ? it.amount : (it.amount * (rates[it.currency] || 1))), currency: target }));
 }
 
-export async function computeSimulationForCofre(cofreId: string, targetCurrency = 'KZ') {
-  // Fetch cofre balance and goal items, then compute best quotes and simulate purchases
-  const { data: cofres } = await supabase.from('cofres').select('id,saldo').eq('id', cofreId).maybeSingle();
-  const balance = cofres ? Number((cofres as any).saldo || 0) : 0;
+export async function computeSimulationForCofre(cofreId: string, targetCurrency = 'KZ'): Promise<CofreSimulation> {
+  // Fetch cofre balance, goal items and recent transactions, then simulate with reserve-aware budgeting.
+  const { data: cofreRow } = await supabase.from('cofres').select('id,nome,saldo,meta').eq('id', cofreId).maybeSingle();
+  const balance = cofreRow ? Number((cofreRow as any).saldo || 0) : 0;
+  const meta = cofreRow ? Number((cofreRow as any).meta || 0) : 0;
+
+  const { data: txRows } = await supabase
+    .from('transacoes')
+    .select('id,tipo,valor,data_transacao,created_at,descricao,categoria')
+    .eq('cofre_id', cofreId)
+    .order('data_transacao', { ascending: false });
+
+  const transactions = (txRows ?? []) as any[];
+  const now = new Date();
+  const tx30Days = transactions.filter((tx) => daysBetween(asDate(tx.data_transacao ?? tx.created_at), now) <= 30);
+  const inflows30Days = round(tx30Days.filter((tx) => tx.tipo === 'entrada').reduce((sum, tx) => sum + Number(tx.valor ?? 0), 0));
+  const outflows30Days = round(tx30Days.filter((tx) => tx.tipo === 'saida').reduce((sum, tx) => sum + Number(tx.valor ?? 0), 0));
+  const net30Days = round(inflows30Days - outflows30Days);
+  const projectedMonthlyNet = round(net30Days);
+
+  const reserveFromHistory = outflows30Days > 0 ? outflows30Days * 0.35 : Math.max(balance * 0.1, 0);
+  const reserveFromGoal = meta > 0 ? Math.max(meta * 0.1, 0) : 0;
+  const reserve = round(Math.max(reserveFromHistory, reserveFromGoal));
+  const safeBudget = round(Math.max(0, balance - reserve));
 
   const { data: items } = await supabase.from('goal_items').select('*').eq('cofre_id', cofreId);
   const goalItems = items || [];
 
-  const enriched: any[] = [];
+  const enriched: CofreSimulationItem[] = [];
   for (const it of goalItems) {
     // compute best totals for this item
     const quotesRes = await computeItemQuotesTotals(it.id, it.quantidade || 1, targetCurrency);
@@ -141,7 +215,7 @@ export async function computeSimulationForCofre(cofreId: string, targetCurrency 
   enriched.sort((a, b) => a.bestTotal - b.bestTotal);
 
   // simulate purchases
-  let remaining = balance;
+  let remaining = safeBudget;
   const purchases: any[] = [];
   for (const e of enriched) {
     if (e.bestTotal <= remaining) {
@@ -151,16 +225,87 @@ export async function computeSimulationForCofre(cofreId: string, targetCurrency 
   }
 
   const totalNeeded = enriched.reduce((s, x) => s + Number(x.bestTotal || 0), 0);
+  const goalTotal = meta > 0 ? meta : totalNeeded;
+  const goalProgress = goalTotal > 0 ? round(Math.min(100, (balance / goalTotal) * 100)) : 0;
+  const estimatedDaysToGoal = meta > balance && projectedMonthlyNet > 0
+    ? Math.ceil(((meta - balance) / projectedMonthlyNet) * 30)
+    : meta > 0 && balance >= meta
+      ? 0
+      : null;
+  const runwayDays = projectedMonthlyNet < 0
+    ? Math.floor(balance / Math.abs(projectedMonthlyNet / 30 || 1))
+    : null;
+
+  const recommendations: string[] = [];
+  if (meta > 0) {
+    const gap = round(Math.max(0, meta - balance));
+    if (gap > 0) {
+      recommendations.push(`Faltam ${gap.toLocaleString('pt-AO')} para atingir a meta deste cofre.`);
+      if (estimatedDaysToGoal !== null && estimatedDaysToGoal > 0) {
+        recommendations.push(`Ao ritmo atual, a meta fica a aproximadamente ${estimatedDaysToGoal} dias.`);
+      }
+    } else {
+      recommendations.push('A meta deste cofre já foi atingida. Considere proteger um fundo de reserva antes de novas compras.');
+    }
+  }
+  if (projectedMonthlyNet < 0) {
+    recommendations.push('O fluxo recente está negativo. Reduza saídas ou adie compras menos urgentes.');
+  } else if (projectedMonthlyNet > 0) {
+    recommendations.push('O fluxo recente está positivo. Há espaço para reforçar a meta sem comprometer o cofre.');
+  }
+  if (safeBudget < totalNeeded) {
+    recommendations.push('O orçamento seguro não cobre todos os itens. A simulação priorizou os mais baratos primeiro.');
+  }
+  if (goalItems.length === 0) {
+    recommendations.push('Adicione itens da meta para obter uma simulação de compras mais precisa.');
+  }
+
+  const canBuyAll = purchases.length === enriched.length && totalNeeded <= safeBudget;
+  const riskLevel: CofreSimulation['riskLevel'] = projectedMonthlyNet < 0 && balance < meta
+    ? 'high'
+    : projectedMonthlyNet < 0 || safeBudget < totalNeeded
+      ? 'medium'
+      : 'low';
+  const healthScore = Math.max(0, Math.min(100,
+    45
+    + (projectedMonthlyNet > 0 ? 18 : projectedMonthlyNet < 0 ? -18 : 0)
+    + (meta > 0 && balance >= meta ? 15 : meta > 0 ? -8 : 4)
+    + (canBuyAll ? 12 : -8)
+    + (transactions.length > 0 ? 8 : -6)
+  ));
+
+  const summary = recommendations[0]
+    ?? (canBuyAll
+      ? 'A simulação inteligente indica que o cofre suporta todos os itens priorizados com reserva protegida.'
+      : 'A simulação inteligente priorizou o orçamento seguro para evitar comprometer o cofre.');
 
   return {
     cofreId,
+    cofreName: (cofreRow as any)?.nome ?? null,
     balance,
+    goalTotal,
+    goalProgress,
+    totalNeeded,
+    canBuyAll,
+    currency: targetCurrency,
     items: enriched,
     purchases,
     remaining,
-    totalNeeded,
-    canBuyAll: purchases.length === enriched.length,
-    currency: targetCurrency,
+    reserve,
+    safeBudget,
+    inflows30Days,
+    outflows30Days,
+    net30Days,
+    projectedMonthlyNet,
+    estimatedDaysToGoal,
+    runwayDays,
+    riskLevel,
+    healthScore,
+    recommendations,
+    summary,
+    message: summary,
+    saldo_atual: balance,
+    meta_total: goalTotal,
   };
 }
 

@@ -6,6 +6,7 @@ import type { Cofre, Transacao } from '../lib/supabase';
 import { formatDate } from '../lib/format';
 import { useCurrency } from '../context/CurrencyContext';
 import AdvancedModal from '../components/AdvancedModal';
+import CofreFinancialPanel from '../components/CofreFinancialPanel';
 import { useNotifyAction } from '../lib/notify';
 import { supabase as sb } from '../lib/supabase';
 import type { GoalItem } from '../lib/supabase';
@@ -829,24 +830,12 @@ export default function Cofres() {
 
       {showSimModal && simResult && (
         <Modal title="Resultado da simulação" onClose={() => setShowSimModal(false)}>
-          <div className="space-y-3 text-sm">
-            <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
-              <p className="text-gray-400 text-xs">Cofre</p>
-              <p className="text-white font-medium">{selected?.nome}</p>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-4 text-sm text-emerald-100">
+              <p className="font-semibold">{simResult.summary ?? 'Simulação inteligente concluída.'}</p>
+              <p className="mt-1 text-emerald-100/80">{selected?.nome} foi avaliado com saldo, meta, fluxo recente e reserva de segurança.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
-                <p className="text-gray-400 text-xs">Saldo atual</p>
-                <p className="text-white font-semibold">{format(Number(simResult.saldo_atual || selected?.saldo || 0))}</p>
-              </div>
-              <div className="rounded-xl border border-gray-800 bg-gray-950/50 p-3">
-                <p className="text-gray-400 text-xs">Meta estimada</p>
-                <p className="text-white font-semibold">{format(Number(simResult.meta_total || selected?.meta || 0))}</p>
-              </div>
-            </div>
-            {typeof simResult.message === 'string' && (
-              <p className="text-xs text-amber-200 rounded-xl border border-amber-900/50 bg-amber-950/30 p-3">{simResult.message}</p>
-            )}
+            <CofreFinancialPanel sim={simResult} />
           </div>
         </Modal>
       )}

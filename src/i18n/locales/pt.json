@@ -85,7 +85,7 @@
     "title": "Cofres", "subtitle": "Organize seu dinheiro em cofres com metas",
     "novoCofre": "Novo Cofre", "nenhumCofre": "Nenhum cofre criado",
     "meta": "Meta: {{val}}", "selecionar": "Selecione um cofre para ver as transações",
-    "txCount": "{{n}} transações · Saldo: {{val}}", "addTx": "+ Transação",
+    "txCount": "{{n}} transações · Saldo: {{val}}", "addTx": "Transação",
     "nenhumaTx": "Nenhuma transação neste cofre",
     "editar": "Editar", "excluir": "Excluir",
     "confirmarCofre": "Excluir este cofre? As transações serão desvinculadas.",

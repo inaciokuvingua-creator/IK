@@ -85,7 +85,7 @@
     "title": "Vaults", "subtitle": "Organise your money in vaults with goals",
     "novoCofre": "New Vault", "nenhumCofre": "No vaults created",
     "meta": "Goal: {{val}}", "selecionar": "Select a vault to view transactions",
-    "txCount": "{{n}} transactions · Balance: {{val}}", "addTx": "+ Transaction",
+    "txCount": "{{n}} transactions · Balance: {{val}}", "addTx": "Transaction",
     "nenhumaTx": "No transactions in this vault",
     "editar": "Edit", "excluir": "Delete",
     "confirmarCofre": "Delete this vault? Transactions will be unlinked.",

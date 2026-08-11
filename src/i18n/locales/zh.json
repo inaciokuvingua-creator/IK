@@ -85,7 +85,7 @@
     "title": "金库", "subtitle": "将资金组织到带目标的金库中",
     "novoCofre": "新建金库", "nenhumCofre": "暂无金库",
     "meta": "目标：{{val}}", "selecionar": "选择金库以查看交易",
-    "txCount": "{{n}} 笔交易 · 余额：{{val}}", "addTx": "+ 交易",
+    "txCount": "{{n}} 笔交易 · 余额：{{val}}", "addTx": "交易",
     "nenhumaTx": "此金库暂无交易",
     "editar": "编辑", "excluir": "删除",
     "confirmarCofre": "删除此金库？交易将被取消关联。",
