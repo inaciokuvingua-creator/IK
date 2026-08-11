@@ -1,0 +1,989 @@
+🚀 MISSÃO: AUDITORIA, RECONSTRUÇÃO E INTEGRAÇÃO COMPLETA DO SUPABASE — IK FINANCE
+
+Assume o papel de Senior Full-Stack Engineer + PostgreSQL/Supabase Architect + Security Engineer responsável pelo backend completo do projeto IK FINANCE.
+
+O objetivo NÃO é simplesmente criar algumas tabelas.
+
+Quero que analises o site IK FINANCE existente e faças o Supabase funcionar de forma completa, segura, consistente e integrada com aquilo que o código REALMENTE utiliza.
+
+⸻
+
+1. REGRA PRINCIPAL
+
+Antes de criar ou alterar qualquer coisa:
+
+ANALISA PRIMEIRO O PROJETO INTEIRO.
+
+Não inventes funcionalidades ou estruturas sem verificar se elas são necessárias para o site.
+
+Analisa:
+
+* todas as páginas
+* componentes
+* hooks
+* contexts/providers
+* services
+* utilities
+* types/interfaces
+* chamadas supabase.from()
+* supabase.rpc()
+* supabase.auth
+* Storage
+* Realtime
+* Edge Functions
+* formulários
+* dashboards
+* gráficos
+* páginas administrativas
+* sistema de chat
+* marketplace
+* sistema financeiro
+* negócios
+* patrimônio
+* cofres
+* relatórios
+* notificações
+* planos/subscrições
+* perfil
+* configurações
+* sistema de IA
+* Trading
+* integrações externas
+* qualquer outra funcionalidade existente.
+
+Procura também por:
+
+supabase.from(
+supabase.rpc(
+supabase.auth
+supabase.storage
+supabase.channel
+insert(
+update(
+upsert(
+delete(
+select(
+eq(
+in(
+maybeSingle(
+single(
+
+e outras formas de acesso ao Supabase.
+
+⸻
+
+2. NÃO DESTRUIR O QUE JÁ EXISTE
+
+Antes de alterar o banco:
+
+Analisa:
+
+supabase/
+supabase/migrations/
+
+e todos os SQL existentes.
+
+Se já houver tabelas, migrations, policies, funções ou estruturas úteis:
+
+PRESERVA-AS.
+
+Não faças:
+
+DROP TABLE
+DROP DATABASE
+DROP SCHEMA
+
+nem apagues dados existentes apenas para facilitar a implementação.
+
+Sempre que possível utiliza:
+
+CREATE TABLE IF NOT EXISTS
+ALTER TABLE
+CREATE INDEX IF NOT EXISTS
+CREATE POLICY
+DROP POLICY IF EXISTS
+CREATE OR REPLACE FUNCTION
+
+ou outras estratégias seguras e idempotentes.
+
+Se for necessário alterar uma estrutura existente, cria uma migration incremental.
+
+⸻
+
+3. CRIAR UM MAPA COMPLETO DO SISTEMA
+
+Primeiro cria mentalmente/tecnicamente um mapa:
+
+IK FINANCE
+│
+├── Autenticação
+├── Utilizadores
+├── Perfis
+├── Dashboard
+├── Cofres
+├── Financeiro
+├── Transações
+├── Orçamento
+├── Metas
+├── Patrimônio
+├── Ativos
+├── Negócios
+├── Empresas
+├── Marketplace
+├── Lojas
+├── Produtos
+├── Pedidos
+├── Chat
+├── Mensagens
+├── Stories
+├── Comentários
+├── Reações
+├── Notificações
+├── Relatórios
+├── Planos
+├── Subscrições
+├── Pagamentos
+├── IA
+├── Trading
+├── Alertas
+├── Admin
+├── Storage
+├── Realtime
+└── outras funcionalidades encontradas no código
+
+Não assumes que todos estes módulos precisam exatamente destas tabelas.
+
+Descobre a estrutura real através do código.
+
+⸻
+
+4. CRIAR O SCHEMA REAL NECESSÁRIO
+
+Para cada funcionalidade encontrada no site:
+
+1. identifica os dados necessários;
+2. identifica onde são armazenados;
+3. identifica os relacionamentos;
+4. identifica quem pode ler;
+5. identifica quem pode criar;
+6. identifica quem pode atualizar;
+7. identifica quem pode apagar;
+8. identifica se precisa de Realtime;
+9. identifica se precisa de Storage;
+10. identifica se precisa de RPC;
+11. identifica se precisa de Edge Function.
+
+Depois cria ou corrige a estrutura PostgreSQL necessária.
+
+⸻
+
+5. RELACIONAMENTOS
+
+Analisa todos os relacionamentos.
+
+Utiliza corretamente:
+
+PRIMARY KEY
+FOREIGN KEY
+UNIQUE
+NOT NULL
+CHECK
+DEFAULT
+ON DELETE CASCADE
+ON DELETE SET NULL
+ON UPDATE CASCADE
+
+quando apropriado.
+
+Evita relacionamentos redundantes.
+
+Não utilizes text para IDs quando o projeto utiliza UUID.
+
+Mantém consistência entre:
+
+auth.users
+profiles
+user_id
+created_by
+owner_id
+company_id
+business_id
+
+e quaisquer outros identificadores encontrados no projeto.
+
+⸻
+
+6. RLS — SEGURANÇA COMPLETA
+
+Este é um dos pontos mais importantes.
+
+Para TODAS as tabelas acessíveis pela aplicação, verifica:
+
+RLS habilitado?
+SELECT policy?
+INSERT policy?
+UPDATE policy?
+DELETE policy?
+Ownership?
+Admin access?
+Business/company access?
+
+Não utilizes uma policy genérica como:
+
+TO authenticated
+
+sem verificar autorização.
+
+O utilizador autenticado deve ter acesso somente aos dados que realmente pode acessar.
+
+Exemplo:
+
+to authenticated
+using ((select auth.uid()) = user_id)
+
+Para UPDATE verifica também:
+
+with check ((select auth.uid()) = user_id)
+
+Não utilizes:
+
+auth.role()
+
+como mecanismo principal de autorização.
+
+Não utilizes user_metadata para decisões de autorização.
+
+Nunca coloques:
+
+SUPABASE_SERVICE_ROLE_KEY
+
+no frontend.
+
+⸻
+
+7. ADMIN
+
+Analisa como o projeto implementa o /admin.
+
+Cria uma arquitetura segura para administradores.
+
+Não confies simplesmente em:
+
+is_admin = true
+
+enviado pelo frontend.
+
+Se o sistema atual possuir uma estrutura de roles, analisa-a e melhora-a sem quebrar o funcionamento.
+
+Define corretamente:
+
+user
+admin
+super_admin
+business_owner
+seller
+
+ou somente os papéis realmente existentes no projeto.
+
+Admin deve conseguir administrar aquilo que o site realmente permite, mas utilizadores comuns não devem conseguir elevar os próprios privilégios.
+
+⸻
+
+8. CHAT
+
+Analisa profundamente o sistema de Chat existente.
+
+Verifica/cria tudo que o código realmente utiliza:
+
+conversations
+conversation_members
+messages
+message_reactions
+message_replies
+attachments
+media
+stories
+story_views
+notifications
+
+ou os nomes reais já existentes no projeto.
+
+Suporta:
+
+* mensagens
+* conversas individuais
+* grupos
+* membros
+* anexos
+* imagens
+* vídeos
+* documentos
+* reações
+* respostas
+* mensagens editadas
+* mensagens apagadas
+* stories
+* visualizações
+* notificações
+* timestamps
+* unread count
+
+Não cries tabelas desnecessárias se o projeto não precisar delas.
+
+⸻
+
+9. MARKETPLACE
+
+Analisa o Marketplace atual e cria a estrutura necessária.
+
+Verifica:
+
+sellers
+stores
+products
+product_images
+categories
+orders
+order_items
+payments
+reviews
+favorites
+cart
+
+somente se realmente forem necessárias pelo código.
+
+Implementa relacionamentos e RLS corretos.
+
+Um vendedor não pode modificar produtos de outro vendedor.
+
+Um comprador não deve conseguir visualizar dados privados de outros compradores.
+
+⸻
+
+10. FINANCEIRO
+
+Analisa todo o módulo financeiro.
+
+A estrutura deve suportar aquilo que o site já implementa, incluindo quando aplicável:
+
+accounts
+transactions
+income
+expenses
+categories
+budgets
+goals
+goal_items
+recurring_transactions
+financial_documents
+
+Não inventes uma estrutura paralela.
+
+Integra-a ao código existente.
+
+Garante:
+
+* valores monetários corretos
+* moeda
+* descrição
+* categoria
+* data
+* tipo
+* status
+* utilizador
+* conta
+* referências
+* timestamps
+
+Nunca utilize float para dinheiro se numeric/decimal for apropriado.
+
+⸻
+
+11. COFRES
+
+Analisa o módulo Cofres.
+
+Verifica:
+
+* criação de cofres
+* depósitos
+* retiradas
+* metas
+* progresso
+* transações
+* saldo
+* moeda
+* histórico
+
+Garante que um utilizador nunca consiga modificar o cofre de outro utilizador.
+
+⸻
+
+12. PATRIMÔNIO
+
+Analisa o módulo Patrimônio.
+
+Verifica ativos, passivos, bens, investimentos ou outros dados realmente presentes no site.
+
+Cria os relacionamentos necessários.
+
+Calcula corretamente:
+
+Patrimônio líquido
+Ativos
+Passivos
+Valor total
+
+quando esses dados fizerem parte do sistema.
+
+⸻
+
+13. NEGÓCIOS E EMPRESAS
+
+Analisa o sistema de Negócios/Empresas.
+
+Verifica:
+
+businesses
+companies
+members
+roles
+transactions
+expenses
+revenues
+employees
+documents
+
+somente quando necessário.
+
+Cria uma estrutura multi-tenant segura.
+
+Um utilizador de uma empresa NÃO pode acessar dados privados de outra empresa.
+
+⸻
+
+14. RELATÓRIOS
+
+Analisa todos os relatórios e gráficos.
+
+Identifica de onde os dados são obtidos.
+
+Cria:
+
+* views
+* RPCs
+* queries
+* índices
+
+somente quando realmente melhorarem a aplicação.
+
+Não duplica dados apenas para facilitar gráficos.
+
+⸻
+
+15. IA — ASSISTENTE IK FINANCE
+
+Analisa a implementação atual do assistente IA.
+
+A IA deve poder trabalhar com o contexto permitido do utilizador, incluindo quando aplicável:
+
+finanças
+transações
+cofres
+metas
+patrimônio
+negócios
+empresas
+relatórios
+marketplace
+trading
+empreendedorismo
+contabilidade
+gestão
+
+Mas:
+
+A IA nunca deve conseguir acessar dados de outro utilizador.
+
+Analisa se é necessário criar tabelas para:
+
+conversations
+messages
+memory
+assistant_preferences
+AI usage
+AI logs
+
+somente se forem necessárias.
+
+⸻
+
+16. TRADING
+
+Analisa o módulo Trading existente.
+
+Verifica as tabelas e funcionalidades utilizadas, incluindo quando presentes:
+
+trading_assets
+market_analysis
+economic_events
+trading_alerts
+ai_predictions
+
+Verifica:
+
+* relacionamentos
+* índices
+* RLS
+* alertas
+* previsões
+* histórico
+* dados de mercado
+* IA
+* simulador
+
+Não transforma o módulo em sistema financeiro real se o código atual for apenas simulador.
+
+⸻
+
+17. STORAGE
+
+Analisa todos os uploads.
+
+Procura por:
+
+supabase.storage.from(...)
+
+Descobre todos os buckets necessários.
+
+Para cada bucket:
+
+* identifica quem pode fazer upload;
+* quem pode visualizar;
+* quem pode atualizar;
+* quem pode apagar;
+* cria policies adequadas.
+
+Verifica especialmente:
+
+chat-media
+avatars
+documents
+products
+stories
+
+ou os buckets reais encontrados.
+
+Nunca torne privado aquilo que o site precisa que seja público e nunca torne público aquilo que deve ser privado.
+
+⸻
+
+18. REALTIME
+
+Analisa:
+
+supabase.channel(...)
+
+e subscriptions.
+
+Descobre quais tabelas realmente precisam de Realtime.
+
+Verifica:
+
+* chat
+* notificações
+* mensagens
+* atualizações em tempo real
+* outros módulos
+
+Corrige a publicação do Realtime quando necessário.
+
+Não habilites Realtime indiscriminadamente para todas as tabelas.
+
+⸻
+
+19. RPCs E FUNÇÕES
+
+Procura no projeto:
+
+supabase.rpc(...)
+
+Para cada RPC:
+
+1. verifica se existe;
+2. verifica parâmetros;
+3. verifica retorno;
+4. verifica segurança;
+5. verifica se o frontend espera exatamente aquela estrutura.
+
+Cria/corrige as funções necessárias.
+
+Não uses SECURITY DEFINER apenas para contornar problemas de RLS.
+
+Quando SECURITY DEFINER for realmente necessário, trata-o com extremo cuidado e limita permissões.
+
+⸻
+
+20. ÍNDICES E PERFORMANCE
+
+Analisa queries frequentes.
+
+Cria índices para:
+
+user_id
+owner_id
+company_id
+business_id
+created_at
+updated_at
+foreign keys
+status
+
+quando realmente necessários.
+
+Não cries centenas de índices sem necessidade.
+
+Verifica queries que utilizam:
+
+.eq()
+.in()
+.order()
+.range()
+.ilike()
+
+e cria índices apropriados quando fizer sentido.
+
+⸻
+
+21. MIGRATIONS
+
+TODAS as alterações no banco devem ser transformadas em migrations.
+
+Organiza:
+
+supabase/migrations/
+
+com nomes claros e ordenados.
+
+Exemplo:
+
+202608110001_initial_schema.sql
+202608110002_profiles.sql
+202608110003_finance.sql
+202608110004_businesses.sql
+202608110005_chat.sql
+202608110006_marketplace.sql
+202608110007_rls.sql
+202608110008_storage.sql
+202608110009_realtime.sql
+
+Não precisas seguir exatamente estes nomes.
+
+Adapta à estrutura já existente.
+
+⸻
+
+22. COMPATIBILIDADE COM O CÓDIGO
+
+Depois de criar/corrigir o banco:
+
+volta ao frontend.
+
+Verifica se:
+
+nomes das tabelas
+nomes das colunas
+tipos
+IDs
+relacionamentos
+RPCs
+retornos
+Storage buckets
+policies
+
+correspondem exatamente ao que o TypeScript espera.
+
+Se o código espera:
+
+post_comments
+
+mas o banco possui:
+
+comments
+
+não ignores.
+
+Corrige a inconsistência da forma mais segura.
+
+⸻
+
+23. TYPESCRIPT
+
+Depois das migrations, verifica os tipos gerados/esperados pelo frontend.
+
+Procura erros como:
+
+Property does not exist
+Column does not exist
+Type mismatch
+UUID mismatch
+null mismatch
+
+Corrige a integração.
+
+Se o projeto utiliza tipos gerados pelo Supabase, atualiza-os corretamente.
+
+⸻
+
+24. ERROS EXISTENTES
+
+Procura e corrige problemas relacionados a:
+
+RLS violation
+permission denied
+42501
+foreign key violation
+duplicate key
+invalid UUID
+null value
+column does not exist
+function does not exist
+ambiguous column
+publication membership
+Storage permission denied
+
+Incluindo problemas conhecidos anteriormente no projeto, sem assumir que a solução antiga continua correta.
+
+⸻
+
+25. VERIFICAÇÃO
+
+Depois das alterações:
+
+NÃO assumes que está funcionando.
+
+Testa.
+
+Executa:
+
+npm run build
+
+e os testes existentes.
+
+Se houver Supabase CLI configurado, utiliza os comandos suportados pela versão instalada.
+
+Antes de utilizar comandos desconhecidos do Supabase CLI:
+
+supabase --help
+
+e consulta a ajuda correspondente.
+
+Verifica as migrations.
+
+Executa queries de teste.
+
+Testa RLS com diferentes níveis de acesso.
+
+⸻
+
+26. TESTES DE SEGURANÇA
+
+Cria testes para garantir que:
+
+USER A
+
+consegue:
+
+ler os próprios dados
+criar os próprios dados
+editar os próprios dados
+apagar os próprios dados
+
+USER A
+
+NÃO consegue:
+
+ler dados privados do USER B
+editar dados do USER B
+apagar dados do USER B
+alterar owner_id/user_id para roubar dados
+
+ADMIN
+
+consegue executar somente as operações administrativas permitidas pelo sistema.
+
+ANON
+
+não consegue acessar dados privados.
+
+⸻
+
+27. NÃO QUEBRAR A APLICAÇÃO
+
+Depois das alterações:
+
+Analisa todos os componentes afetados.
+
+Se alterar:
+
+table
+column
+RPC
+function
+bucket
+relationship
+
+procura todos os locais no frontend que dependem disso.
+
+Corrige-os.
+
+Não deixes migrations e frontend incompatíveis.
+
+⸻
+
+28. NÃO CRIAR DUPLICAÇÕES
+
+Antes de criar:
+
+table
+column
+function
+policy
+index
+bucket
+
+verifica se já existe.
+
+Não cries:
+
+chat_messages_2
+users_new
+transactions_new
+profiles_new
+
+simplesmente porque encontrou problemas.
+
+Primeiro entende a estrutura existente.
+
+⸻
+
+29. ARQUITETURA FINAL
+
+No final quero:
+
+Frontend
+    ↓
+Supabase Client
+    ↓
+Auth
+    ↓
+RLS
+    ↓
+PostgreSQL
+    ↓
+Storage / Realtime / Edge Functions
+
+com segurança e consistência.
+
+⸻
+
+30. RELATÓRIO FINAL
+
+Quando terminares, apresenta um relatório:
+
+DATABASE
+
+Tabelas existentes:
+Tabelas criadas:
+Tabelas corrigidas:
+Tabelas removidas:
+
+RELATIONSHIPS
+
+Foreign keys:
+Constraints:
+Indexes:
+
+RLS
+
+Policies criadas:
+Policies corrigidas:
+Policies removidas:
+Tabelas protegidas:
+
+STORAGE
+
+Buckets:
+Policies:
+
+REALTIME
+
+Tabelas:
+Publicações:
+Subscriptions:
+
+RPC / FUNCTIONS
+
+Criadas:
+Corrigidas:
+
+MIGRATIONS
+
+Lista todas as migrations criadas.
+
+FRONTEND
+
+Lista todos os componentes ou arquivos modificados.
+
+SEGURANÇA
+
+Lista vulnerabilidades encontradas e corrigidas.
+
+TESTES
+
+Indica:
+
+Build: PASS/FAIL
+TypeScript: PASS/FAIL
+Migrations: PASS/FAIL
+RLS: PASS/FAIL
+Storage: PASS/FAIL
+Realtime: PASS/FAIL
+
+⸻
+
+REGRA FINAL
+
+Não quero um banco Supabase genérico.
+
+Quero que o Supabase seja o backend real do IK FINANCE existente.
+
+Primeiro entende o código.
+
+Depois entende o banco.
+
+Depois compara os dois.
+
+Depois cria um plano.
+
+Depois implementa.
+
+Depois testa.
+
+Depois corrige os problemas encontrados.
+
+Não inventes estruturas desnecessárias.
+
+Não destruas dados existentes.
+
+Não desatives RLS para resolver erros.
+
+Não coloques secrets no frontend.
+
+Não uses service_role no frontend.
+
+Não ignores erros de segurança.
+
+Não consideres a tarefa concluída enquanto o frontend e o Supabase não estiverem consistentes entre si.
+
+Executa o trabalho de forma incremental e segura, mantendo o projeto funcional durante todo o processo.
