@@ -3,7 +3,13 @@ import {
   Sparkles, Save, RefreshCw, Check, AlertTriangle,
   BarChart3, Users, Zap, MessageSquare, Settings2
 } from 'lucide-react';
-import { adminApi, type SystemSetting } from '../api';
+import {
+  adminApi,
+  type SystemSetting,
+  type AIKnowledgeItem,
+  type AIFeedbackItem,
+  type AILearningQueueItem,
+} from '../api';
 
 const AI_KEYS = [
   'ai_enabled', 'ai_name', 'ai_persona', 'ai_model',
@@ -29,6 +35,9 @@ export default function AdminAI() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [knowledge, setKnowledge] = useState<AIKnowledgeItem[]>([]);
+  const [feedback, setFeedback] = useState<AIFeedbackItem[]>([]);
+  const [queue, setQueue] = useState<AILearningQueueItem[]>([]);
 
   const showToast = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -46,6 +55,16 @@ export default function AdminAI() {
       const logsRes = await adminApi.logs(1);
       const aiLogs = logsRes.logs.filter(l => l.entidade === 'ai_usage_log' || l.acao.startsWith('ai_'));
       setUsage({ total: logsRes.total, today: aiLogs.length, byContext: {} });
+
+      const [knowledgeRes, feedbackRes, queueRes] = await Promise.all([
+        adminApi.aiKnowledge(1),
+        adminApi.aiFeedback(1),
+        adminApi.aiLearningQueue(1),
+      ]);
+
+      setKnowledge(knowledgeRes.items ?? []);
+      setFeedback(feedbackRes.items ?? []);
+      setQueue(queueRes.items ?? []);
     } catch (e) { showToast(false, (e as Error).message); }
     setLoading(false);
   }, [showToast]);
@@ -62,8 +81,19 @@ export default function AdminAI() {
     setSaving(false);
   };
 
+  const updateQueueStatus = async (id: string, status: string) => {
+    try {
+      await adminApi.aiLearningQueueUpdate(id, { status });
+      showToast(true, 'Fila de aprendizado atualizada');
+      const queueRes = await adminApi.aiLearningQueue(1);
+      setQueue(queueRes.items ?? []);
+    } catch (e) {
+      showToast(false, (e as Error).message);
+    }
+  };
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -169,6 +199,72 @@ export default function AdminAI() {
               Para respostas inteligentes em tempo real, configure a variável de ambiente <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200 font-mono">OPENAI_API_KEY</code> nos secrets da edge function. Sem a chave, o assistente funciona com respostas inteligentes pré-definidas sobre a plataforma IK Finance.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Knowledge center */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white text-sm font-semibold flex items-center gap-2"><BarChart3 size={14} className="text-emerald-400" /> Conhecimento</h3>
+            <span className="text-xs text-gray-500">{knowledge.length} itens</span>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-auto pr-1">
+            {knowledge.map((item) => (
+              <div key={item.id} className="border border-gray-800 rounded-xl p-3 bg-gray-900/60">
+                <p className="text-white text-sm font-medium">{item.title}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{item.category} · v{item.version} · {item.status}</p>
+                <p className="text-gray-300 text-xs mt-1 line-clamp-2">{item.summary ?? item.content}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white text-sm font-semibold flex items-center gap-2"><MessageSquare size={14} className="text-amber-400" /> Feedback recente</h3>
+            <span className="text-xs text-gray-500">{feedback.length} itens</span>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-auto pr-1">
+            {feedback.map((item) => (
+              <div key={item.id} className="border border-gray-800 rounded-xl p-3 bg-gray-900/60">
+                <p className="text-gray-300 text-xs">{item.question || 'Sem pergunta registrada'}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full border ${item.rating >= 4 ? 'text-emerald-300 border-emerald-700 bg-emerald-950/40' : 'text-red-300 border-red-700 bg-red-950/40'}`}>
+                    rating {item.rating}
+                  </span>
+                  <span className="text-[11px] text-gray-500">{item.feedback_type ?? 'sem tipo'}</span>
+                </div>
+                {item.comment && <p className="text-gray-400 text-xs mt-1">{item.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white text-sm font-semibold flex items-center gap-2"><Users size={14} className="text-cyan-400" /> Learning Queue</h3>
+          <span className="text-xs text-gray-500">{queue.length} itens</span>
+        </div>
+        <div className="space-y-2 max-h-80 overflow-auto pr-1">
+          {queue.map((item) => (
+            <div key={item.id} className="border border-gray-800 rounded-xl p-3 bg-gray-900/60">
+              <p className="text-gray-300 text-xs">{item.question || 'Sem pergunta'}</p>
+              <p className="text-gray-500 text-[11px] mt-1">{item.issue_type ?? 'sem tipo'} · {item.status}</p>
+              <div className="flex items-center gap-2 mt-2">
+                {['reviewing', 'approved', 'rejected', 'implemented'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => updateQueueStatus(item.id, status)}
+                    className="text-[11px] px-2 py-1 rounded-lg border border-gray-700 text-gray-300 hover:border-cyan-500 hover:text-cyan-300 transition-colors"
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

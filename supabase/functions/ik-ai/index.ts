@@ -6,311 +6,432 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+type Intent =
+  | "GENERAL"
+  | "FINANCE"
+  | "ACCOUNTING"
+  | "BUSINESS"
+  | "ENTREPRENEURSHIP"
+  | "MANAGEMENT"
+  | "FINANCIAL_ANALYSIS"
+  | "CALCULATION"
+  | "EDUCATION"
+  | "IK_HELP"
+  | "USER_DATA"
+  | "REPORT"
+  | "RECOMMENDATION";
+
+type KnowledgeItem = {
+  category: string;
+  subcategory?: string | null;
+  topic: string;
+  title: string;
+  content: string;
+  summary?: string | null;
+  keywords?: string[] | null;
+  formulas?: string[] | null;
+  difficulty?: string | null;
+  language?: string | null;
+  source?: string | null;
+  source_type?: string | null;
+  confidence?: number | null;
+  version?: number | null;
+  score?: number;
+};
+
 function ok(data: unknown) {
   return new Response(JSON.stringify(data), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
 function err(msg: string, status = 400) {
   return new Response(JSON.stringify({ error: msg }), {
-    status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
-// ─── Comprehensive IK Finance knowledge base ──────────────────────────────
-const KNOWLEDGE: Record<string, string[]> = {
-  greeting: [
-    "Olá! Sou o IK Finance AI, o assistente oficial da plataforma IK Finance. Estou aqui para ajudá-lo com finanças, negócios, marketplace e muito mais. Como posso ajudar?",
-    "Bem-vindo! Sou o assistente inteligente da IK Finance. Posso explicar funcionalidades, analisar dados (quando autorizado) e ajudá-lo a tirar o máximo da plataforma.",
-  ],
-  plataforma: [
-    "A IK Finance é um ecossistema digital completo criado por Inácio Kuvingua Ulundo, de Huambo, Angola. Inclui gestão financeira pessoal, marketplace, empresas, chat privado e muito mais — tudo numa única plataforma.",
-    "A IK Finance é uma plataforma financeira moderna que combina gestão de cofres, negócios, patrimônio, marketplace, empresas e chat. Foi desenhada para angolanos e africanos, mas serve utilizadores do mundo inteiro.",
-  ],
-  trial: [
-    "Ao criar conta na IK Finance, você recebe automaticamente **3 meses de acesso completo gratuito** — o período de teste. Durante este período, tem acesso a TODOS os recursos Premium: IA, cofres ilimitados, marketplace, loja, empresas, chat e relatórios avançados.",
-    "O período de teste da IK Finance dura **3 meses completos** a partir da criação da conta. Pode verificar os dias restantes no seu Perfil ou na página Planos. Após o teste, pode continuar no plano gratuito básico ou fazer upgrade.",
-  ],
-  plano: [
-    "A IK Finance tem 4 planos:\n\n**Gratuito** — após o teste: 3 cofres, 50 transações/mês, 1 negócio, marketplace (compra)\n**Premium** — 2.500 Kz/mês: cofres ilimitados, loja, chat, IA, verificação\n**Business** — 7.500 Kz/mês: empresas, 20 funcionários, múltiplas lojas, API\n**Enterprise** — personalizado: organizações ilimitadas, SLA, white-label",
-    "Durante os **3 meses de teste gratuito**, todos os recursos Premium estão disponíveis. Após o teste, o plano gratuito mantém acesso básico — a conta nunca é bloqueada. Para continuar com todos os recursos, faça upgrade em Planos.",
-  ],
-  pagamento: [
-    "A IK Finance está a integrar Stripe e PayPal para pagamentos online. Por agora, os planos são ativados directamente. Para pagar, contacte Inaciokuvingua@gmail.com ou WhatsApp +244 943 339 350.",
-    "Para upgrade de plano, acesse 'Planos' no menu lateral e escolha o plano desejado. A integração com gateways de pagamento (Stripe, PayPal, transferência bancária) está em desenvolvimento.",
-  ],
-  cofre: [
-    "Os **Cofres** são contas virtuais para organizar o seu dinheiro com objetivos específicos. Pode criar cofres para poupança, viagem, emergência, educação — qualquer objetivo. Cada cofre tem nome, ícone, cor e pode ter uma meta de valor.",
-    "Para criar um cofre, vá em 'Cofres' e clique em 'Novo Cofre'. Defina nome, descrição, cor, ícone e uma meta opcional. Pode depositar e levantar dinheiro, e acompanhar o progresso em relação à meta.",
-  ],
-  financeiro: [
-    "A secção **Financeiro** regista todas as suas transações: entradas (salário, rendimentos, recebimentos) e saídas (despesas, pagamentos, compras). Pode categorizar, filtrar por data/tipo/categoria e exportar relatórios.",
-    "Para registar uma transação: acesse 'Financeiro' → clique 'Nova Transação' → escolha tipo (entrada/saída), valor, categoria, data. Pode associar a um cofre ou negócio específico.",
-  ],
-  negocio: [
-    "A secção **Negócios** permite registar e gerir os seus empreendimentos. Para cada negócio, controla receita mensal, despesa mensal e acompanha a lucratividade. Categorias incluem comércio, serviços, tecnologia, agricultura e mais.",
-    "Para adicionar um negócio: acesse 'Negócios' → 'Novo Negócio' → insira nome, categoria, receita mensal estimada e despesa mensal. A plataforma calcula automaticamente o lucro mensal.",
-  ],
-  patrimonio: [
-    "O **Patrimônio** regista os seus activos: imóveis, veículos, equipamentos, investimentos, criptomoedas e outros bens. Pode acompanhar a valorização (valor actual vs. valor de aquisição) ao longo do tempo.",
-    "Para registar um bem patrimonial: acesse 'Patrimônio' → 'Novo Activo' → insira nome, categoria, valor de aquisição, valor actual e data de aquisição. A plataforma mostra automaticamente se valorizou ou desvalorizou.",
-  ],
-  relatorio: [
-    "Os **Relatórios** apresentam a evolução financeira com gráficos de barras e linhas: receitas vs. despesas, saldo por período, evolução do patrimônio, distribuição por categoria. Pode filtrar por período e comparar meses.",
-    "Para aceder aos relatórios completos, vá em 'Relatórios'. Os gráficos mostram tendências mensais, categorias de maior gasto, evolução do saldo e muito mais. Disponível para todos durante o período de teste.",
-  ],
-  marketplace: [
-    "O **Marketplace da IK Finance** permite comprar e vender produtos digitais (músicas, beats, cursos, eBooks, templates, software) e físicos. Os vendedores recebem 95% de cada venda — apenas 5% vai para a plataforma.",
-    "No marketplace pode encontrar produtos de criadores e vendedores verificados. Para comprar: navegue, filtre por categoria, clique no produto e faça o pedido. Para vender, crie a sua loja em 'Minha Loja'.",
-  ],
-  loja: [
-    "Para criar a sua **loja no marketplace**: acesse 'Minha Loja' → preencha nome, descrição, URL personalizada (ex: ikfinance.com/sua-loja), categoria e logo. Depois adicione produtos com fotos, preço e descrição detalhada.",
-    "A loja da IK Finance tem URL personalizada única. Pode vender produtos digitais (com upload de arquivo) e físicos (com gestão de estoque e endereço de entrega). O painel mostra vendas, receitas e avaliações.",
-  ],
-  empresa: [
-    "A secção **Empresas** permite criar e gerir empresas com estrutura organizacional: departamentos, equipes, cargos. Convide funcionários por e-mail e defina funções (admin, gestor, funcionário).",
-    "Para criar uma empresa: acesse 'Empresas' → 'Nova Empresa' → insira nome, NIF, setor e descrição. Depois crie departamentos, adicione membros via convite por e-mail e defina cargos e funções.",
-  ],
-  chat: [
-    "O **Chat** permite mensagens privadas em tempo real com outros utilizadores da plataforma. As mensagens são seguras e mostram indicadores de lido/enviado.",
-    "Para iniciar uma conversa, acesse 'Mensagens' no menu. Pesquise o utilizador pelo nome ou e-mail e inicie o chat. As mensagens são entregues em tempo real via Supabase Realtime.",
-  ],
-  perfil: [
-    "O seu **Perfil** permite personalizar nome, bio, foto de perfil, país, telefone e redes sociais (Instagram, Facebook, TikTok, YouTube, LinkedIn, Website). Também pode solicitar verificação de conta para obter o selo ✓.",
-    "Para editar o perfil: acesse 'Perfil' → clique 'Editar'. Pode fazer upload de foto directamente do dispositivo. Para adicionar redes sociais, insira o handle (ex: @seuusuario) ou URL completa.",
-  ],
-  verificacao: [
-    "A **verificação de conta** mostra um selo azul ✓ no seu perfil, loja e produtos — transmitindo mais credibilidade. Acesse 'Perfil' → 'Solicitar Verificação' → escolha o tipo (Pessoal, Criador, Loja, Empresa). Análise em até 48h.",
-    "Existem 4 tipos de verificação: **Pessoal** (identidade), **Criador** (criadores de conteúdo), **Loja** (lojas no marketplace) e **Empresa** (empresas registadas). O selo aparece em todo o ecossistema IK Finance.",
-  ],
-  ia: [
-    "O **IK Finance AI** é o assistente nativo da plataforma, criado para ser o seu consultor digital de finanças e negócios. Pode responder perguntas, explicar funcionalidades, analisar dados (quando autorizado), gerar insights e sugerir melhorias.",
-    "Para usar o IK Finance AI ao máximo, vá em Configurações → IK Finance AI e active o acesso a dados financeiros. Assim o assistente pode analisar os seus saldos, transações e dar sugestões personalizadas.",
-  ],
-  privacidade: [
-    "A IK Finance nunca acessa os seus dados financeiros sem autorização explícita. No widget do assistente, clique no ícone de cadeado para controlar o que a IA pode ver. Pode desativar a IA a qualquer momento em Configurações.",
-    "Os controlos de privacidade da IA estão em Configurações → IK Finance AI. Pode activar/desactivar o assistente, autorizar acesso a dados financeiros e empresariais — tudo sob o seu controlo.",
-  ],
-  seguranca: [
-    "A IK Finance usa criptografia moderna, autenticação segura via Supabase Auth, Row-Level Security (RLS) em todas as tabelas — nenhum utilizador acede dados de outro. As senhas são hash bcrypt e os tokens expiram automaticamente.",
-    "Toda a plataforma usa HTTPS, tokens JWT seguros e políticas de acesso (RLS) que garantem que cada utilizador só vê os seus próprios dados. Os logs de auditoria registam todas as acções administrativas.",
-  ],
-  moeda: [
-    "A IK Finance suporta **7 moedas**: AOA (Kwanza), USD (Dólar), EUR (Euro), GBP (Libra), BRL (Real), CNY (Yuan) e ZAR (Rand). As taxas são actualizadas em tempo real via API. Mude a moeda no selector do menu lateral.",
-    "Para mudar a moeda de exibição, clique no selector de moeda no topo do menu lateral (onde aparece AOA, USD, etc.). A conversão é aplicada a todos os valores exibidos na plataforma em tempo real.",
-  ],
-  notificacao: [
-    "As **notificações** da IK Finance chegam como notificações push no browser, por e-mail e dentro da plataforma. Pode configurar quais eventos geram notificações em Configurações → Notificações.",
-    "Para activar notificações push, acesse Configurações → Notificações e clique em 'Activar Notificações'. Será pedida permissão no browser. Pode escolher receber notificações de transações, cofres, negócios e muito mais.",
-  ],
-  pwa: [
-    "A IK Finance é uma **PWA (Progressive Web App)** — pode instalar no seu telemóvel como uma app nativa. No Chrome/Edge: clique nos 3 pontos → 'Instalar app'. No iOS Safari: partilhar → 'Adicionar ao ecrã inicial'.",
-    "Para instalar a IK Finance no telemóvel: no Android (Chrome) aparece um banner automático de instalação. No iOS (Safari), toque no botão de partilhar e escolha 'Adicionar ao Ecrã de Início'. Funciona offline com dados em cache.",
-  ],
-  criador: [
-    "A IK Finance foi criada por **Inácio Kuvingua Ulundo**, jovem angolano de Huambo. A visão é criar soluções tecnológicas modernas para Angola e África, democratizando o acesso a ferramentas financeiras de qualidade.",
-    "O criador da IK Finance é Inácio Kuvingua Ulundo. Pode contactá-lo via WhatsApp: +244 943 339 350 ou e-mail: Inaciokuvingua@gmail.com para suporte, parcerias ou questões Enterprise.",
-  ],
-  dashboard: [
-    "O **Dashboard** é a visão geral da sua saúde financeira. Mostra: saldo total consolidado, saldo por cofres, resultado dos negócios, total do patrimônio e últimas transações. Os dados actualizam em tempo real.",
-    "O Dashboard consolida tudo: saldo dos cofres, receitas/despesas do financeiro, lucro dos negócios e valor total do patrimônio. Use os cartões de resumo para navegar rapidamente para cada secção.",
-  ],
-  saldo: [
-    "O seu saldo total aparece no Dashboard e combina: saldo dos cofres + saldo financeiro (entradas - saídas) + resultado dos negócios. Para ver o detalhe, acesse cada secção no menu lateral.",
-    "Para ver todos os saldos: no Dashboard está o resumo consolidado. Em 'Cofres' vê o saldo de cada cofre individualmente. Em 'Financeiro' vê entradas e saídas. Em 'Negócios' vê receitas, despesas e lucro por negócio.",
-  ],
-  suporte: [
-    "Para suporte da IK Finance: **WhatsApp** +244 943 339 350 ou **e-mail** Inaciokuvingua@gmail.com. O plano Premium tem suporte prioritário. Para questões Enterprise, contacte para acordo personalizado.",
-    "Precisa de ajuda? Entre em contacto: WhatsApp +244 943 339 350 (resposta rápida) ou Inaciokuvingua@gmail.com. Pode também usar o IK Finance AI para dúvidas sobre a plataforma 24/7.",
-  ],
-  angola: [
-    "A IK Finance foi criada em Angola e é especialmente optimizada para a realidade angolana: suporte ao Kwanza (AOA), categorias relevantes para o mercado local, e preços acessíveis em Kwanza.",
-    "Angola é o mercado principal da IK Finance. A plataforma suporta AOA como moeda padrão, tem preços em Kwanza e foi desenhada para empreendedores e profissionais angolanos.",
-  ],
-  default: [
-    "Boa pergunta! Posso ajudá-lo com finanças pessoais, negócios, marketplace, empresas, planos, verificação, IA e muito mais. Seja mais específico para uma resposta mais precisa.",
-    "Estou aqui para ajudar! Pergunte sobre cofres, transações, negócios, marketplace, planos, empresas, chat ou qualquer funcionalidade da IK Finance.",
-    "Para análises detalhadas dos seus dados financeiros, certifique-se de ter autorizado o acesso nas configurações de privacidade do assistente. O que mais posso explicar?",
-    "Posso ajudar com: 💰 Finanças (cofres, transações, relatórios) · 🏪 Marketplace (loja, produtos) · 🏢 Empresas · 💬 Chat · 🤖 IA · 📋 Planos. O que precisa?",
-  ],
-};
-
-function getFallbackResponse(message: string): string {
-  const lower = message.toLowerCase();
-  const patterns: [RegExp, string][] = [
-    [/olá|ola|oi|bom dia|boa tarde|boa noite|hello|hi|hey/i, 'greeting'],
-    [/plataforma|ikfinance|ik finance|o que é|como funciona/i, 'plataforma'],
-    [/teste|trial|3 meses|gratuito.*meses|meses.*gratuito/i, 'trial'],
-    [/plano|premium|business|enterprise|assinatura|upgrade|preço|mensalidade/i, 'plano'],
-    [/pagamento|pagar|stripe|paypal|comprar plano|fatura/i, 'pagamento'],
-    [/cofre|poupança|guardar.*dinheiro|economizar/i, 'cofre'],
-    [/transação|transacao|entrada|saída|saida|despesa|receita.*pessoal/i, 'financeiro'],
-    [/negócio|negocio|empreendimento|empresa.*receita|lucro/i, 'negocio'],
-    [/patrimônio|patrimonio|imóvel|veículo|veiculo|activo|investimento/i, 'patrimonio'],
-    [/relatório|relatorio|gráfico|grafico|analise|evolução|historico/i, 'relatorio'],
-    [/marketplace|comprar|produto|vender.*produto/i, 'marketplace'],
-    [/loja|minha loja|criar loja|slug.*loja/i, 'loja'],
-    [/empresa.*equipe|empresa.*departamento|gerir empresa|membros/i, 'empresa'],
-    [/chat|mensagem|conversa|privado/i, 'chat'],
-    [/perfil|foto.*perfil|avatar|bio|redes sociais|instagram|facebook/i, 'perfil'],
-    [/verificação|verificacao|verificado|selo|badge/i, 'verificacao'],
-    [/assistente.*ia|ia.*assistente|chatgpt|gemini|inteligência artificial/i, 'ia'],
-    [/privacidade|acesso.*dados|permissão/i, 'privacidade'],
-    [/segurança|seguranca|senha|proteção|hack/i, 'seguranca'],
-    [/moeda|câmbio|cambio|kwanza|dólar|dollar|euro|usd|aoa/i, 'moeda'],
-    [/notificação|notificacao|alerta|push/i, 'notificacao'],
-    [/pwa|instalar app|telemóvel|celular|mobile/i, 'pwa'],
-    [/criador|inácio|inacio|desenvolvedor|quem criou|angola/i, 'criador'],
-    [/dashboard|visão geral|resumo financeiro/i, 'dashboard'],
-    [/saldo|quanto tenho|meu dinheiro/i, 'saldo'],
-    [/suporte|ajuda|contato|contacto|whatsapp/i, 'suporte'],
-    [/angola|kwanza|luanda|huambo|angolano/i, 'angola'],
-  ];
-  for (const [re, key] of patterns) {
-    if (re.test(lower)) {
-      const pool = KNOWLEDGE[key];
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-  }
-  const defaults = KNOWLEDGE.default;
-  return defaults[Math.floor(Math.random() * defaults.length)];
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function buildFinancialContext(financialData: Record<string, unknown> | undefined): string {
+function tokenize(value: string) {
+  return normalizeText(value).split(" ").filter(Boolean);
+}
+
+function detectIntent(message: string, context: string): Intent {
+  const lower = normalizeText(`${message} ${context}`);
+  const rules: Array<[Intent, RegExp[]]> = [
+    ["IK_HELP", [/ik finance|ikfinance|cofre|relatorio|relatórios|financeiro|perfil|configuracoes|configurações|dashboard|meta|negocio|negócio/]],
+    ["CALCULATION", [/calcula|cálculo|juros|roi|roa|roe|margem|break even|ponto de equilibrio|ponto de equilíbrio|markup|cac|ltv|churn|ticket medio|ticket médio|runway|burn rate|liquidez/]],
+    ["ACCOUNTING", [/contabilidade|ativo|passivo|patrimonio liquido|patrimônio líquido|debito|débito|credito|crédito|partidas dobradas|balanco patrimonial|balanço patrimonial|competencia|competência/]],
+    ["BUSINESS", [/negocio|negócio|empresa|lucro|despesa|receita|caixa|fluxo de caixa|rentabilidade|eficiencia|eficiência|analise|análise/]],
+    ["ENTREPRENEURSHIP", [/empreendedor|mvp|modelo de negocio|modelo de negócio|proposta de valor|público|mercado|concorrência|concorrencia|posicionamento|precificação|marketing|vendas|cliente/]],
+    ["MANAGEMENT", [/gestão|gestao|kpi|indicador|produtividade|processos|estratégia|estrategia|fornecedor|estoque|pessoas|clientes/]],
+    ["FINANCE", [/finança|finanças|poupança|poupanca|orçamento|orcamento|despesa|receita|dívida|divida|juros|inflação|inflacao|reserva|salário|salario|patrimônio|patrimonio/]],
+    ["REPORT", [/relatório|relatorio|histórico|historico|evolução|evolucao|tendência|tendencia|resumo/]],
+    ["RECOMMENDATION", [/sugere|sugestão|sugestao|recomenda|devo fazer|proposta|previsão|previsao/]],
+    ["USER_DATA", [/meu|minha|meus|minhas|quanto gastei|quanto tenho|qual é minha|qual e minha|como está meu|como esta meu/]],
+  ];
+
+  for (const [intent, patterns] of rules) {
+    if (patterns.some((pattern) => pattern.test(lower))) return intent;
+  }
+
+  if (/o que é|o que e|explique|defina|conceito|como funciona/.test(lower)) return "EDUCATION";
+  return "GENERAL";
+}
+
+function inferKnowledgeCategories(intent: Intent, context: string) {
+  const ctx = normalizeText(context);
+  if (ctx.includes("minha-loja") || ctx.includes("marketplace")) return ["IK_FINANCE", "BUSINESS", "ENTREPRENEURSHIP", "MANAGEMENT"];
+  if (ctx.includes("negocios") || ctx.includes("empresas")) return ["BUSINESS", "MANAGEMENT", "ENTREPRENEURSHIP", "ACCOUNTING"];
+  if (ctx.includes("financeiro") || ctx.includes("cofres") || ctx.includes("dashboard") || ctx.includes("patrimonio")) return ["FINANCE", "ACCOUNTING", "IK_FINANCE"];
+  if (intent === "IK_HELP") return ["IK_FINANCE"];
+  if (intent === "ACCOUNTING") return ["ACCOUNTING", "FINANCE"];
+  if (intent === "ENTREPRENEURSHIP") return ["ENTREPRENEURSHIP", "MANAGEMENT", "BUSINESS"];
+  if (intent === "MANAGEMENT") return ["MANAGEMENT", "BUSINESS"];
+  if (intent === "BUSINESS") return ["BUSINESS", "FINANCE", "ACCOUNTING"];
+  return ["FINANCE", "ACCOUNTING", "BUSINESS", "ENTREPRENEURSHIP", "MANAGEMENT", "IK_FINANCE"];
+}
+
+function rankKnowledge(message: string, rows: KnowledgeItem[]) {
+  const query = normalizeText(message);
+  const queryTerms = tokenize(query);
+
+  return rows
+    .map((row) => {
+      const haystack = normalizeText(
+        [
+          row.category,
+          row.subcategory ?? "",
+          row.topic,
+          row.title,
+          row.summary ?? "",
+          row.content,
+          ...(row.keywords ?? []),
+          ...(row.formulas ?? []),
+        ].join(" ")
+      );
+
+      let score = (row.confidence ?? 0.5) * 4;
+      if (haystack.includes(query)) score += 6;
+      queryTerms.forEach((term) => {
+        if (haystack.includes(term)) score += 1.5;
+      });
+      if ((row.keywords ?? []).some((keyword) => queryTerms.includes(normalizeText(keyword)))) score += 1.5;
+      if (queryTerms.some((term) => normalizeText(row.title).includes(term))) score += 2;
+      return { ...row, score };
+    })
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 6);
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-AO", { maximumFractionDigits: 2 }) + " AOA";
+}
+
+function safeNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function buildFinancialContext(financialData: Record<string, unknown> | undefined) {
   if (!financialData) return "";
-  const { saldoCofres, totalReceitas, totalDespesas, lucroNegocios, totalPatrimonio, recentTransactions } = financialData as Record<string, unknown>;
+  const txs = financialData.recentTransactions as Array<{ tipo: string; valor: number; categoria: string; data_transacao: string }> | undefined;
   let ctx = "\n\n[DADOS FINANCEIROS AUTORIZADOS PELO UTILIZADOR]\n";
-  if (typeof saldoCofres === 'number') ctx += `- Saldo nos cofres: ${saldoCofres.toLocaleString("pt-AO")} AOA\n`;
-  if (typeof totalReceitas === 'number') ctx += `- Receitas totais: ${totalReceitas.toLocaleString("pt-AO")} AOA\n`;
-  if (typeof totalDespesas === 'number') ctx += `- Despesas totais: ${totalDespesas.toLocaleString("pt-AO")} AOA\n`;
-  if (typeof lucroNegocios === 'number') ctx += `- Resultado negócios: ${lucroNegocios.toLocaleString("pt-AO")} AOA/mês\n`;
-  if (typeof totalPatrimonio === 'number') ctx += `- Patrimônio total: ${totalPatrimonio.toLocaleString("pt-AO")} AOA\n`;
-  const txs = recentTransactions as Array<{ tipo: string; valor: number; categoria: string; data_transacao: string }> | undefined;
+  const saldoCofres = safeNumber(financialData.saldoCofres);
+  const totalReceitas = safeNumber(financialData.totalReceitas);
+  const totalDespesas = safeNumber(financialData.totalDespesas);
+  const lucroNegocios = safeNumber(financialData.lucroNegocios);
+  const totalPatrimonio = safeNumber(financialData.totalPatrimonio);
+  if (totalReceitas) ctx += `- Receitas totais: ${formatCurrency(totalReceitas)}\n`;
+  if (totalDespesas) ctx += `- Despesas totais: ${formatCurrency(totalDespesas)}\n`;
+  if (saldoCofres) ctx += `- Saldo nos cofres: ${formatCurrency(saldoCofres)}\n`;
+  if (lucroNegocios || lucroNegocios === 0) ctx += `- Resultado dos negócios: ${formatCurrency(lucroNegocios)}/mês\n`;
+  if (totalPatrimonio) ctx += `- Patrimônio total: ${formatCurrency(totalPatrimonio)}\n`;
   if (txs?.length) {
-    ctx += `- Últimas transações:\n`;
-    txs.slice(0, 5).forEach(t => {
-      ctx += `  • ${t.tipo === "entrada" ? "+" : "-"}${Number(t.valor).toLocaleString("pt-AO")} AOA (${t.categoria}) em ${t.data_transacao}\n`;
+    ctx += "- Últimas transações:\n";
+    txs.slice(0, 5).forEach((tx) => {
+      const sign = tx.tipo === "entrada" ? "+" : "-";
+      ctx += `  • ${sign}${formatCurrency(safeNumber(tx.valor))} (${tx.categoria}) em ${tx.data_transacao}\n`;
     });
   }
   return ctx;
 }
 
-// ─── Motor nativo IK Finance AI: análise financeira com dados reais ──────────
-type FinData = {
-  saldoCofres?: number; totalReceitas?: number; totalDespesas?: number;
-  lucroNegocios?: number; totalPatrimonio?: number;
-  recentTransactions?: Array<{ tipo: string; valor: number; categoria: string; data_transacao: string }>;
-};
+function buildUserSnapshot(
+  profile: Record<string, unknown> | null,
+  financialData: Record<string, unknown> | undefined,
+  realtimeContext: Record<string, unknown> | undefined,
+  userContext: Record<string, unknown> | undefined,
+  intent: Intent,
+) {
+  const financial = financialData ?? {};
+  const totalReceitas = safeNumber(financial.totalReceitas);
+  const totalDespesas = safeNumber(financial.totalDespesas);
+  const saldoCofres = safeNumber(financial.saldoCofres);
+  const totalPatrimonio = safeNumber(financial.totalPatrimonio);
+  const lucroNegocios = safeNumber(financial.lucroNegocios);
+  const balance = totalReceitas - totalDespesas;
 
-function analyzeFinances(message: string, financialData?: Record<string, unknown>): string | null {
+  return {
+    intent,
+    profile: profile ?? {},
+    userContext: userContext ?? {},
+    realtimeContext: realtimeContext ?? {},
+    financial: financialData ?? null,
+    summary: {
+      totalReceitas,
+      totalDespesas,
+      saldoCofres,
+      totalPatrimonio,
+      lucroNegocios,
+      balance,
+      savingsRate: totalReceitas > 0 ? (balance / totalReceitas) * 100 : null,
+    },
+  };
+}
+
+function buildCalculationBlock(message: string, financialData?: Record<string, unknown>) {
   if (!financialData) return null;
-  const d = financialData as FinData;
-  const lower = message.toLowerCase();
-  const fmt = (n: number) => n.toLocaleString("pt-AO", { maximumFractionDigits: 2 }) + " AOA";
-  const has = (n: unknown): n is number => typeof n === "number";
+  const lower = normalizeText(message);
+  const totalReceitas = safeNumber(financialData.totalReceitas);
+  const totalDespesas = safeNumber(financialData.totalDespesas);
+  const saldoCofres = safeNumber(financialData.saldoCofres);
+  const lucroNegocios = safeNumber(financialData.lucroNegocios);
+  const totalPatrimonio = safeNumber(financialData.totalPatrimonio);
+  const lines: string[] = [];
 
-  // Visão geral / saldo / análise
-  if (/saldo|quanto (tenho|possuo)|meu dinheiro|visão geral|visao geral|como estou|resumo|analis|insight|diagnóstico|diagnostico|saúde financeira|saude financeira/.test(lower)) {
-    const parts: string[] = [];
-    if (has(d.saldoCofres)) parts.push(`💰 Saldo nos cofres: **${fmt(d.saldoCofres)}**`);
-    if (has(d.totalReceitas)) parts.push(`📈 Receitas: **${fmt(d.totalReceitas)}**`);
-    if (has(d.totalDespesas)) parts.push(`📉 Despesas: **${fmt(d.totalDespesas)}**`);
-    if (has(d.lucroNegocios)) parts.push(`🏢 Resultado dos negócios: **${fmt(d.lucroNegocios)}/mês**`);
-    if (has(d.totalPatrimonio)) parts.push(`🏠 Patrimônio: **${fmt(d.totalPatrimonio)}**`);
-    if (!parts.length) return null;
-    let out = "Aqui está a sua situação financeira actual:\n\n" + parts.join("\n") + "\n";
-    if (has(d.totalReceitas) && has(d.totalDespesas)) {
-      const net = d.totalReceitas - d.totalDespesas;
-      const ratio = d.totalReceitas > 0 ? (d.totalDespesas / d.totalReceitas) * 100 : 0;
-      out += net >= 0
-        ? `\n✅ Balanço positivo de **${fmt(net)}**. As despesas representam ${ratio.toFixed(0)}% das receitas${ratio > 80 ? " — atenção, margem apertada: tente mantê-las abaixo de 80%." : " — bom controlo!"}`
-        : `\n⚠️ Balanço negativo de **${fmt(Math.abs(net))}**. As despesas superam as receitas — reveja as categorias de maior gasto em Relatórios e defina limites mensais.`;
+  if (/margem|lucro|resultado/.test(lower)) {
+    const lucro = totalReceitas - totalDespesas + lucroNegocios;
+    const margem = totalReceitas > 0 ? (lucro / totalReceitas) * 100 : null;
+    lines.push(`Lucro estimado: ${formatCurrency(lucro)}`);
+    if (margem !== null) lines.push(`Margem estimada: ${margem.toFixed(2)}%`);
+  }
+
+  if (/sald|cofre|quanto tenho|quanto gastei|despesa/.test(lower)) {
+    lines.push(`Saldo nos cofres: ${formatCurrency(saldoCofres)}`);
+    lines.push(`Receitas: ${formatCurrency(totalReceitas)}`);
+    lines.push(`Despesas: ${formatCurrency(totalDespesas)}`);
+  }
+
+  if (/patrim|ativo|activos|ativos/.test(lower)) {
+    lines.push(`Patrimônio total: ${formatCurrency(totalPatrimonio)}`);
+  }
+
+  if (/break even|ponto de equilibrio|ponto de equilíbrio/.test(lower)) {
+    const marginContribution = totalReceitas > 0 ? totalReceitas - totalDespesas : 0;
+    if (marginContribution > 0) {
+      const breakEven = totalDespesas / (marginContribution / Math.max(totalReceitas, 1));
+      lines.push(`Ponto de equilíbrio estimado: ${formatCurrency(breakEven)}`);
     }
-    return out;
   }
 
-  // Despesas / gastos
-  if (/despesa|gasto|saída|saida|onde.*gast/.test(lower) && (has(d.totalDespesas) || d.recentTransactions?.length)) {
-    let out = has(d.totalDespesas)
-      ? `As suas despesas totais são **${fmt(d.totalDespesas)}**.`
-      : "Aqui estão os seus gastos recentes:";
-    const saidas = (d.recentTransactions ?? []).filter(t => t.tipo === "saida");
-    if (saidas.length) {
-      const porCat = new Map<string, number>();
-      saidas.forEach(t => porCat.set(t.categoria, (porCat.get(t.categoria) ?? 0) + Number(t.valor)));
-      const top = [...porCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-      out += "\n\nMaiores categorias recentes:\n" + top.map(([c, v]) => `• ${c}: ${fmt(v)}`).join("\n");
-      out += "\n\n💡 Dica: crie um cofre com meta para controlar as categorias que mais pesam.";
+  return lines.length ? lines.join("\n") : null;
+}
+
+function buildStructuredAnswer(params: {
+  message: string;
+  intent: Intent;
+  knowledge: KnowledgeItem[];
+  financialData?: Record<string, unknown>;
+  profile: Record<string, unknown> | null;
+  realtimeContext?: Record<string, unknown>;
+  userContext?: Record<string, unknown>;
+}) {
+  const { message, intent, knowledge, financialData, profile, realtimeContext, userContext } = params;
+  const hasFinancialData = Boolean(financialData);
+  const lower = normalizeText(message);
+  const sections: string[] = [];
+
+  const summaryParts: string[] = [];
+  if (/o que é|o que e|explique|defina|conceito|como funciona|significa/.test(lower)) {
+    summaryParts.push("A pergunta pede uma explicação conceitual, então vou priorizar a base de conhecimento.");
+  } else if (/quanto|qual minha|meu|minha|cresceu|aumentou|diminuiu|está|esta/.test(lower) && hasFinancialData) {
+    summaryParts.push("A pergunta pede leitura dos seus dados reais, então vou cruzar contexto, histórico e conhecimento.");
+  } else if (intent === "RECOMMENDATION") {
+    summaryParts.push("A pergunta pede sugestão prática, então vou propor ação, cautela e próximos passos.");
+  } else {
+    summaryParts.push("Vou responder de forma objetiva, com conhecimento, contexto e, quando existir, dados reais do utilizador.");
+  }
+
+  if (knowledge.length > 0) {
+    summaryParts.push(`Encontrei ${knowledge.length} referência(s) relevante(s) na base interna do IK Finance.`);
+  }
+
+  sections.push(`Resumo\n${summaryParts.join(" ")}`);
+
+  const analysisParts: string[] = [];
+  if (knowledge.length > 0) {
+    const lead = knowledge[0];
+    analysisParts.push(`Base principal: ${lead.title}.`);
+    analysisParts.push(lead.summary ?? lead.content);
+  } else {
+    analysisParts.push("Não encontrei uma correspondência forte na base. A resposta será construída com os dados disponíveis e com cautela.");
+  }
+  if (realtimeContext && Object.keys(realtimeContext).length > 0) {
+    analysisParts.push("Detectei eventos recentes em tempo real na conta do utilizador e levei isso em conta na resposta.");
+  }
+  if (userContext && Object.keys(userContext).length > 0) {
+    analysisParts.push("O perfil e o contexto do utilizador foram considerados para personalizar a resposta.");
+  }
+  sections.push(`Análise\n${analysisParts.join(" ")}`);
+
+  const calcBlock = buildCalculationBlock(message, financialData);
+  if (calcBlock) {
+    sections.push(`Cálculo\n${calcBlock}`);
+  } else if (hasFinancialData && /quanto|qual|meu|minha|cresceu|diminuiu|gastei|economizei/.test(lower)) {
+    sections.push(`Cálculo\nNão tenho dados suficientes para fechar um cálculo confiável neste momento.`);
+  }
+
+  const interpretationParts: string[] = [];
+  if (hasFinancialData) {
+    const data = financialData as Record<string, unknown>;
+    const totalReceitas = safeNumber(data.totalReceitas);
+    const totalDespesas = safeNumber(data.totalDespesas);
+    const balance = totalReceitas - totalDespesas;
+    if (totalReceitas > 0) {
+      interpretationParts.push(`Receitas: ${formatCurrency(totalReceitas)}.`);
+      interpretationParts.push(`Despesas: ${formatCurrency(totalDespesas)}.`);
+      interpretationParts.push(balance >= 0 ? `O saldo operacional está positivo em ${formatCurrency(balance)}.` : `O saldo operacional está negativo em ${formatCurrency(Math.abs(balance))}.`);
     }
-    return out;
+  }
+  if (!interpretationParts.length) {
+    interpretationParts.push("A interpretação depende do contexto e dos dados reais. Onde eles existirem, a análise fica mais precisa.");
+  }
+  sections.push(`Interpretação\n${interpretationParts.join(" ")}`);
+
+  const suggestions: string[] = [];
+  if (hasFinancialData) {
+    suggestions.push("Revise as maiores despesas e procure reduzir custos recorrentes.");
+    suggestions.push("Separe parte da receita para reserva e crescimento.");
+    suggestions.push("Use relatórios para acompanhar tendências e não apenas valores isolados.");
+  } else {
+    suggestions.push("Se quiser uma resposta mais precisa, autorize o acesso aos dados financeiros relevantes.");
+    suggestions.push("Posso detalhar o conceito, o cálculo e a forma de interpretação com mais contexto.");
+  }
+  if (intent === "ENTREPRENEURSHIP" || intent === "BUSINESS" || intent === "MANAGEMENT") {
+    suggestions.push("Teste a ideia, valide margens e acompanhe fluxo de caixa antes de escalar.");
+  }
+  sections.push(`Sugestões\n${suggestions.map((item) => `- ${item}`).join("\n")}`);
+
+  const totalReceitas = hasFinancialData ? safeNumber((financialData as Record<string, unknown>).totalReceitas) : 0;
+  const totalDespesas = hasFinancialData ? safeNumber((financialData as Record<string, unknown>).totalDespesas) : 0;
+  const forecastParts: string[] = [];
+  if (hasFinancialData && totalReceitas > 0) {
+    const savingsRate = Math.max(0, ((totalReceitas - totalDespesas) / totalReceitas) * 100);
+    forecastParts.push(`Se a disciplina atual se mantiver, a taxa de poupança tende a ficar por volta de ${savingsRate.toFixed(1)}%.`);
+    forecastParts.push("Se as despesas continuarem acima da receita, o negócio ou a vida financeira vão precisar de correção de rota.");
+  } else {
+    forecastParts.push("Sem dados financeiros suficientes, a previsão é qualitativa: foco em controlo, clareza de metas e consistência de acompanhamento.");
+  }
+  sections.push(`Previsão\n${forecastParts.join(" ")}`);
+
+  if (knowledge.length > 0) {
+    sections.push(
+      `Conhecimento aplicado\n${knowledge
+        .slice(0, 3)
+        .map((item) => `- ${item.title}: ${item.summary ?? item.content}`)
+        .join("\n")}`
+    );
   }
 
-  // Receitas
-  if (/receita|entrada|ganho|rendimento/.test(lower) && has(d.totalReceitas)) {
-    let out = `As suas receitas totais são **${fmt(d.totalReceitas)}**.`;
-    if (has(d.lucroNegocios) && d.lucroNegocios > 0) out += ` Os seus negócios contribuem com ${fmt(d.lucroNegocios)}/mês.`;
-    out += "\n\n💡 Considere direccionar uma percentagem fixa (ex.: 20%) das receitas para um cofre de poupança.";
-    return out;
-  }
+  return sections.join("\n\n");
+}
 
-  // Negócios
-  if (/negócio|negocio|lucro|empreendimento/.test(lower) && has(d.lucroNegocios)) {
-    return d.lucroNegocios >= 0
-      ? `Os seus negócios geram **${fmt(d.lucroNegocios)}/mês** de resultado líquido. ✅ Para crescer, reinvista parte do lucro e acompanhe a evolução em Relatórios.`
-      : `Os seus negócios têm resultado negativo de **${fmt(Math.abs(d.lucroNegocios))}/mês**. ⚠️ Reveja as despesas mensais de cada negócio na secção Negócios e identifique onde cortar.`;
-  }
+function buildInsightSummary(params: {
+  profile: Record<string, unknown> | null;
+  financialData?: Record<string, unknown>;
+  realtimeContext?: Record<string, unknown>;
+  intent: Intent;
+  message: string;
+}) {
+  const { profile, financialData, realtimeContext, intent, message } = params;
+  const name = String(profile?.nome ?? profile?.full_name ?? profile?.display_name ?? "utilizador");
+  const lower = normalizeText(message);
+  const financial = financialData ?? {};
+  const balance = safeNumber(financial.totalReceitas) - safeNumber(financial.totalDespesas);
+  const realtimeKeys = realtimeContext ? Object.keys(realtimeContext).length : 0;
 
-  // Património
-  if (/patrimônio|patrimonio|imóvel|imovel|veículo|veiculo|activo|ativo/.test(lower) && has(d.totalPatrimonio)) {
-    return `O seu patrimônio total está avaliado em **${fmt(d.totalPatrimonio)}**. Mantenha os valores actuais dos activos actualizados na secção Patrimônio para acompanhar a valorização real.`;
-  }
+  const focus = /negocio|empresa|lucro|margem/.test(lower)
+    ? "negócios"
+    : /cofre|poupanca|poupança|reserva|salario|salário|despesa|receita/.test(lower)
+      ? "finanças pessoais"
+      : /roi|margem|break even|break-even|cash flow|fluxo de caixa/.test(lower)
+        ? "análise financeira"
+        : intent === "IK_HELP"
+          ? "uso do IK Finance"
+          : "aprendizado geral";
 
-  // Últimas transações
-  if (/transaç|transac|últim|ultim|histórico|historico|moviment/.test(lower) && d.recentTransactions?.length) {
-    const lines = d.recentTransactions.slice(0, 5).map(t =>
-      `• ${t.tipo === "entrada" ? "🟢 +" : "🔴 -"}${fmt(Number(t.valor))} — ${t.categoria} (${t.data_transacao})`);
-    return "As suas transações mais recentes:\n\n" + lines.join("\n");
-  }
+  return `${name} focou em ${focus}. Saldo líquido atual: ${formatCurrency(balance)}. Eventos em tempo real considerados: ${realtimeKeys}.`;
+}
 
-  return null;
+async function fetchOpenAIAnswer(opts: {
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+}) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${opts.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: opts.messages,
+      max_tokens: opts.maxTokens,
+      temperature: 0.4,
+    }),
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? null;
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
   try {
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-    // Load AI settings
+    const adminClient = createClient(supabaseUrl, serviceRole);
+
     const { data: settings } = await adminClient
       .from("system_settings")
       .select("chave, valor")
       .in("chave", ["ai_enabled", "ai_name", "ai_persona", "ai_model", "ai_max_tokens", "ai_daily_limit", "ai_premium_limit"]);
 
     const cfg: Record<string, string> = {};
-    (settings ?? []).forEach((s: { chave: string; valor: string }) => { cfg[s.chave] = s.valor; });
+    (settings ?? []).forEach((setting: { chave: string; valor: string }) => {
+      cfg[setting.chave] = setting.valor;
+    });
+
     if (cfg.ai_enabled === "false") return err("O assistente IK Finance AI está desativado.", 503);
 
-    const aiName    = cfg.ai_name    ?? "IK Finance AI";
-    const aiPersona = cfg.ai_persona ?? "Sou o IK Finance AI, assistente financeiro da plataforma IK Finance.";
-    const aiModel   = cfg.ai_model   ?? "ik-native";
-    const maxTokens = parseInt(cfg.ai_max_tokens ?? "1024");
+    const aiName = cfg.ai_name ?? "IK Finance AI";
+    const aiPersona = cfg.ai_persona ?? "Você é o IK Finance AI.";
+    const aiModel = cfg.ai_model ?? "gpt-4o-mini";
+    const maxTokens = Number.parseInt(cfg.ai_max_tokens ?? "1400", 10);
 
-    // Authenticate user
     const authHeader = req.headers.get("Authorization") ?? "";
-    const userToken  = authHeader.replace("Bearer ", "");
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const userToken = authHeader.replace("Bearer ", "");
+    const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
     const { data: { user }, error: authErr } = await userClient.auth.getUser(userToken);
     if (authErr || !user) return err("Não autorizado", 401);
 
-    // Parse body
     const body = await req.json() as {
       message: string;
       history: Array<{ role: "user" | "assistant"; content: string }>;
@@ -318,83 +439,190 @@ Deno.serve(async (req: Request) => {
       financialData?: Record<string, unknown>;
       conversationId?: string;
       file?: { name?: string; mimeType?: string; url?: string; kind?: string };
+      userContext?: Record<string, unknown>;
+      realtimeContext?: Record<string, unknown>;
+      feedback?: {
+        rating: number;
+        feedbackType: string;
+        comment?: string;
+        question?: string;
+        answer?: string;
+      };
     };
-    const { message, history = [], context = "geral", financialData, conversationId, file } = body;
+
+    const {
+      message,
+      history = [],
+      context = "geral",
+      financialData,
+      conversationId,
+      file,
+      userContext,
+      realtimeContext,
+      feedback,
+    } = body;
+
     if (!message?.trim()) return err("Mensagem vazia");
 
-    // Daily limit check
-    const { data: profile } = await adminClient.from("user_profiles").select("plan").eq("user_id", user.id).maybeSingle();
-    const userPlan   = (profile as { plan?: string } | null)?.plan ?? "free";
+    const { data: profile } = await adminClient
+      .from("user_profiles")
+      .select("user_id, nome, full_name, display_name, plan, country, idioma, preferred_language, city, verified, verification_type, trial_active, trial_ends_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const userPlan = (profile as { plan?: string } | null)?.plan ?? "free";
     const dailyLimit = userPlan === "free"
-      ? parseInt(cfg.ai_daily_limit   ?? "50")
-      : parseInt(cfg.ai_premium_limit ?? "500");
+      ? Number.parseInt(cfg.ai_daily_limit ?? "60", 10)
+      : Number.parseInt(cfg.ai_premium_limit ?? "700", 10);
 
     const today = new Date().toISOString().split("T")[0];
     const { count } = await adminClient
       .from("ai_usage_log")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .gte("created_at", today + "T00:00:00Z");
+      .gte("created_at", `${today}T00:00:00Z`);
 
     if ((count ?? 0) >= dailyLimit) {
       return err(
         `Limite diário de ${dailyLimit} mensagens atingido. ${userPlan === "free" ? "Faça upgrade para Premium para mais mensagens." : "Tente novamente amanhã."}`,
-        429
+        429,
       );
     }
 
-    // Build messages (usado apenas se existir OPENAI_API_KEY — opcional)
-    const attachmentContext = file ? `\n\n[ANEXO RECEBIDO PARA ANÁLISE]\n- Nome: ${file.name ?? "sem nome"}\n- Tipo MIME: ${file.mimeType ?? "desconhecido"}\n- Tipo detectado: ${file.kind ?? "desconhecido"}\n- URL: ${file.url ?? "sem URL"}\n` : "";
+    const intent = detectIntent(message, context);
+    const intentCategories = inferKnowledgeCategories(intent, context);
 
-    const systemPrompt = `${aiPersona}\n\nVocê é ${aiName}, o assistente oficial e nativo da plataforma IK Finance — criada por Inácio Kuvingua Ulundo, de Huambo, Angola.\n\nCONTEXTO ACTUAL: ${context}${attachmentContext}\n\nREGRAS:\n- Responde SEMPRE em Português (Angola/Portugal)\n- Seja direto, útil e encorajador\n- Nunca invente dados financeiros — use apenas os dados fornecidos\n- Para suporte: WhatsApp +244 943 339 350 / Inaciokuvingua@gmail.com\n- Plano activo: ${userPlan}${buildFinancialContext(financialData)}`;
+    let knowledgeRows: KnowledgeItem[] = [];
+    try {
+      const { data } = await adminClient
+        .from("ik_ai_knowledge")
+        .select("category, subcategory, topic, title, content, summary, keywords, formulas, difficulty, language, source, source_type, confidence, version")
+        .eq("status", "active")
+        .eq("language", "pt")
+        .in("category", intentCategories)
+        .limit(80);
+      knowledgeRows = (data ?? []) as KnowledgeItem[];
+    } catch (_error) {
+      knowledgeRows = [];
+    }
+
+    if (knowledgeRows.length === 0) {
+      const { data } = await adminClient
+        .from("ik_ai_knowledge")
+        .select("category, subcategory, topic, title, content, summary, keywords, formulas, difficulty, language, source, source_type, confidence, version")
+        .eq("status", "active")
+        .eq("language", "pt")
+        .limit(80);
+      knowledgeRows = (data ?? []) as KnowledgeItem[];
+    }
+
+    const rankedKnowledge = rankKnowledge(message, knowledgeRows);
+    const userSnapshot = buildUserSnapshot(profile ?? null, financialData, realtimeContext, userContext, intent);
+    const financialContext = buildFinancialContext(financialData);
+    const knowledgeContext = rankedKnowledge
+      .slice(0, 4)
+      .map((item) => `- ${item.title}: ${item.summary ?? item.content}`)
+      .join("\n");
+
+    const attachmentContext = file
+      ? `\n\n[ANEXO RECEBIDO PARA ANÁLISE]\n- Nome: ${file.name ?? "sem nome"}\n- Tipo MIME: ${file.mimeType ?? "desconhecido"}\n- Tipo detectado: ${file.kind ?? "desconhecido"}\n- URL: ${file.url ?? "sem URL"}\n`
+      : "";
+
+    const systemPrompt = `${aiPersona}\n\nVocê é ${aiName}, o assistente oficial e nativo da plataforma IK Finance — Financial & Business Copilot.\n\nREGRAS:\n- Responda em português, com tom humano, profissional, didático, analítico e prático.\n- Se a pergunta for educativa, priorize a base de conhecimento.\n- Se for pessoal ou analítica, use dados reais do utilizador quando autorizados.\n- Nunca invente números, transações, saldos, património ou funcionalidades.\n- Quando não houver dados suficientes, diga isso claramente.\n- Sempre que possível, entregue: Resumo, Análise, Cálculo, Interpretação, Sugestões e Previsão.\n- O assistente também deve ser útil em negociação, marketing, comunicação humana, contexto emocional e leitura de intenção, desde que não invente factos.\n\n[INTENÇÃO DETECTADA]\n${intent}\n\n[CONTEXTO ATUAL]\n${context}${attachmentContext}${financialContext}\n\n[SNAPSHOT DO UTILIZADOR]\n${JSON.stringify(userSnapshot, null, 2)}\n\n[BASE DE CONHECIMENTO RELEVANTE]\n${knowledgeContext || "Nenhum item forte encontrado."}`;
 
     const messages = [
-      { role: "system", content: systemPrompt },
-      ...history.slice(-10),
-      { role: "user", content: message },
+      { role: "system" as const, content: systemPrompt },
+      ...history.slice(-12).map((entry) => ({ role: entry.role, content: entry.content } as const)),
+      { role: "user" as const, content: message },
     ];
 
-    // ─── Motor de resposta ──────────────────────────────────────────────
-    // 1) IA nativa IK Finance: análise com os dados reais autorizados (primária)
-    // 2) OpenAI: apenas se OPENAI_API_KEY existir (opcional, não obrigatório)
-    // 3) Base de conhecimento nativa da plataforma
-    let assistantMessage: string | null = analyzeFinances(message, financialData);
-    let tokensIn = 0, tokensOut = 0;
+    let assistantMessage = buildStructuredAnswer({
+      message,
+      intent,
+      knowledge: rankedKnowledge,
+      financialData,
+      profile: profile ?? null,
+      realtimeContext,
+      userContext,
+    });
+
+    let tokensIn = 0;
+    let tokensOut = 0;
     let engineUsed = "ik-native";
 
-    if (!assistantMessage) {
-      const openaiKey = Deno.env.get("OPENAI_API_KEY");
-      if (openaiKey) {
-        try {
-          const res = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
-            body: JSON.stringify({ model: aiModel === "ik-native" ? "gpt-4o-mini" : aiModel, messages, max_tokens: maxTokens, temperature: 0.7 }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            assistantMessage = data.choices?.[0]?.message?.content ?? null;
-            tokensIn  = data.usage?.prompt_tokens ?? 0;
-            tokensOut = data.usage?.completion_tokens ?? 0;
-            if (assistantMessage) engineUsed = aiModel;
-          }
-        } catch (_e) {
-          // Falha externa nunca bloqueia — segue para a IA nativa
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (openaiKey) {
+      try {
+        const openaiAnswer = await fetchOpenAIAnswer({
+          apiKey: openaiKey,
+          model: aiModel === "ik-native" ? "gpt-4o-mini" : aiModel,
+          maxTokens,
+          messages,
+        });
+        if (openaiAnswer?.trim()) {
+          assistantMessage = openaiAnswer.trim();
+          engineUsed = aiModel;
         }
+      } catch (_error) {
+        // Falha externa nunca bloqueia o fluxo nativo.
       }
     }
 
-    if (!assistantMessage) assistantMessage = getFallbackResponse(message);
+    if (rankedKnowledge.length === 0) {
+      await adminClient.from("ik_ai_learning_queue").insert({
+        question: message,
+        answer: assistantMessage,
+        feedback: "knowledge_gap_detected",
+        category: intent,
+        issue_type: "knowledge_gap",
+        suggested_improvement: "Criar ou rever conteúdo para esta intenção e consolidar exemplos práticos.",
+        status: "pending",
+      });
+    }
 
-    // Log usage
+    if (feedback) {
+      await adminClient.from("ik_ai_feedback").insert({
+        user_id: user.id,
+        conversation_id: conversationId ?? null,
+        rating: feedback.rating,
+        feedback_type: feedback.feedbackType,
+        comment: feedback.comment ?? null,
+        question: feedback.question ?? message,
+        answer: feedback.answer ?? assistantMessage,
+        category: intent,
+      });
+
+      if (feedback.rating < 3) {
+        await adminClient.from("ik_ai_learning_queue").insert({
+          question: feedback.question ?? message,
+          answer: feedback.answer ?? assistantMessage,
+          feedback: feedback.comment ?? "negative_feedback",
+          category: intent,
+          issue_type: feedback.feedbackType,
+          suggested_improvement: "Revisar a resposta, melhorar a base e validar a explicação antes de promover para conhecimento oficial.",
+          status: "pending",
+        });
+      }
+    }
+
     await adminClient.from("ai_usage_log").insert({
-      user_id: user.id, contexto: context,
-      tokens_in: tokensIn, tokens_out: tokensOut, modelo: engineUsed,
+      user_id: user.id,
+      contexto: context,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      modelo: engineUsed,
     });
 
-    // Persist conversation
-    const newHistory = [...history, { role: "user", content: message }, { role: "assistant", content: assistantMessage }];
+    const newHistory = [...history, { role: "user" as const, content: message }, { role: "assistant" as const, content: assistantMessage }];
     const titulo = history.length === 0 ? message.substring(0, 60) : undefined;
+
+    const insightSummary = buildInsightSummary({
+      profile: profile ?? null,
+      financialData,
+      realtimeContext,
+      intent,
+      message,
+    });
 
     if (conversationId) {
       await adminClient
@@ -402,15 +630,34 @@ Deno.serve(async (req: Request) => {
         .update({ mensagens: newHistory, updated_at: new Date().toISOString(), ...(titulo && { titulo }) })
         .eq("id", conversationId)
         .eq("user_id", user.id);
-      return ok({ message: assistantMessage, conversationId });
     } else {
       const { data: conv } = await adminClient
         .from("ai_conversations")
         .insert({ user_id: user.id, titulo: titulo ?? "Conversa", mensagens: newHistory, contexto: context })
         .select("id")
         .single();
-      return ok({ message: assistantMessage, conversationId: conv?.id });
+      const createdConversationId = conv?.id;
+      if (createdConversationId) {
+        await adminClient.from("ik_ai_user_insights").upsert({
+          user_id: user.id,
+          profile_snapshot: userSnapshot,
+          summary: insightSummary,
+          last_conversation_id: createdConversationId,
+          last_realtime_snapshot: realtimeContext ?? {},
+        }, { onConflict: "user_id" });
+        return ok({ message: assistantMessage, conversationId: createdConversationId });
+      }
     }
+
+    await adminClient.from("ik_ai_user_insights").upsert({
+      user_id: user.id,
+      profile_snapshot: userSnapshot,
+      summary: insightSummary,
+      last_conversation_id: conversationId ?? null,
+      last_realtime_snapshot: realtimeContext ?? {},
+    }, { onConflict: "user_id" });
+
+    return ok({ message: assistantMessage, conversationId: conversationId ?? null });
   } catch (e) {
     console.error("[ik-ai]", e);
     return err(String(e), 500);

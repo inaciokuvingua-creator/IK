@@ -313,7 +313,7 @@ function AppContent() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
+      case 'dashboard': return <Dashboard onNavigate={(p: string) => navigate(p as Page)} />;
       case 'cofres': return <Cofres />;
       case 'comunidades': return <Comunidades />;
       case 'financeiro': return <Financeiro />;
@@ -326,15 +326,15 @@ function AppContent() {
       case 'storeProfile': return <StoreProfile storeId={storeProfileId} />;
       case 'search': return <Search />;
       case 'empresas': return <Empresas />;
-      case 'marketplace': return <Marketplace onNavigate={(p) => navigate(p as Page)} initialProductId={marketplaceProductId ?? undefined} />;
-      case 'minha-loja': return <MinhaLoja onNavigate={(p) => navigate(p as Page)} />;
+      case 'marketplace': return <Marketplace onNavigate={(p: string) => navigate(p as Page)} initialProductId={marketplaceProductId ?? undefined} />;
+      case 'minha-loja': return <MinhaLoja onNavigate={(p: string) => navigate(p as Page)} />;
       case 'planos': return <Planos />;
       case 'chat': return <Chat initialUserId={chatTargetId ?? undefined} />;
       case 'trade': return <Trade />;
       case 'post': return activePostId ? <PostView postId={activePostId} /> : <Comunidades />;
       case 'publicStore': return <PublicStore slug={publicStoreSlug ?? undefined} storeId={publicStoreId ?? undefined} />;
       case 'publicCompany': return <PublicCompany slug={publicCompanySlug ?? undefined} companyId={publicCompanyId ?? undefined} />;
-      default: return <Dashboard onNavigate={(p) => navigate(p as Page)} />;
+      default: return <Dashboard onNavigate={(p: string) => navigate(p as Page)} />;
     }
   };
 

@@ -413,7 +413,7 @@ export default function CommunityFeed({ query }: { query?: string }) {
             {/* Menu de partilha */}
             <div className="relative" ref={shareMenuOpen === post.id ? menuRef : undefined}>
               <button
-n                onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)}
+                onClick={() => setShareMenuOpen(shareMenuOpen === post.id ? null : post.id)}
                 disabled={sharingPost === post.id}
                 className="flex items-center gap-1.5 hover:text-cyan-400"
               >

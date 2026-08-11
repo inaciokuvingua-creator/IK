@@ -11,6 +11,14 @@ export type AiAttachment = {
   kind?: string;
 };
 
+export type AiFeedbackPayload = {
+  rating: number;
+  feedbackType: string;
+  comment?: string;
+  question?: string;
+  answer?: string;
+};
+
 export type AiPrivacySettings = {
   enabled: boolean;
   allowFinancialData: boolean;
@@ -21,7 +29,18 @@ type AiCtx = {
   enabled: boolean;
   privacy: AiPrivacySettings;
   updatePrivacy: (p: Partial<AiPrivacySettings>) => void;
-  sendMessage: (message: string, history: AiMessage[], context: AiContext, financialData?: Record<string, unknown>, options?: { file?: AiAttachment }) => Promise<{ message: string; conversationId: string } | null>;
+  sendMessage: (
+    message: string,
+    history: AiMessage[],
+    context: AiContext,
+    financialData?: Record<string, unknown>,
+    options?: {
+      file?: AiAttachment;
+      userContext?: Record<string, unknown>;
+      realtimeContext?: Record<string, unknown>;
+    }
+  ) => Promise<{ message: string; conversationId: string } | null>;
+  submitFeedback: (payload: AiFeedbackPayload, question?: string, answer?: string) => Promise<void>;
   loading: boolean;
   error: string | null;
 };
@@ -58,7 +77,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
     history: AiMessage[],
     context: AiContext,
     financialData?: Record<string, unknown>,
-    options?: { file?: AiAttachment }
+    options?: { file?: AiAttachment; userContext?: Record<string, unknown>; realtimeContext?: Record<string, unknown> }
   ): Promise<{ message: string; conversationId: string } | null> => {
     if (!user || !session) { setError('Você precisa estar logado.'); return null; }
     if (!privacy.enabled) { setError('IA desativada nas suas configurações de privacidade.'); return null; }
@@ -67,7 +86,13 @@ export function AIProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     const cleanHistory = history.map(({ role, content }) => ({ role, content }));
-    const payload: Record<string, unknown> = { message, history: cleanHistory, context };
+    const payload: Record<string, unknown> = {
+      message,
+      history: cleanHistory,
+      context,
+      userContext: options?.userContext ?? {},
+      realtimeContext: options?.realtimeContext ?? {},
+    };
 
     if (options?.file) {
       payload.file = options.file;
@@ -106,8 +131,36 @@ export function AIProvider({ children }: { children: ReactNode }) {
     }
   }, [user, session, privacy]);
 
+  const submitFeedback = useCallback(async (payload: AiFeedbackPayload, question?: string, answer?: string) => {
+    if (!user) return;
+    const feedbackQuestion = question ?? payload.question ?? '';
+    const feedbackAnswer = answer ?? payload.answer ?? '';
+
+    await supabase.from('ik_ai_feedback').insert({
+      user_id: user.id,
+      rating: payload.rating,
+      feedback_type: payload.feedbackType,
+      comment: payload.comment ?? null,
+      question: feedbackQuestion,
+      answer: feedbackAnswer,
+      category: 'assistant',
+    });
+
+    if (payload.rating < 3) {
+      await supabase.from('ik_ai_learning_queue').insert({
+        question: feedbackQuestion,
+        answer: feedbackAnswer,
+        feedback: payload.comment ?? payload.feedbackType,
+        category: 'assistant',
+        issue_type: payload.feedbackType,
+        suggested_improvement: 'Revisar resposta, reforçar conhecimento e validar antes de promover para a base oficial.',
+        status: 'pending',
+      });
+    }
+  }, [user]);
+
   return (
-    <Ctx.Provider value={{ enabled: privacy.enabled, privacy, updatePrivacy, sendMessage, loading, error }}>
+    <Ctx.Provider value={{ enabled: privacy.enabled, privacy, updatePrivacy, sendMessage, submitFeedback, loading, error }}>
       {children}
     </Ctx.Provider>
   );

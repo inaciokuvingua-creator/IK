@@ -136,6 +136,20 @@ export const adminApi = {
     req<{ requests: PlanRequest[]; total: number }>('GET', `/plans/requests?status=${status}&page=${page}`),
   planRequestUpdate: (id: string, body: { status?: string; admin_nota?: string; plan?: string }) =>
     req<PlanRequest>('PUT', `/plans/requests/${id}`, body),
+
+  // ── AI Knowledge Center ──────────────────────────────────────────────────
+  aiKnowledge: (page = 1, status = '', category = '') =>
+    req<{ items: AIKnowledgeItem[]; total: number }>('GET', `/ai/knowledge?page=${page}&status=${encodeURIComponent(status)}&category=${encodeURIComponent(category)}`),
+  aiCreateKnowledge: (body: Partial<AIKnowledgeItem>) =>
+    req<AIKnowledgeItem>('POST', '/ai/knowledge', body),
+  aiUpdateKnowledge: (id: string, body: Partial<AIKnowledgeItem>) =>
+    req<AIKnowledgeItem>('PUT', `/ai/knowledge/${id}`, body),
+  aiFeedback: (page = 1, rating = '') =>
+    req<{ items: AIFeedbackItem[]; total: number }>('GET', `/ai/feedback?page=${page}&rating=${encodeURIComponent(rating)}`),
+  aiLearningQueue: (page = 1, status = '') =>
+    req<{ items: AILearningQueueItem[]; total: number }>('GET', `/ai/learning-queue?page=${page}&status=${encodeURIComponent(status)}`),
+  aiLearningQueueUpdate: (id: string, body: { status: string }) =>
+    req<AILearningQueueItem>('PUT', `/ai/learning-queue/${id}`, body),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -267,4 +281,50 @@ export type MarketplaceReportItem = {
   status: 'open' | 'reviewing' | 'resolved' | 'dismissed';
   created_at: string;
   reviewed_at: string | null;
+};
+
+export type AIKnowledgeItem = {
+  id: string;
+  category: string;
+  subcategory: string | null;
+  topic: string;
+  title: string;
+  content: string;
+  summary: string | null;
+  keywords: string[];
+  formulas: string[];
+  difficulty: string;
+  language: string;
+  source: string | null;
+  source_type: string;
+  reference: string | null;
+  version: number;
+  status: string;
+  confidence: number;
+  updated_at: string;
+};
+
+export type AIFeedbackItem = {
+  id: string;
+  user_id: string;
+  rating: number;
+  feedback_type: string | null;
+  comment: string | null;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  created_at: string;
+};
+
+export type AILearningQueueItem = {
+  id: string;
+  question: string | null;
+  answer: string | null;
+  feedback: string | null;
+  category: string | null;
+  issue_type: string | null;
+  suggested_improvement: string | null;
+  status: string;
+  reviewed_by: string | null;
+  created_at: string;
 };

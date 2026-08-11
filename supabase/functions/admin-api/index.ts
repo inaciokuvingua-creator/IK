@@ -452,6 +452,138 @@ Deno.serve(async (req: Request) => {
       return ok({ ok: true });
     }
 
+    // ── GET /ai/knowledge ───────────────────────────────────────────────────
+    if (path === "/ai/knowledge" && req.method === "GET") {
+      const page = parseInt(url.searchParams.get("page") ?? "1");
+      const perPage = 25;
+      const from = (page - 1) * perPage;
+      const status = url.searchParams.get("status");
+      const category = url.searchParams.get("category");
+
+      let query = adminClient
+        .from("ik_ai_knowledge")
+        .select("*", { count: "exact" })
+        .order("updated_at", { ascending: false })
+        .range(from, from + perPage - 1);
+
+      if (status) query = query.eq("status", status);
+      if (category) query = query.eq("category", category);
+
+      const { data, count, error } = await query;
+      if (error) return err(error.message);
+      return ok({ items: data ?? [], total: count ?? 0 });
+    }
+
+    // ── POST /ai/knowledge ──────────────────────────────────────────────────
+    if (path === "/ai/knowledge" && req.method === "POST") {
+      if (!isSuperAdmin(adminUser)) return err("Apenas administradores podem criar conhecimento", 403);
+      const body = await req.json();
+      const payload = {
+        category: body.category,
+        subcategory: body.subcategory ?? null,
+        topic: body.topic,
+        title: body.title,
+        content: body.content,
+        summary: body.summary ?? null,
+        keywords: body.keywords ?? [],
+        examples: body.examples ?? [],
+        formulas: body.formulas ?? [],
+        difficulty: body.difficulty ?? "beginner",
+        language: body.language ?? "pt",
+        country: body.country ?? null,
+        source: body.source ?? "IK Finance",
+        source_type: body.source_type ?? "internal",
+        reference: body.reference ?? null,
+        version: body.version ?? 1,
+        status: body.status ?? "draft",
+        confidence: body.confidence ?? 0.9,
+        search_text: body.search_text ?? `${body.title ?? ""} ${body.topic ?? ""} ${body.content ?? ""}`,
+        metadata: body.metadata ?? {},
+      };
+
+      const { data, error } = await adminClient.from("ik_ai_knowledge").insert(payload).select().single();
+      if (error) return err(error.message);
+      await logAction(adminClient, adminUser.id, adminUser.nome, "ai_knowledge_create", "ik_ai_knowledge", data.id, { topic: payload.topic, version: payload.version });
+      return ok(data, 201);
+    }
+
+    // ── PUT /ai/knowledge/:id ───────────────────────────────────────────────
+    if (path.startsWith("/ai/knowledge/") && req.method === "PUT") {
+      if (!isSuperAdmin(adminUser)) return err("Apenas administradores podem editar conhecimento", 403);
+      const knowledgeId = path.replace("/ai/knowledge/", "");
+      const body = await req.json();
+      const patch: Record<string, unknown> = {};
+      const allowed = [
+        "category", "subcategory", "topic", "title", "content", "summary", "keywords", "examples", "formulas",
+        "difficulty", "language", "country", "source", "source_type", "reference", "version", "status", "confidence", "search_text", "metadata",
+      ];
+      for (const key of allowed) {
+        if (key in body) patch[key] = body[key];
+      }
+      if (Object.keys(patch).length === 0) return err("Nada para atualizar");
+
+      const { data, error } = await adminClient.from("ik_ai_knowledge").update(patch).eq("id", knowledgeId).select().single();
+      if (error) return err(error.message);
+      await logAction(adminClient, adminUser.id, adminUser.nome, "ai_knowledge_update", "ik_ai_knowledge", knowledgeId, patch);
+      return ok(data);
+    }
+
+    // ── GET /ai/feedback ─────────────────────────────────────────────────────
+    if (path === "/ai/feedback" && req.method === "GET") {
+      const page = parseInt(url.searchParams.get("page") ?? "1");
+      const perPage = 30;
+      const from = (page - 1) * perPage;
+      const rating = url.searchParams.get("rating");
+
+      let query = adminClient
+        .from("ik_ai_feedback")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
+      if (rating) query = query.eq("rating", Number(rating));
+
+      const { data, count, error } = await query;
+      if (error) return err(error.message);
+      return ok({ items: data ?? [], total: count ?? 0 });
+    }
+
+    // ── GET /ai/learning-queue ──────────────────────────────────────────────
+    if (path === "/ai/learning-queue" && req.method === "GET") {
+      const page = parseInt(url.searchParams.get("page") ?? "1");
+      const perPage = 30;
+      const from = (page - 1) * perPage;
+      const status = url.searchParams.get("status");
+
+      let query = adminClient
+        .from("ik_ai_learning_queue")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
+      if (status) query = query.eq("status", status);
+
+      const { data, count, error } = await query;
+      if (error) return err(error.message);
+      return ok({ items: data ?? [], total: count ?? 0 });
+    }
+
+    // ── PUT /ai/learning-queue/:id ──────────────────────────────────────────
+    if (path.startsWith("/ai/learning-queue/") && req.method === "PUT") {
+      if (!isSuperAdmin(adminUser)) return err("Apenas administradores podem revisar a fila", 403);
+      const queueId = path.replace("/ai/learning-queue/", "");
+      const body = await req.json();
+      const status = body.status;
+      if (!status) return err("status é obrigatório");
+      const { data, error } = await adminClient
+        .from("ik_ai_learning_queue")
+        .update({ status, reviewed_by: adminUser.id, updated_at: new Date().toISOString() })
+        .eq("id", queueId)
+        .select()
+        .single();
+      if (error) return err(error.message);
+      await logAction(adminClient, adminUser.id, adminUser.nome, "ai_learning_queue_update", "ik_ai_learning_queue", queueId, { status });
+      return ok(data);
+    }
+
     // ── GET /logs ─────────────────────────────────────────────────────────────
     if (path === "/logs" && req.method === "GET") {
       const page = parseInt(url.searchParams.get("page") ?? "1");

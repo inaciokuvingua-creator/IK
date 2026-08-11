@@ -4,9 +4,12 @@ import {
   Sparkles, X, Send, ChevronDown, RotateCcw,
   TrendingUp, Store, Building2, BarChart3, Lock, Info,
   Minimize2, Maximize2,
+  ThumbsUp, ThumbsDown,
 } from 'lucide-react';
 import { useAI, type AiMessage, type AiContext } from '../context/AIContext';
+import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
+import { supabase } from '../lib/supabase';
 
 type Props = {
   financialData?: Record<string, unknown>;
@@ -54,9 +57,19 @@ const QUICK_PROMPTS: Record<AiContext, string[]> = {
   ],
 };
 
+const NEGATIVE_REASONS = [
+  'Resposta incorreta',
+  'Resposta incompleta',
+  'Não entendeu minha pergunta',
+  'Informação desatualizada',
+  'Cálculo incorreto',
+  'Outro',
+];
+
 export default function AIAssistant({ financialData, currentPage = 'dashboard' }: Props) {
   const { t } = useTranslation();
-  const { sendMessage, loading, error, privacy, updatePrivacy } = useAI();
+  const { user } = useAuth();
+  const { sendMessage, loading, error, privacy, updatePrivacy, submitFeedback } = useAI();
   const { profile } = useProfile();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -66,6 +79,9 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
   const [context, setContext] = useState<AiContext>('geral');
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [feedbackOpenFor, setFeedbackOpenFor] = useState<number | null>(null);
+  const [financialSnapshot, setFinancialSnapshot] = useState<Record<string, unknown> | undefined>(financialData);
+  const [realtimeContext, setRealtimeContext] = useState<Record<string, unknown>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +100,77 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
     }
   }, [open, minimized, messages.length]);
 
+  const loadFinancialSnapshot = useCallback(async () => {
+    if (!user?.id || !privacy.allowFinancialData) {
+      setFinancialSnapshot(financialData);
+      return;
+    }
+
+    const [transactionsResult, coffersResult, businessesResult, patrimonyResult] = await Promise.all([
+      supabase.from('transacoes').select('tipo,valor,categoria,data_transacao').eq('user_id', user.id).order('data_transacao', { ascending: false }).limit(40),
+      supabase.from('cofres').select('saldo').eq('user_id', user.id),
+      supabase.from('negocios').select('receita_mensal,despesa_mensal,nome,categoria').eq('user_id', user.id),
+      supabase.from('patrimonio').select('valor_atual').eq('user_id', user.id),
+    ]);
+
+    const recentTransactions = (transactionsResult.data ?? []).map((item) => ({
+      tipo: item.tipo,
+      valor: Number(item.valor ?? 0),
+      categoria: item.categoria,
+      data_transacao: item.data_transacao,
+    }));
+
+    const totalReceitas = recentTransactions.filter((item) => item.tipo === 'entrada').reduce((sum, item) => sum + Number(item.valor ?? 0), 0);
+    const totalDespesas = recentTransactions.filter((item) => item.tipo === 'saida').reduce((sum, item) => sum + Number(item.valor ?? 0), 0);
+    const saldoCofres = (coffersResult.data ?? []).reduce((sum, item) => sum + Number(item.saldo ?? 0), 0);
+    const lucroNegocios = (businessesResult.data ?? []).reduce((sum, item) => sum + Number(item.receita_mensal ?? 0) - Number(item.despesa_mensal ?? 0), 0);
+    const totalPatrimonio = (patrimonyResult.data ?? []).reduce((sum, item) => sum + Number(item.valor_atual ?? 0), 0);
+
+    setFinancialSnapshot({
+      totalReceitas,
+      totalDespesas,
+      saldoCofres,
+      lucroNegocios,
+      totalPatrimonio,
+      recentTransactions,
+    });
+  }, [user?.id, privacy.allowFinancialData, financialData]);
+
+  useEffect(() => {
+    loadFinancialSnapshot();
+  }, [loadFinancialSnapshot]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const mark = (key: string) => setRealtimeContext((prev) => ({ ...prev, [key]: new Date().toISOString() }));
+    const channel = supabase.channel(`ik-ai-live:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_conversations', filter: `user_id=eq.${user.id}` }, () => {
+        mark('conversationsUpdatedAt');
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes', filter: `user_id=eq.${user.id}` }, () => {
+        mark('transactionsUpdatedAt');
+        loadFinancialSnapshot();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cofres', filter: `user_id=eq.${user.id}` }, () => {
+        mark('coffersUpdatedAt');
+        loadFinancialSnapshot();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'negocios', filter: `user_id=eq.${user.id}` }, () => {
+        mark('businessesUpdatedAt');
+        loadFinancialSnapshot();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patrimonio', filter: `user_id=eq.${user.id}` }, () => {
+        mark('patrimonyUpdatedAt');
+        loadFinancialSnapshot();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadFinancialSnapshot]);
+
   const handleOpen = () => {
     setOpen(true);
     setMinimized(false);
@@ -101,18 +188,27 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
     setInput('');
+    setFeedbackOpenFor(null);
 
     const userMsg: AiMessage = { role: 'user', content: msg, ts: Date.now() };
     setMessages((prev) => [...prev, userMsg]);
 
     const historyForApi = messages.map(({ role, content }) => ({ role, content }));
-    const result = await sendMessage(msg, historyForApi, context, financialData);
+    const activeFinancialData = financialSnapshot ?? financialData;
+    const result = await sendMessage(msg, historyForApi, context, activeFinancialData, {
+      userContext: {
+        profile,
+        currentPage,
+        language: profile?.idioma ?? profile?.preferred_language ?? 'pt',
+      },
+      realtimeContext,
+    });
 
     if (result) {
       setMessages((prev) => [...prev, { role: 'assistant', content: result.message, ts: Date.now() }]);
       if (!conversationId) setConvId(result.conversationId);
     }
-  }, [input, loading, messages, sendMessage, context, financialData, conversationId]);
+  }, [input, loading, messages, sendMessage, context, financialData, financialSnapshot, conversationId, profile, currentPage, realtimeContext]);
 
   const reset = () => {
     setMessages([{
@@ -121,6 +217,15 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
       ts: Date.now(),
     }]);
     setConvId(undefined);
+    setFeedbackOpenFor(null);
+  };
+
+  const handleFeedback = async (index: number, rating: number, feedbackType: string, comment: string) => {
+    const assistantMessage = messages[index];
+    if (!assistantMessage) return;
+    const question = [...messages].slice(0, index).reverse().find((msg) => msg.role === 'user')?.content ?? input;
+    await submitFeedback({ rating, feedbackType, comment, question, answer: assistantMessage.content }, question, assistantMessage.content);
+    setFeedbackOpenFor(null);
   };
 
   const ctx = CONTEXT_META[context];
@@ -272,12 +377,43 @@ export default function AIAssistant({ financialData, currentPage = 'dashboard' }
                         <Sparkles size={11} className="text-white" />
                       </div>
                     )}
-                    <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-emerald-600 text-white rounded-br-sm'
-                        : 'bg-gray-800 text-gray-200 rounded-bl-sm'
-                    }`}>
-                      {formatMessage(msg.content)}
+                    <div className="max-w-[82%]">
+                      <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-emerald-600 text-white rounded-br-sm'
+                          : 'bg-gray-800 text-gray-200 rounded-bl-sm'
+                      }`}>
+                        {formatMessage(msg.content)}
+                      </div>
+                      {msg.role === 'assistant' && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            onClick={() => handleFeedback(i, 5, 'useful', 'Resposta útil')}
+                            className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                          >
+                            <ThumbsUp size={11} /> útil
+                          </button>
+                          <button
+                            onClick={() => setFeedbackOpenFor(feedbackOpenFor === i ? null : i)}
+                            className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors"
+                          >
+                            <ThumbsDown size={11} /> não ajudou
+                          </button>
+                        </div>
+                      )}
+                      {msg.role === 'assistant' && feedbackOpenFor === i && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {NEGATIVE_REASONS.map((reason) => (
+                            <button
+                              key={reason}
+                              onClick={() => handleFeedback(i, 1, reason.toLowerCase().replace(/\s+/g, '_'), reason)}
+                              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:border-red-500 hover:text-red-200 transition-colors"
+                            >
+                              {reason}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

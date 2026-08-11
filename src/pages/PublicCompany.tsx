@@ -16,6 +16,7 @@ type Company = {
   accent_color: string;
   bg_color: string;
   layout: string;
+  font_family?: string | null;
   slogan: string | null;
   hero_title: string | null;
   hero_subtitle: string | null;

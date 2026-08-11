@@ -43,6 +43,8 @@ const PAGE_TITLES: Record<Page, string> = {
   storeProfile: 'Loja',
   trade: 'Trade',
   post: 'Publicação',
+  publicStore: 'Loja Pública',
+  publicCompany: 'Empresa Pública',
 };
 
 export default function Layout({

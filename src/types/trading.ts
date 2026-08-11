@@ -9,6 +9,12 @@ export interface TradingAsset {
   symbol: string;
   name: string;
   type: AssetType;
+  asset_class?: AssetType;
+  last_price?: number;
+  price_change_percent_24h?: number;
+  volume_24h?: number;
+  high_24h?: number;
+  last_sync_at?: string;
   exchange?: string;
   is_active: boolean;
   created_at: string;
