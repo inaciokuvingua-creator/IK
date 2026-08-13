@@ -91,7 +91,7 @@ export default function Comunidades() {
     try {
       const page = reset ? 0 : pageRef.current;
       let builder = supabase
-        .from('user_profiles')
+        .from('user_public_profiles')
         .select('user_id,nome,full_name,display_name,username,bio,avatar_url,country,city,province,verified,account_type,plan,company_name')
         .neq('user_id', user?.id ?? '')
         .order('updated_at', { ascending: false });

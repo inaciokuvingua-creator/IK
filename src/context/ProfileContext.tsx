@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { buildProfileCompletion, type AccountType } from '../lib/accountSecurity';
 import { changeLang, type LangCode, SUPPORTED_LANGUAGES } from '../i18n';
+import { selectPublicProfileById, selectPrivateProfileById, updatePublicProfileByUserId } from '../lib/profileAccess';
 
 export type SocialLinks = {
   instagram?: string;
@@ -194,13 +195,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const profileResult = await withTimeout(
-        Promise.resolve(
-          supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', user.id)
-            .maybeSingle(),
-        ),
+        Promise.resolve(selectPublicProfileById(user.id, '*')),
         12000,
         'Tempo esgotado ao carregar perfil.',
       );
@@ -224,7 +219,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       const createdResult = await withTimeout(
         Promise.resolve(
           supabase
-            .from('user_profiles')
+            .from('user_public_profiles')
             .insert({
               user_id: user.id,
               nome,
@@ -287,13 +282,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }
 
   const { data, error } = await supabase
-    .from('user_profiles')
+    .from('user_public_profiles')
     .update(nextPatch)
     .eq('user_id', user.id)
     .select()
     .single();
 
   if (error) {
+    if (error.message.includes('does not exist')) {
+      const legacy = await supabase.from('user_profiles').update(nextPatch).eq('user_id', user.id).select().single();
+      if (legacy.error) {
+        console.error('Erro ao atualizar perfil:', legacy.error);
+        throw legacy.error;
+      }
+      if (legacy.data) setProfile(normalizeProfile(legacy.data, user.email ?? null));
+      return;
+    }
     console.error('Erro ao atualizar perfil:', error);
     throw error;
   }

@@ -10,6 +10,11 @@ import {
   type AccountType,
   type DocumentType,
 } from '../lib/accountSecurity';
+import {
+  selectProfileByUserId,
+  upsertPrivateProfile,
+  upsertPublicProfile,
+} from '../lib/profileAccess';
  
 export type SecurityQuestionInput = {
   question: string;
@@ -113,8 +118,9 @@ function cleanupRecoveryUrl() {
 }
 
 async function restoreLang(userId: string) {
-  const { data } = await supabase.from('user_profiles').select('idioma').eq('user_id', userId).maybeSingle();
-  if (data?.idioma) changeLang(data.idioma as LangCode);
+  const { data } = await selectProfileByUserId('public', userId, 'idioma,preferred_language');
+  const lang = data?.idioma ?? data?.preferred_language;
+  if (lang) changeLang(lang as LangCode);
 }
 
 async function resolveLoginIdentifier(identifier: string) {
@@ -179,10 +185,16 @@ async function auditSuccessfulLogin(userId: string) {
     last_login_at: new Date().toISOString(),
     last_login_location: device.locationLabel,
   };
+
   if (suspicious) {
-    const { data: profile } = await supabase.from('user_profiles').select('suspicious_login_count').eq('user_id', userId).maybeSingle();
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('suspicious_login_count')
+      .eq('user_id', userId)
+      .maybeSingle();
     updates.suspicious_login_count = (profile?.suspicious_login_count ?? 0) + 1;
   }
+
   await supabase.from('user_profiles').update(updates).eq('user_id', userId);
 }
 
@@ -282,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const username = normalizeUsername(payload.username);
       const { data: usernameTaken } = await supabase
-        .from('user_profiles')
+        .from('user_public_profiles')
         .select('user_id')
         .eq('username', username)
         .maybeSingle();
@@ -306,7 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Não foi possível criar a conta.' };
 
-      const profilePayload = {
+      const publicProfilePayload = {
         user_id: data.user.id,
         nome: payload.fullName,
         full_name: payload.fullName,
@@ -314,14 +326,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username,
         email: payload.email.toLowerCase(),
         account_type: payload.accountType,
-        phone: payload.phone || null,
-        birth_date: payload.birthDate || null,
-        sex: payload.sex || null,
         country: payload.country,
         province: payload.province || null,
         city: payload.city || null,
-        address: payload.address || null,
-        postal_code: payload.postalCode || null,
         bio: payload.bio || null,
         public_bio: payload.bio || null,
         preferred_language: payload.preferredLanguage ?? 'pt',
@@ -338,13 +345,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         consented_at: payload.consent ? now.toISOString() : null,
       };
 
-      await supabase.from('user_profiles').upsert({
-        ...profilePayload,
+      const privateProfilePayload = {
+        user_id: data.user.id,
+        phone: payload.phone || null,
+        email: payload.email.toLowerCase(),
+        birth_date: payload.birthDate || null,
+        sex: payload.sex || null,
+        address: payload.address || null,
+        postal_code: payload.postalCode || null,
+        country: payload.country,
+        consent_version: payload.consent ? '2026-07' : null,
+        consented_at: payload.consent ? now.toISOString() : null,
+      };
+
+      await upsertPublicProfile({
+        ...publicProfilePayload,
         profile_completion: buildProfileCompletion({
-          ...profilePayload,
+          ...publicProfilePayload,
+          ...privateProfilePayload,
           document_number: payload.documentNumber,
         }),
       });
+      await upsertPrivateProfile(privateProfilePayload);
       await persistSecurityArtifacts(data.user.id, payload);
       return { error: null };
     } catch (error) {

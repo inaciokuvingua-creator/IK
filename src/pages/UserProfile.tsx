@@ -53,7 +53,7 @@ export default function UserProfile({ userId }: { userId: string | null }) {
     setLoading(true);
     (async () => {
       try {
-        const { data } = await supabase.from('user_profiles').select('*').eq('user_id', userId).maybeSingle();
+        const { data } = await supabase.from('user_public_profiles').select('*').eq('user_id', userId).maybeSingle();
         setProfile(data || null);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }

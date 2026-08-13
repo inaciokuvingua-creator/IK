@@ -1,0 +1,654 @@
+Você é o engenheiro principal responsável pelo IK FINANCE.
+
+OBJETIVO:
+Migrar cuidadosamente o código existente da antiga tabela `public.user_profiles` para a nova arquitetura de perfis criada no Supabase, sem quebrar nenhuma funcionalidade existente.
+
+NÃO recrie o projeto.
+NÃO altere o design.
+NÃO apague dados.
+NÃO apague `public.user_profiles` neste momento.
+NÃO altere tabelas que não sejam necessárias para esta migração.
+
+============================================================
+NOVA ARQUITETURA
+============================================================
+
+A antiga tabela:
+
+public.user_profiles
+
+continua existindo temporariamente como tabela legada.
+
+Foram criadas:
+
+1. public.user_public_profiles
+2. public.user_private_profiles
+3. public.user_security_profiles
+
+Responsabilidade de cada tabela:
+
+------------------------------------------------------------
+user_public_profiles
+------------------------------------------------------------
+
+Usar para dados que podem aparecer no perfil público/social:
+
+- user_id
+- nome
+- bio
+- avatar_url
+- country
+- website
+- social_links
+- idioma
+- account_type
+- full_name
+- display_name
+- username
+- public_bio
+- province
+- city
+- preferred_language
+- profile_visibility
+- company_name
+- company_category
+- company_description
+- company_logo_url
+- company_website
+- company_socials
+- public_profile
+- cover_url
+- language
+- timezone
+- posts_count
+- friends_count
+- followers_count
+- following_count
+- stories_count
+- is_verified
+- verification_level
+- headline
+- profession
+- skills
+- interests
+- achievements
+- portfolio
+- public_email
+- contact_links
+- reputation_level
+- reputation_points
+- user_level
+- created_at
+- updated_at
+
+USAR ESTA TABELA PARA:
+
+- Perfil público
+- Feed
+- Autor de posts
+- Comentários
+- Reações
+- Pesquisa de utilizadores
+- Seguidores
+- Amigos
+- Chat — nome/avatar do participante
+- Stories — nome/avatar do autor
+- Marketplace — informações públicas do vendedor
+- Página pública de empresa/utilizador
+- Cards de utilizadores
+- Menções
+- Sugestões de amizade
+- Sugestões de seguidores
+
+------------------------------------------------------------
+user_private_profiles
+------------------------------------------------------------
+
+Usar somente para dados privados do próprio utilizador:
+
+- user_id
+- phone
+- email
+- address
+- postal_code
+- birth_date
+- sex
+- private_profile
+- contact_preferences
+- company_contacts
+- associated_companies
+- stores_created
+- published_products
+- offered_services
+- company_documents
+- consent_version
+- consented_at
+- two_factor_enabled
+- sms_verified
+- email_verified
+- identity_verified
+- created_at
+- updated_at
+
+USAR PARA:
+
+- Configurações da conta
+- Dados pessoais
+- Contactos
+- Morada
+- Data de nascimento
+- Preferências privadas
+- Documentos
+- Informações privadas da empresa
+- Verificação da conta
+
+Nunca mostrar esses dados em:
+
+- Feed
+- Perfil público
+- Pesquisa
+- Chat
+- Comentários
+- Stories
+- Marketplace público
+
+------------------------------------------------------------
+user_security_profiles
+------------------------------------------------------------
+
+Campos:
+
+- user_id
+- security_level
+- last_login_at
+- last_login_ip
+- last_login_location
+- suspicious_login_count
+- risk_score
+- risk_level
+- last_security_check
+- reputation_score
+- successful_transactions
+- created_at
+- updated_at
+
+ESTA TABELA É BACKEND/ADMIN ONLY.
+
+NÃO consultar diretamente pelo frontend normal.
+
+NÃO permitir que o utilizador altere:
+
+- risk_score
+- risk_level
+- security_level
+- last_login_ip
+- last_login_location
+- suspicious_login_count
+- last_security_check
+
+============================================================
+ETAPA 1 — AUDITORIA DO CÓDIGO
+============================================================
+
+Faça uma busca completa no projeto por:
+
+user_profiles
+
+e também por:
+
+from('user_profiles')
+.from("user_profiles")
+user_profiles!
+user_profiles:
+userProfile
+profile
+profiles
+profileData
+
+Não faça substituição automática ainda.
+
+Primeiro identifique:
+
+1. Arquivos que usam `user_profiles`
+2. Função utilizada
+3. Campos utilizados
+4. Se o uso é público, privado ou segurança
+5. Se o dado é usado para SELECT, INSERT, UPDATE ou DELETE
+
+Crie internamente um mapa:
+
+ARQUIVO → TABELA NOVA → CAMPOS → MOTIVO
+
+============================================================
+ETAPA 2 — REGRAS DE MIGRAÇÃO
+============================================================
+
+Substitua somente quando fizer sentido.
+
+Exemplo:
+
+ANTES:
+
+supabase
+  .from('user_profiles')
+  .select('user_id, username, avatar_url, display_name')
+
+DEVE SER:
+
+supabase
+  .from('user_public_profiles')
+  .select('user_id, username, avatar_url, display_name')
+
+Outro exemplo:
+
+ANTES:
+
+supabase
+  .from('user_profiles')
+  .select('phone, address, birth_date')
+
+DEVE SER:
+
+supabase
+  .from('user_private_profiles')
+  .select('phone, address, birth_date')
+
+Nunca colocar:
+
+phone
+email
+address
+birth_date
+last_login_ip
+risk_score
+company_documents
+
+em consultas públicas.
+
+============================================================
+ETAPA 3 — PROFILE CONTEXT
+============================================================
+
+Localize o ProfileContext ou equivalente.
+
+Não crie outro contexto se já existir.
+
+Atualize o contexto atual para trabalhar com:
+
+publicProfile
+privateProfile
+
+Em vez de manter todos os dados em um único objeto.
+
+Exemplo conceitual:
+
+profile.public
+profile.private
+
+ou:
+
+publicProfile
+privateProfile
+
+Escolha a estrutura que melhor se encaixa no código existente.
+
+O contexto deve:
+
+1. Carregar o perfil público do utilizador autenticado.
+2. Carregar o perfil privado somente para o próprio utilizador.
+3. Não carregar `user_security_profiles` no frontend.
+4. Manter compatibilidade temporária com componentes antigos quando necessário.
+5. Não duplicar chamadas desnecessariamente ao Supabase.
+
+============================================================
+ETAPA 4 — PERFIL PÚBLICO
+============================================================
+
+Atualizar:
+
+/perfil
+/profile
+Perfil público
+UserProfile
+ProfilePage
+PublicProfile
+ProfileCard
+
+para usar:
+
+user_public_profiles
+
+Garantir:
+
+- avatar
+- nome
+- username
+- bio
+- capa
+- profissão
+- empresa
+- seguidores
+- seguindo
+- amigos
+- posts
+- verificação
+- reputação
+- portfolio
+- skills
+- interesses
+
+continuem funcionando.
+
+============================================================
+ETAPA 5 — CONFIGURAÇÕES
+============================================================
+
+Localizar:
+
+Settings
+Configuracoes
+AccountSettings
+ProfileSettings
+PrivacySettings
+SecuritySettings
+
+Separar:
+
+DADOS PÚBLICOS
+
+→ user_public_profiles
+
+DADOS PRIVADOS
+
+→ user_private_profiles
+
+DADOS DE SEGURANÇA
+
+→ backend/API segura
+
+Nunca permitir que o frontend altere diretamente:
+
+risk_score
+risk_level
+security_level
+last_login_ip
+last_login_location
+suspicious_login_count
+last_security_check
+
+============================================================
+ETAPA 6 — SOCIAL / FACEBOOK-LIKE
+============================================================
+
+Atualizar o Social para usar `user_public_profiles`.
+
+Garantir que:
+
+Posts:
+→ autor → user_public_profiles
+
+Comentários:
+→ autor → user_public_profiles
+
+Reações:
+→ utilizador → user_public_profiles
+
+Stories:
+→ author_id → user_public_profiles
+
+Chat:
+→ participante → user_public_profiles
+
+Followers:
+→ user_public_profiles
+
+Friends:
+→ user_public_profiles
+
+Blocked users:
+→ user_public_profiles quando necessário
+
+Não fazer JOIN público com `user_private_profiles`.
+
+============================================================
+ETAPA 7 — CHAT
+============================================================
+
+NÃO modificar a arquitetura das tabelas de Chat.
+
+As tabelas de Chat já foram reconstruídas.
+
+Apenas atualizar os dados do participante:
+
+ANTES:
+
+user_profiles
+
+DEPOIS:
+
+user_public_profiles
+
+Manter:
+
+- conversas privadas
+- múltiplas conversas
+- grupos
+- mensagens
+- respostas
+- reações
+- typing
+- chamadas
+- stories do Chat
+
+funcionando exatamente como antes.
+
+============================================================
+ETAPA 8 — MARKETPLACE
+============================================================
+
+Perfil público do vendedor:
+
+user_public_profiles
+
+Dados privados:
+
+user_private_profiles
+
+Nunca expor:
+
+email privado
+telefone privado
+morada
+documentos
+dados de segurança
+
+no Marketplace público.
+
+============================================================
+ETAPA 9 — COMPATIBILIDADE
+============================================================
+
+NÃO remover `user_profiles`.
+
+Se algum componente ainda depender dela:
+
+1. mantenha temporariamente;
+2. migre esse componente;
+3. teste;
+4. somente depois remova a dependência.
+
+Não criar uma migration destrutiva.
+
+============================================================
+ETAPA 10 — TIPOS TYPESCRIPT
+============================================================
+
+Atualizar os tipos TypeScript gerados/manualizados.
+
+Criar interfaces/tipos coerentes:
+
+PublicProfile
+PrivateProfile
+
+Não colocar campos privados em:
+
+PublicProfile.
+
+Não colocar campos de segurança em nenhum tipo usado pelo frontend público.
+
+============================================================
+ETAPA 11 — SEGURANÇA
+============================================================
+
+Verificar todas as chamadas:
+
+SELECT
+INSERT
+UPDATE
+DELETE
+
+relacionadas aos novos perfis.
+
+Garantir:
+
+user_public_profiles:
+
+SELECT:
+- público conforme profile_visibility
+- próprio utilizador
+
+INSERT:
+- próprio user_id
+
+UPDATE:
+- próprio user_id
+
+DELETE:
+- próprio user_id
+
+user_private_profiles:
+
+SELECT:
+- somente próprio utilizador
+
+INSERT:
+- somente próprio user_id
+
+UPDATE:
+- somente próprio user_id
+
+DELETE:
+- somente próprio user_id
+
+user_security_profiles:
+
+Frontend:
+- NÃO acessar
+
+============================================================
+ETAPA 12 — NÃO QUEBRAR O FRONTEND
+============================================================
+
+Preservar:
+
+- UI
+- Tailwind
+- componentes
+- rotas
+- navegação
+- animações
+- PWA
+- Capacitor
+- Supabase Realtime
+- autenticação
+- marketplace
+- chat
+- social
+- dashboard
+
+Não refatorar componentes não relacionados.
+
+============================================================
+ETAPA 13 — ERROS RLS
+============================================================
+
+Se encontrar:
+
+new row violates row-level security policy
+
+NÃO resolver usando:
+
+USING (true)
+
+WITH CHECK (true)
+
+ou removendo RLS.
+
+Descobrir primeiro:
+
+- qual tabela
+- qual operação
+- qual user_id
+- qual policy
+- qual condição está falhando
+
+Depois corrigir de forma específica.
+
+============================================================
+ETAPA 14 — VERIFICAÇÃO
+============================================================
+
+Depois das alterações:
+
+1. executar TypeScript check
+2. executar build
+3. verificar imports
+4. procurar referências restantes a `user_profiles`
+5. verificar Supabase queries
+6. verificar ProfileContext
+7. verificar Feed
+8. verificar Chat
+9. verificar Stories
+10. verificar Marketplace
+11. verificar Settings
+12. verificar Login/Logout
+
+Executar:
+
+npm run build
+
+ou o comando equivalente existente no projeto.
+
+============================================================
+ETAPA 15 — RELATÓRIO FINAL
+============================================================
+
+No final, informar:
+
+- arquivos modificados
+- componentes modificados
+- queries migradas
+- referências restantes a `user_profiles`
+- problemas encontrados
+- problemas corrigidos
+- build passou ou falhou
+- migrations necessárias
+- qualquer alteração que ainda precise ser feita manualmente
+
+IMPORTANTE:
+
+Não apagar `user_profiles`.
+
+Não apagar dados.
+
+Não recriar o Supabase.
+
+Não criar tabelas duplicadas.
+
+Não alterar RLS de tabelas não relacionadas.
+
+Não alterar o design.
+
+Não usar políticas permissivas apenas para fazer o frontend funcionar.
+
+Faça a migração incremental e segura.

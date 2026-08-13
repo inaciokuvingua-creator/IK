@@ -51,7 +51,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from('user_profiles')
+      .from('user_public_profiles')
       .select('meta')
       .eq('user_id', user.id)
       .maybeSingle()
@@ -96,14 +96,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     // Persist to Supabase meta field
     if (user) {
       supabase
-        .from('user_profiles')
+        .from('user_public_profiles')
         .select('meta')
         .eq('user_id', user.id)
         .maybeSingle()
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          if (error) return;
           const currentMeta = (data?.meta as Record<string, unknown>) ?? {};
           supabase
-            .from('user_profiles')
+            .from('user_public_profiles')
             .update({ meta: { ...currentMeta, preferred_currency: code } })
             .eq('user_id', user.id);
         });

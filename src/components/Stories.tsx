@@ -67,7 +67,7 @@ export default function Stories() {
       const stories = (storiesData ?? []) as Story[];
       const userIds = Array.from(new Set(stories.map((s) => s.user_id)));
       const { data: profiles } = userIds.length > 0
-        ? await supabase.from('user_profiles').select('user_id,nome,avatar_url').in('user_id', userIds)
+        ? await supabase.from('user_public_profiles').select('user_id,nome,avatar_url').in('user_id', userIds)
         : { data: [] };
       const profileMap = new Map((profiles as Profile[] ?? []).map((p) => [p.user_id, p]));
 

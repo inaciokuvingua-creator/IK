@@ -73,7 +73,7 @@ export default function Search() {
       };
 
       const [profileResults, storeResults, productResults, postResults] = await Promise.all([
-        safe(supabase.from('user_profiles')
+        safe(supabase.from('user_public_profiles')
           .select('user_id,nome,display_name,bio,avatar_url,city,country,verified')
           .or(`nome.ilike.${q},display_name.ilike.${q},bio.ilike.${q},country.ilike.${q},city.ilike.${q}`)
           .limit(12)),

@@ -41,7 +41,7 @@ export default function LanguageSwitcher({ variant = 'compact' }: Props) {
     setQuery('');
     // Persist to Supabase profile (use user_id, not id)
     if (user) {
-      await supabase.from('user_profiles').update({ idioma: code }).eq('user_id', user.id);
+      await supabase.from('user_public_profiles').update({ idioma: code, preferred_language: code }).eq('user_id', user.id);
     }
   };
 

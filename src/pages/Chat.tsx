@@ -172,7 +172,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     const { data: conversationsData } = await supabase.from('chat_conversations').select('*').in('id', conversationIds).order('updated_at', { ascending: false });
     const { data: participantsData } = await supabase.from('chat_participants').select('conversation_id,user_id').in('conversation_id', conversationIds).is('left_at', null);
     const otherUserIds = Array.from(new Set((participantsData ?? []).filter((item) => item.user_id !== user.id).map((item) => item.user_id)));
-    const { data: profiles } = otherUserIds.length > 0 ? await supabase.from('user_profiles').select('user_id,nome,avatar_url,email').in('user_id', otherUserIds) : { data: [] };
+    const { data: profiles } = otherUserIds.length > 0 ? await supabase.from('user_public_profiles').select('user_id,nome,avatar_url,email').in('user_id', otherUserIds) : { data: [] };
     const profileMap = new Map((profiles as UserMini[] ?? []).map((profile) => [profile.user_id, profile]));
 
     const summaries = await Promise.all((conversationsData ?? []).map(async (conversation: any) => {
@@ -448,7 +448,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     setStarting(true);
     const identifier = newIdentifier.trim();
     const { data: targetProfile } = await supabase
-      .from('user_profiles')
+      .from('user_public_profiles')
       .select('user_id,nome,email,username')
       .or(`email.ilike.${identifier},username.eq.${identifier.replace(/^@/, '')},nome.ilike.%${identifier}%`)
       .neq('user_id', user.id)
@@ -469,7 +469,7 @@ export default function Chat({ initialUserId }: { initialUserId?: string }) {
     try {
       const identifier = addIdentifier.trim();
       const { data: targetProfile } = await supabase
-        .from('user_profiles')
+        .from('user_public_profiles')
         .select('user_id,nome,email,username')
         .or(`email.ilike.${identifier},username.eq.${identifier.replace(/^@/, '')},nome.ilike.%${identifier}%`)
         .neq('user_id', user.id)
