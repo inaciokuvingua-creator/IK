@@ -65,23 +65,7 @@ async function ensureDirectConversation(currentUserId: string, targetUserId: str
 
   if (error) {
     console.error('[Chat] create_direct_conversation RPC error:', error);
-    // Fallback: try direct insert
-    const { data: created, error: insertErr } = await supabase
-      .from('chat_conversations')
-      .insert({ type: 'direct', created_by: currentUserId })
-      .select()
-      .single();
-
-    if (insertErr) throw insertErr;
-    if (!created) throw new Error('Falha ao criar conversa');
-
-    const { error: partErr } = await supabase.from('chat_participants').insert([
-      { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
-      { conversation_id: created.id, user_id: targetUserId, role: 'member' },
-    ]);
-    if (partErr) console.error('[Chat] participants insert error:', partErr);
-
-    return created.id as string;
+    throw error;
   }
 
   return conversationId as string;

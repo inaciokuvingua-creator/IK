@@ -385,6 +385,10 @@ DECLARE
   v_existing uuid;
   v_new      uuid;
 BEGIN
+  -- Verify caller matches p_current_user to prevent impersonation
+  IF p_current_user IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: p_current_user must match authenticated user';
+  END IF;
   -- Verificar se já existe conversa direta entre os dois utilizadores
   SELECT c.id INTO v_existing
   FROM public.chat_conversations c
