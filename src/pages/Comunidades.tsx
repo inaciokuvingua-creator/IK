@@ -81,6 +81,7 @@ export default function Comunidades() {
   const [accountType, setAccountType] = useState('');
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [tab, setTab] = useState<'pessoas' | 'feed'>('pessoas');
   const pageRef = useRef(0);
@@ -88,6 +89,7 @@ export default function Comunidades() {
 
   const loadUsers = useCallback(async (reset = false) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const page = reset ? 0 : pageRef.current;
       let builder = supabase
@@ -103,14 +105,22 @@ export default function Comunidades() {
       if (accountType) builder = builder.eq('account_type', accountType);
       if (onlyVerified) builder = builder.eq('verified', true);
 
-      const { data } = await builder.range(page * LIMIT, page * LIMIT + LIMIT - 1);
+      const { data, error } = await builder.range(page * LIMIT, page * LIMIT + LIMIT - 1);
+
+      if (error) {
+        console.error('[Comunidades] loadUsers error:', error);
+        setLoadError(`Erro ao carregar utilizadores: ${error.message}`);
+        return;
+      }
+
       const rows = (data ?? []) as UserRow[];
       if (reset) setUsers(rows);
       else setUsers(prev => [...prev, ...rows]);
       setHasMore(rows.length === LIMIT);
       pageRef.current = page + 1;
-    } catch (e) {
-      console.error('Comunidades load error', e);
+    } catch (e: any) {
+      console.error('[Comunidades] unexpected error:', e);
+      setLoadError('Erro inesperado ao carregar utilizadores.');
     } finally {
       setLoading(false);
     }
@@ -118,6 +128,7 @@ export default function Comunidades() {
 
   useEffect(() => {
     pageRef.current = 0;
+    setLoadError(null);
     loadUsers(true);
   }, [query, accountType, onlyVerified, loadUsers]);
 
@@ -213,6 +224,11 @@ export default function Comunidades() {
               {loading && users.length === 0 ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : loadError ? (
+                <div className="text-center py-16">
+                  <p className="text-red-400 text-sm font-medium px-4">{loadError}</p>
+                  <button onClick={() => loadUsers(true)} className="mt-3 text-xs text-gray-400 hover:text-emerald-400 underline">Tentar novamente</button>
                 </div>
               ) : users.length === 0 ? (
                 <div className="text-center py-16">

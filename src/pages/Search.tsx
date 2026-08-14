@@ -51,6 +51,7 @@ export default function Search() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -60,43 +61,59 @@ export default function Search() {
     const timeout = window.setTimeout(async () => {
       if (!query.trim()) {
         setProfiles([]); setStores([]); setProducts([]); setPosts([]);
+        setError(null);
         return;
       }
       setLoading(true);
+      setError(null);
       const q = `%${query.trim()}%`;
-      const safe = async <T,>(query: PromiseLike<{ data: T[] | null }>) => {
-        try {
-          return (await query).data ?? [];
-        } catch {
-          return [] as T[];
+
+      try {
+        const [
+          { data: profileResults, error: profileError },
+          { data: storeResults, error: storeError },
+          { data: productResults, error: productError },
+          { data: postResults, error: postError },
+        ] = await Promise.all([
+          supabase.from('user_public_profiles')
+            .select('user_id,nome,display_name,bio,avatar_url,city,country,verified')
+            .or(`nome.ilike.${q},display_name.ilike.${q},bio.ilike.${q},country.ilike.${q},city.ilike.${q}`)
+            .limit(12),
+          supabase.from('stores')
+            .select('id,nome,descricao,logo_url,verified,categoria,owner_id')
+            .or(`nome.ilike.${q},descricao.ilike.${q},categoria.ilike.${q}`)
+            .limit(12),
+          supabase.from('products')
+            .select('id,nome,preco,moeda,imagem_url,store_id')
+            .or(`nome.ilike.${q}`)
+            .eq('ativo', true)
+            .limit(16),
+          supabase.from('posts')
+            .select('id,title,content,created_at,author_nome')
+            .or(`title.ilike.${q},content.ilike.${q}`)
+            .limit(12),
+        ]);
+
+        if (profileError) console.error('[Search] user_public_profiles error:', profileError);
+        if (storeError)   console.error('[Search] stores error:', storeError);
+        if (productError) console.error('[Search] products error:', productError);
+        if (postError)    console.error('[Search] posts error:', postError);
+
+        const criticalError = profileError || storeError;
+        if (criticalError) {
+          setError(`Erro ao pesquisar: ${criticalError.message}`);
         }
-      };
 
-      const [profileResults, storeResults, productResults, postResults] = await Promise.all([
-        safe(supabase.from('user_public_profiles')
-          .select('user_id,nome,display_name,bio,avatar_url,city,country,verified')
-          .or(`nome.ilike.${q},display_name.ilike.${q},bio.ilike.${q},country.ilike.${q},city.ilike.${q}`)
-          .limit(12)),
-        safe(supabase.from('stores')
-          .select('id,nome,descricao,logo_url,verified,categoria,owner_id')
-          .or(`nome.ilike.${q},descricao.ilike.${q},categoria.ilike.${q}`)
-          .limit(12)),
-        safe(supabase.from('products')
-          .select('id,nome,preco,moeda,imagem_url,store_id')
-          .or(`nome.ilike.${q}`)
-          .eq('ativo', true)
-          .limit(16)),
-        safe(supabase.from('posts')
-          .select('id,title,content,created_at,author_nome')
-          .or(`title.ilike.${q},content.ilike.${q}`)
-          .limit(12)),
-      ]);
-
-      setProfiles(profileResults);
-      setStores(storeResults);
-      setProducts(productResults);
-      setPosts(postResults);
-      setLoading(false);
+        setProfiles(profileResults ?? []);
+        setStores(storeResults ?? []);
+        setProducts(productResults ?? []);
+        setPosts(postResults ?? []);
+      } catch (e: any) {
+        console.error('[Search] unexpected error:', e);
+        setError('Erro inesperado ao pesquisar. Tente novamente.');
+      } finally {
+        setLoading(false);
+      }
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [query]);
@@ -129,6 +146,10 @@ export default function Search() {
           <SearchIcon size={40} className="text-gray-700 mb-4" />
           <p className="text-gray-500 text-base font-medium">Escreva para pesquisar</p>
           <p className="text-gray-600 text-sm mt-1">Pessoas · Lojas · Produtos · Publicações</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-red-400 text-sm font-medium">{error}</p>
         </div>
       ) : (
         <div className="space-y-4">

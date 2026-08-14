@@ -56,33 +56,35 @@ async function ensureDirectConversation(currentUserId: string, targetUserId: str
   console.log("PARAM currentUserId:", currentUserId);
   console.log("AUTH user.id:", authData.user?.id);
   console.log("TARGET:", targetUserId);
-  
-  const { data: myParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', currentUserId).is('left_at', null);
-  const ids = (myParts ?? []).map((item) => item.conversation_id);
 
-  if (ids.length > 0) {
-    const { data: targetParts } = await supabase.from('chat_participants').select('conversation_id').eq('user_id', targetUserId).is('left_at', null).in('conversation_id', ids);
-    const sharedIds = (targetParts ?? []).map((item) => item.conversation_id);
-    if (sharedIds.length > 0) {
-      const { data: existing } = await supabase.from('chat_conversations').select('id').eq('type', 'direct').in('id', sharedIds).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-      if (existing?.id) return existing.id as string;
-    }
+  // Use the secure RPC (SECURITY DEFINER) to avoid RLS race conditions
+  const { data: conversationId, error } = await supabase.rpc('create_direct_conversation', {
+    p_current_user: currentUserId,
+    p_target_user: targetUserId,
+  });
+
+  if (error) {
+    console.error('[Chat] create_direct_conversation RPC error:', error);
+    // Fallback: try direct insert
+    const { data: created, error: insertErr } = await supabase
+      .from('chat_conversations')
+      .insert({ type: 'direct', created_by: currentUserId })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+    if (!created) throw new Error('Falha ao criar conversa');
+
+    const { error: partErr } = await supabase.from('chat_participants').insert([
+      { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
+      { conversation_id: created.id, user_id: targetUserId, role: 'member' },
+    ]);
+    if (partErr) console.error('[Chat] participants insert error:', partErr);
+
+    return created.id as string;
   }
 
-  const { data: created, error } = await supabase
-    .from('chat_conversations')
-    .insert({ type: 'direct', created_by: currentUserId })
-    .select()
-    .single();
-
-  if (error) throw error;
-  if (!created) throw new Error('Falha ao criar conversa');
-
-  await supabase.from('chat_participants').insert([
-    { conversation_id: created.id, user_id: currentUserId, role: 'admin' },
-    { conversation_id: created.id, user_id: targetUserId, role: 'member' },
-  ]);
-  return created.id as string;
+  return conversationId as string;
 }
 
 export default function Chat({ initialUserId }: { initialUserId?: string }) {
