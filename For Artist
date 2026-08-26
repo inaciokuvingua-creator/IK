@@ -1,0 +1,1931 @@
+PROMPT MESTRE — FOR ARTIST
+
+IK FINANCE + IK DISTRIBUTION
+
+MISSÃO
+
+Você está trabalhando no repositório atual do IK FINANCE.
+
+Sua missão é criar um novo módulo completo chamado:
+
+FOR ARTIST
+
+O FOR ARTIST será o centro profissional para artistas, produtores, compositores, managers e labels dentro do IK FINANCE.
+
+O objetivo não é criar apenas uma área de upload de músicas.
+
+Queremos construir uma infraestrutura completa de carreira musical que conecte:
+
+Artista → Perfil → Página pública → Música → Distribuição → Direitos → Audiência → Royalties → Pagamentos → IK FINANCE
+
+A distribuição musical será um dos principais recursos do FOR ARTIST.
+
+⸻
+
+1. REGRA PRINCIPAL
+
+NÃO recrie o IK FINANCE do zero.
+
+NÃO substitua a arquitetura existente.
+
+NÃO remova funcionalidades existentes.
+
+NÃO apague tabelas existentes.
+
+NÃO desative RLS existente.
+
+NÃO substitua componentes existentes sem necessidade.
+
+Primeiro faça uma auditoria profunda do projeto atual.
+
+Identifique:
+
+* framework;
+* arquitetura;
+* router;
+* componentes;
+* contexts;
+* hooks;
+* services;
+* Supabase;
+* tabelas;
+* migrations;
+* RLS;
+* Storage;
+* Edge Functions;
+* autenticação;
+* notificações;
+* pagamentos;
+* wallets;
+* IA;
+* admin;
+* PWA;
+* Vercel;
+* GitHub Actions.
+
+Reutilize tudo o que já existir e for adequado.
+
+⸻
+
+2. CONCEITO DO FOR ARTIST
+
+O módulo deve aparecer no IK FINANCE como:
+
+🎵 FOR ARTIST
+
+O artista deve sentir que possui um verdadeiro centro de carreira musical.
+
+Estrutura principal:
+
+FOR ARTIST
+├── Dashboard
+├── Meu Perfil
+├── Minha Página
+├── Lançamentos
+├── Catálogo
+├── Distribuição
+├── Royalties
+├── Analytics
+├── Content ID
+├── Direitos
+├── Colaboradores
+├── Pagamentos
+├── Contratos
+└── Definições
+
+A arquitetura deve permitir adicionar futuramente:
+
+* Fan Base;
+* Smart Links;
+* Pre-save;
+* EPK;
+* campanhas;
+* pitching;
+* merchandising;
+* eventos;
+* oportunidades;
+* venda de música;
+* serviços para artistas.
+
+Não implementar funcionalidades futuras apenas como mock. Deixar a arquitetura preparada.
+
+⸻
+
+3. TIPOS DE UTILIZADOR
+
+O FOR ARTIST deve suportar:
+
+* Artist;
+* Producer;
+* Songwriter;
+* Composer;
+* Manager;
+* Label;
+* Label Manager;
+* Company.
+
+Um usuário pode possuir mais de uma função quando permitido.
+
+⸻
+
+4. ONBOARDING
+
+Todo artista que quiser utilizar a distribuição deve completar o onboarding.
+
+Fluxo:
+
+Criar conta
+↓
+Entrar no FOR ARTIST
+↓
+Escolher tipo de perfil
+↓
+Criar perfil artístico
+↓
+Adicionar informações
+↓
+Configurar direitos
+↓
+Configurar pagamentos
+↓
+Aceitar termos
+↓
+Verificação
+↓
+Perfil aprovado
+↓
+Dashboard
+
+Criar indicador de progresso.
+
+Exemplo:
+
+Perfil 100%
+Direitos 80%
+Pagamento 100%
+Verificação 60%
+
+O artista não deve conseguir distribuir um release quando os requisitos obrigatórios não estiverem completos.
+
+⸻
+
+5. PERFIL DO ARTISTA
+
+Criar perfil profissional.
+
+Campos:
+
+* artist_id;
+* user_id;
+* stage_name;
+* legal_name;
+* slug;
+* profile_photo;
+* banner_image;
+* biography;
+* country;
+* city;
+* genres;
+* subgenres;
+* languages;
+* website;
+* contact_email;
+* management_email;
+* phone;
+* status;
+* verification_status;
+* verification_documents;
+* verified_at;
+* created_at;
+* updated_at.
+
+Informações legais e documentos são privados.
+
+Nunca expor:
+
+* nome legal;
+* documentos;
+* dados financeiros;
+* endereço;
+* informações bancárias;
+
+na página pública.
+
+⸻
+
+6. PÁGINA PÚBLICA DO ARTISTA
+
+Criar uma página pública profissional.
+
+Rota sugerida:
+
+/music/artists/:slug
+
+ou adaptar ao sistema atual.
+
+A página deve possuir:
+
+HERO
+
+* banner;
+* foto;
+* nome artístico;
+* selo de verificação;
+* país;
+* género;
+* botão Seguir;
+* botão Ouvir;
+* botão Partilhar.
+
+SOBRE
+
+Biografia.
+
+LANÇAMENTOS
+
+Mostrar:
+
+* singles;
+* EPs;
+* álbuns;
+* compilations.
+
+PRÓXIMOS LANÇAMENTOS
+
+Mostrar somente quando autorizado pelo artista.
+
+MÚSICAS
+
+Lista das músicas públicas.
+
+VIDEOS
+
+Vídeos quando disponíveis.
+
+PLATAFORMAS
+
+Links:
+
+* Spotify;
+* Apple Music;
+* YouTube;
+* YouTube Music;
+* Deezer;
+* Amazon Music;
+* Tidal;
+* TikTok;
+* Instagram;
+* outras.
+
+REDES SOCIAIS
+
+Links configuráveis.
+
+CONTACTO
+
+Contato profissional somente quando autorizado.
+
+⸻
+
+7. SEO DA PÁGINA
+
+Gerar dinamicamente:
+
+* title;
+* description;
+* Open Graph;
+* Twitter/X card;
+* canonical URL;
+* imagem social;
+* structured data quando apropriado.
+
+Exemplo:
+
+RealSoldier | Artista — FOR ARTIST
+
+⸻
+
+8. FOLLOW SYSTEM
+
+Criar sistema de seguidores.
+
+Tabela:
+
+music_artist_followers
+
+Permitir:
+
+* seguir;
+* deixar de seguir;
+* contador;
+* notificações de novos lançamentos.
+
+Impedir follows duplicados.
+
+⸻
+
+9. DASHBOARD FOR ARTIST
+
+Criar dashboard profissional.
+
+Cards:
+
+* Streams;
+* Listeners;
+* Followers;
+* Receita;
+* Royalties;
+* Saldo disponível;
+* Lançamentos;
+* Crescimento.
+
+Gráficos:
+
+* streams por período;
+* receita;
+* seguidores;
+* países;
+* plataformas;
+* top tracks;
+* top releases.
+
+Filtros:
+
+* 7 dias;
+* 30 dias;
+* 90 dias;
+* 1 ano;
+* período personalizado.
+
+⸻
+
+10. LANÇAMENTOS
+
+Criar Release Manager.
+
+Tipos:
+
+* Single;
+* EP;
+* Album;
+* Compilation;
+* Music Video.
+
+Campos:
+
+* release_id;
+* artist_id;
+* title;
+* version;
+* release_type;
+* genre;
+* subgenre;
+* language;
+* release_date;
+* original_release_date;
+* label_name;
+* copyright;
+* phonographic_copyright;
+* territory;
+* cover_art;
+* upc;
+* catalog_number;
+* status;
+* created_at;
+* updated_at.
+
+⸻
+
+11. RELEASE STATUS
+
+Implementar máquina de estados:
+
+DRAFT
+↓
+VALIDATING
+↓
+NEEDS_CHANGES
+↓
+SUBMITTED
+↓
+UNDER_REVIEW
+↓
+APPROVED
+↓
+SCHEDULED
+↓
+DELIVERING
+↓
+DELIVERED
+↓
+LIVE
+
+Estados especiais:
+
+REJECTED
+TAKEDOWN
+CANCELLED
+
+Não permitir transições inválidas.
+
+Todas as transições importantes devem gerar audit log.
+
+⸻
+
+12. CRIAÇÃO DE SINGLE
+
+O artista deve conseguir:
+
+1. clicar em Novo Lançamento;
+2. escolher Single;
+3. inserir título;
+4. adicionar artista;
+5. adicionar contributors;
+6. fazer upload do áudio;
+7. fazer upload da capa;
+8. preencher metadados;
+9. definir data;
+10. selecionar territórios;
+11. definir direitos;
+12. revisar;
+13. enviar.
+
+⸻
+
+13. EP E ÁLBUM
+
+Permitir múltiplas faixas.
+
+Campos:
+
+* track number;
+* disc number;
+* title;
+* version;
+* artists;
+* contributors;
+* ISRC;
+* explicit;
+* language;
+* duration.
+
+Permitir:
+
+* reordenar tracks;
+* editar;
+* remover;
+* substituir áudio;
+* preview.
+
+⸻
+
+14. TRACK MANAGER
+
+Criar gerenciamento individual de faixas.
+
+Cada track deve suportar:
+
+* título;
+* versão;
+* áudio;
+* duração;
+* ISRC;
+* explicit;
+* idioma;
+* lyrics;
+* instrumental;
+* preview;
+* status.
+
+Contributors:
+
+* primary artist;
+* featured artist;
+* composer;
+* songwriter;
+* producer;
+* lyricist;
+* remixer;
+* arranger.
+
+⸻
+
+15. AUDIO UPLOAD
+
+Suportar:
+
+* WAV;
+* FLAC;
+* MP3 quando permitido.
+
+Validar:
+
+* formato;
+* tamanho;
+* duração;
+* sample rate;
+* bit depth;
+* canais;
+* integridade.
+
+Gerar quando apropriado:
+
+* waveform;
+* duração;
+* preview.
+
+Os arquivos originais devem permanecer privados.
+
+⸻
+
+16. CAPA
+
+Validar:
+
+* formato;
+* resolução;
+* proporção;
+* tamanho;
+* conteúdo;
+* URLs;
+* texto proibido;
+* conteúdo potencialmente infrator.
+
+Estados:
+
+VALID
+INVALID
+NEEDS_REVIEW
+
+⸻
+
+17. METADADOS
+
+Criar formulário completo.
+
+Campos:
+
+* título;
+* versão;
+* artistas;
+* featuring;
+* compositores;
+* produtores;
+* género;
+* subgénero;
+* idioma;
+* copyright;
+* ℗;
+* ©;
+* label;
+* território;
+* data;
+* explicit;
+* lyrics;
+* ISRC;
+* UPC;
+* catálogo.
+
+Não permitir submissão com campos obrigatórios inválidos.
+
+⸻
+
+18. ISRC
+
+Criar infraestrutura para ISRC.
+
+Suportar:
+
+* ISRC fornecido pelo artista;
+* ISRC atribuído quando o processo/autorização apropriado existir;
+* validação;
+* histórico;
+* associação à gravação.
+
+Nunca inventar ISRC.
+
+Não permitir reutilização incorreta.
+
+⸻
+
+19. UPC / EAN
+
+Suportar:
+
+* UPC;
+* EAN;
+* catalog number.
+
+Validar formato e manter histórico.
+
+⸻
+
+20. DIREITOS
+
+Criar módulo:
+
+Rights Management
+
+Permitir registrar:
+
+* master owner;
+* copyright owner;
+* publishing owner;
+* composer;
+* songwriter;
+* producer;
+* performer;
+* territories;
+* effective date;
+* expiration date.
+
+Não assumir propriedade automaticamente.
+
+⸻
+
+21. SPLITS
+
+Criar sistema de splits.
+
+Exemplo:
+
+Artist A     50%
+Artist B     30%
+Producer     10%
+Label        10%
+
+O total deve obrigatoriamente ser:
+
+100%
+
+Não permitir submissão de split inválido.
+
+Guardar histórico de alterações.
+
+⸻
+
+22. COLABORADORES
+
+Criar sistema de colaboradores.
+
+Permitir convidar:
+
+* artistas;
+* produtores;
+* compositores;
+* managers;
+* labels.
+
+Permissões configuráveis.
+
+Exemplo:
+
+VIEW
+EDIT
+UPLOAD
+ROYALTIES
+ANALYTICS
+MANAGE_RELEASE
+
+Nunca conceder acesso total automaticamente.
+
+⸻
+
+23. CATÁLOGO
+
+Criar:
+
+My Catalog
+
+Mostrar:
+
+* releases;
+* tracks;
+* ISRC;
+* UPC;
+* status;
+* data;
+* plataformas;
+* royalties.
+
+Pesquisa:
+
+* título;
+* artista;
+* ISRC;
+* UPC.
+
+Filtros:
+
+* Single;
+* EP;
+* Album;
+* Live;
+* Takedown;
+* Active.
+
+⸻
+
+24. DISTRIBUTION
+
+Criar:
+
+Distribution Center
+
+O artista poderá acompanhar:
+
+* releases em preparação;
+* em revisão;
+* aprovados;
+* em delivery;
+* publicados;
+* problemas;
+* takedowns.
+
+Cada release deve possuir timeline.
+
+Exemplo:
+
+Release criado
+✓
+Metadata validada
+✓
+Aprovado
+✓
+Enviado
+✓
+Spotify
+✓
+Apple Music
+✓
+YouTube Music
+⏳
+Deezer
+✓
+
+⸻
+
+25. DISTRIBUTION ENGINE
+
+Criar camada:
+
+Distribution Engine
+        ↓
+Provider Adapter
+        ↓
+Partner / DSP
+
+Criar interface abstrata para:
+
+* submitRelease;
+* updateRelease;
+* takedownRelease;
+* getDeliveryStatus;
+* getReports.
+
+Não acoplar a plataforma a um único fornecedor.
+
+⸻
+
+26. DDEX READY
+
+Preparar arquitetura para DDEX.
+
+Criar:
+
+* metadata mapper;
+* release mapper;
+* track mapper;
+* contributor mapper;
+* territory mapper;
+* rights mapper;
+* package generator.
+
+Não fingir que existe integração direta.
+
+Quando não houver conexão real:
+
+PARTNER REQUIRED
+
+ou:
+
+COMING SOON
+
+⸻
+
+27. DSPs
+
+Criar:
+
+music_platforms
+
+Suportar arquitetura para:
+
+* Spotify;
+* Apple Music;
+* YouTube Music;
+* Deezer;
+* Amazon Music;
+* Tidal;
+* TikTok;
+* Instagram/Facebook;
+* outras.
+
+Cada plataforma deve possuir:
+
+* name;
+* logo;
+* active;
+* delivery_method;
+* adapter;
+* territories.
+
+Nunca apresentar integração inexistente como funcional.
+
+⸻
+
+28. CONTENT ID
+
+Criar:
+
+Content ID
+
+Funcionalidades:
+
+* tracks elegíveis;
+* submissões;
+* claims;
+* disputes;
+* receita;
+* takedowns;
+* histórico.
+
+Estados:
+
+PENDING
+SUBMITTED
+ACTIVE
+CLAIM
+DISPUTED
+RELEASED
+REMOVED
+
+Não afirmar acesso direto a sistemas externos sem integração/parceiro autorizado.
+
+⸻
+
+29. ROYALTIES
+
+Criar:
+
+Royalties
+
+Entidades:
+
+royalty_accounts
+royalty_rules
+royalty_splits
+royalty_transactions
+royalty_statements
+royalty_periods
+
+Mostrar:
+
+* receita;
+* royalties;
+* pending;
+* available;
+* paid.
+
+Permitir regras por contrato.
+
+⸻
+
+30. REPORTS
+
+Criar:
+
+* royalty reports;
+* streaming reports;
+* revenue reports;
+* payout reports;
+* platform reports.
+
+Filtros:
+
+* período;
+* artista;
+* release;
+* track;
+* DSP;
+* território.
+
+⸻
+
+31. ANALYTICS
+
+Criar:
+
+Analytics
+
+Métricas:
+
+* streams;
+* listeners;
+* followers;
+* revenue;
+* RPM;
+* top countries;
+* top platforms;
+* top tracks;
+* top releases.
+
+Não gerar números fictícios como dados reais.
+
+⸻
+
+32. PAGAMENTOS
+
+Integrar ao sistema financeiro atual.
+
+O artista deve possuir:
+
+Pending Balance
+Available Balance
+Paid Balance
+
+Criar:
+
+Payout Request
+
+Estados:
+
+PENDING
+APPROVED
+PROCESSING
+PAID
+FAILED
+CANCELLED
+
+Reutilizar wallet existente quando possível.
+
+⸻
+
+33. CONTRATOS
+
+Criar infraestrutura para:
+
+* distribuição;
+* splits;
+* royalties;
+* representação;
+* labels;
+* colaboradores.
+
+Registrar:
+
+* contrato;
+* versão;
+* participantes;
+* data;
+* validade;
+* aceite;
+* status.
+
+Documentos devem ser privados.
+
+⸻
+
+34. LABELS
+
+Permitir que labels tenham:
+
+* perfil;
+* artistas;
+* catálogo;
+* releases;
+* contratos;
+* royalties;
+* managers.
+
+Estrutura:
+
+LABEL
+↓
+ARTISTS
+↓
+RELEASES
+↓
+TRACKS
+↓
+RIGHTS
+↓
+ROYALTIES
+
+⸻
+
+35. MANAGERS
+
+Permitir que um artista autorize um manager.
+
+Permissões:
+
+* visualizar perfil;
+* editar perfil;
+* criar release;
+* editar release;
+* visualizar analytics;
+* visualizar royalties;
+* solicitar pagamentos.
+
+⸻
+
+36. NOTIFICAÇÕES
+
+Integrar ao sistema de notificações existente.
+
+Notificar:
+
+* perfil aprovado;
+* verificação;
+* release criado;
+* metadata inválida;
+* release enviado;
+* release aprovado;
+* release rejeitado;
+* delivery;
+* publicação;
+* royalties;
+* payout;
+* Content ID;
+* claims;
+* problemas.
+
+⸻
+
+37. ADMIN
+
+Adicionar ao admin existente:
+
+FOR ARTIST ADMIN
+
+Seções:
+
+* Artists;
+* Profiles;
+* Verification;
+* Labels;
+* Releases;
+* Tracks;
+* Reviews;
+* Distribution;
+* DSPs;
+* Royalties;
+* Payments;
+* Content ID;
+* Copyright;
+* Fraud;
+* Audit Logs.
+
+Admin pode:
+
+* aprovar;
+* rejeitar;
+* solicitar alterações;
+* suspender;
+* bloquear;
+* takedown.
+
+⸻
+
+38. MODERAÇÃO
+
+Criar revisão de releases.
+
+Motivos de rejeição:
+
+* metadata;
+* copyright;
+* artwork;
+* audio;
+* duplicate content;
+* prohibited content;
+* ownership;
+* missing information.
+
+Permitir comentários administrativos.
+
+⸻
+
+39. ANTIFRAUDE
+
+Criar arquitetura para:
+
+* streams suspeitos;
+* uploads duplicados;
+* ISRC duplicado;
+* abuso de metadata;
+* comportamento anormal;
+* múltiplas contas;
+* conteúdo suspeito.
+
+Criar:
+
+music_risk_events
+music_fraud_flags
+
+Não bloquear automaticamente casos incertos.
+
+Enviar para revisão.
+
+⸻
+
+40. STORAGE
+
+Usar a infraestrutura existente quando possível.
+
+Estrutura lógica:
+
+music/
+├── artists/
+├── releases/
+├── tracks/
+├── artwork/
+├── previews/
+├── contracts/
+└── documents/
+
+Regras:
+
+* áudio original privado;
+* documentos privados;
+* contratos privados;
+* artwork público somente quando apropriado;
+* URLs assinadas para conteúdo protegido.
+
+⸻
+
+41. DATABASE
+
+Antes de criar qualquer tabela, verificar o banco existente.
+
+Possíveis entidades:
+
+music_artists
+music_artist_profiles
+music_artist_social_links
+music_artist_followers
+music_labels
+music_label_members
+music_releases
+music_tracks
+music_release_artists
+music_contributors
+music_rights
+music_right_splits
+music_isrc
+music_upc
+music_platforms
+music_distribution_jobs
+music_distribution_deliveries
+music_distribution_events
+music_royalty_accounts
+music_royalty_rules
+music_royalty_splits
+music_royalty_transactions
+music_statements
+music_payouts
+music_content_claims
+music_fraud_flags
+music_risk_events
+music_contracts
+music_audit_logs
+
+Adaptar nomes aos padrões atuais do banco.
+
+⸻
+
+42. SUPABASE
+
+Auditar antes:
+
+* schema;
+* migrations;
+* RLS;
+* policies;
+* functions;
+* triggers;
+* Storage;
+* Edge Functions.
+
+Todas as novas tabelas devem ter RLS.
+
+Usuário A nunca pode acessar dados privados do usuário B.
+
+Artista A nunca pode acessar dados do artista B.
+
+Não confiar no frontend para segurança.
+
+⸻
+
+43. SECURITY
+
+Implementar:
+
+* RLS;
+* ownership checks;
+* role-based access;
+* Storage policies;
+* audit logs;
+* rate limiting;
+* upload validation;
+* sanitização;
+* proteção IDOR;
+* proteção contra privilege escalation.
+
+Nunca colocar:
+
+* service role;
+* secrets;
+* private API keys;
+
+no frontend.
+
+⸻
+
+44. AUDIT LOG
+
+Registrar:
+
+* criação;
+* edição;
+* upload;
+* submissão;
+* aprovação;
+* rejeição;
+* alteração de direitos;
+* alteração de splits;
+* delivery;
+* takedown;
+* payout;
+* ações administrativas.
+
+Usuários não podem apagar seus próprios audit logs.
+
+⸻
+
+45. EDGE FUNCTIONS
+
+Utilizar Edge Functions quando apropriado para:
+
+* processamento de distribuição;
+* validações;
+* royalties;
+* payouts;
+* webhooks;
+* integrações externas;
+* processamento de metadata.
+
+Secrets devem permanecer em environment variables.
+
+⸻
+
+46. WEBHOOKS
+
+Preparar para:
+
+* delivery status;
+* DSP reports;
+* payments;
+* Content ID.
+
+Webhooks devem ser:
+
+* autenticados;
+* idempotentes;
+* auditáveis;
+* registrados.
+
+Nunca processar o mesmo evento duas vezes.
+
+⸻
+
+47. ROTAS
+
+Adaptar ao router existente.
+
+Públicas:
+
+/music
+/music/artists
+/music/artists/:slug
+/music/releases
+/music/releases/:slug
+
+Privadas:
+
+/for-artist
+/for-artist/dashboard
+/for-artist/profile
+/for-artist/page
+/for-artist/releases
+/for-artist/releases/new
+/for-artist/releases/:id
+/for-artist/catalog
+/for-artist/distribution
+/for-artist/royalties
+/for-artist/analytics
+/for-artist/content-id
+/for-artist/rights
+/for-artist/collaborators
+/for-artist/payments
+/for-artist/contracts
+/for-artist/settings
+
+Admin:
+
+/admin/for-artist
+/admin/for-artist/artists
+/admin/for-artist/releases
+/admin/for-artist/distribution
+/admin/for-artist/royalties
+/admin/for-artist/content-id
+
+⸻
+
+48. DESIGN
+
+O FOR ARTIST deve parecer um produto premium.
+
+Não criar uma interface genérica de CRUD.
+
+Manter a identidade visual do IK FINANCE.
+
+Criar:
+
+* dashboard;
+* cards;
+* gráficos;
+* tabelas;
+* timelines;
+* status badges;
+* drag-and-drop;
+* audio player;
+* waveform;
+* upload progress;
+* skeleton loading;
+* empty states;
+* error states;
+* confirmation dialogs.
+
+⸻
+
+49. RESPONSIVE
+
+Tudo deve funcionar perfeitamente em:
+
+* iPhone;
+* Android;
+* tablet;
+* desktop.
+
+Prioridade mobile:
+
+* onboarding;
+* perfil;
+* upload;
+* criação de release;
+* royalties;
+* analytics;
+* pagamentos.
+
+⸻
+
+50. AUDIO PLAYER
+
+Criar player para preview.
+
+Funções:
+
+* play;
+* pause;
+* progress;
+* duration;
+* volume;
+* waveform quando disponível.
+
+Não expor o arquivo original protegido.
+
+⸻
+
+51. SEARCH
+
+Pesquisa global:
+
+Artists
+Releases
+Tracks
+Labels
+
+Pesquisar por:
+
+* nome;
+* slug;
+* ISRC;
+* UPC.
+
+⸻
+
+52. IA DO FOR ARTIST
+
+Integrar com o IK AI existente.
+
+A IA poderá ajudar em:
+
+* metadata;
+* descrição;
+* género;
+* validação;
+* identificação de inconsistências;
+* análise de artwork;
+* checklist;
+* explicação de erros;
+* suporte ao artista.
+
+A IA não deve tomar decisões irreversíveis de direitos/copyright/distribuição sem revisão.
+
+⸻
+
+53. EXPERIÊNCIA DO ARTISTA
+
+O artista deve conseguir responder:
+
+* Quem sou eu?
+* Qual é minha página?
+* Quais músicas lancei?
+* Onde minha música está?
+* Qual é o status do meu release?
+* Quanto ganhei?
+* Quanto posso sacar?
+* Quem possui meus direitos?
+* Quem recebe royalties?
+* Quantos streams tenho?
+* Há algum problema?
+
+⸻
+
+54. MODELO DE NEGÓCIO
+
+Preparar para:
+
+* distribuição gratuita;
+* comissão;
+* taxa por lançamento;
+* Premium;
+* Label;
+* Enterprise;
+* serviços adicionais.
+
+Nunca codificar percentuais fixos.
+
+Criar configuração administrativa.
+
+⸻
+
+55. INTEGRAÇÃO COM IK FINANCE
+
+Esta integração é fundamental.
+
+Exemplo:
+
+DSP Revenue
+↓
+Royalty Transaction
+↓
+Royalty Account
+↓
+Artist Balance
+↓
+IK FINANCE Wallet
+↓
+Payout
+
+O artista deve poder acompanhar a sua situação financeira sem sair do IK FINANCE.
+
+⸻
+
+56. PERFIL + PÁGINA + DISTRIBUIÇÃO
+
+Esses três componentes devem estar conectados.
+
+FOR ARTIST
+│
+├── Meu Perfil
+│      ↓
+│   Página Pública
+│
+├── Lançamentos
+│      ↓
+│   Catálogo
+│
+├── Distribuição
+│      ↓
+│   DSPs
+│
+├── Royalties
+│      ↓
+│   IK FINANCE
+│
+└── Analytics
+       ↓
+    Performance
+
+Não criar sistemas independentes para cada parte.
+
+⸻
+
+57. PÁGINA DO RELEASE
+
+Cada release público deve poder possuir sua própria página.
+
+Exemplo:
+
+/music/releases/:slug
+
+Mostrar:
+
+* artwork;
+* título;
+* artista;
+* tipo;
+* data;
+* tracklist;
+* descrição;
+* plataformas;
+* créditos;
+* copyright;
+* links;
+* player/preview quando permitido.
+
+Nunca expor informações privadas como contratos, splits privados ou dados financeiros.
+
+⸻
+
+58. RELEASE CHECKLIST
+
+Antes de permitir submissão:
+
+[ ] Perfil completo
+[ ] Verificação concluída
+[ ] Artwork válido
+[ ] Áudio válido
+[ ] Metadata completa
+[ ] Contributors definidos
+[ ] Direitos definidos
+[ ] Splits válidos
+[ ] ISRC válido
+[ ] UPC válido
+[ ] Data válida
+[ ] Territórios definidos
+[ ] Termos aceitos
+
+Mostrar exatamente o que falta.
+
+⸻
+
+59. NÃO SIMULAR INTEGRAÇÕES
+
+Não criar:
+
+* Spotify falso;
+* Apple Music falso;
+* Content ID falso;
+* royalties falsos;
+* streams falsos;
+* pagamentos falsos.
+
+Durante desenvolvimento, utilizar mocks apenas quando explicitamente necessário e identificá-los claramente como:
+
+DEVELOPMENT / MOCK
+
+Nunca apresentar mock como produção.
+
+⸻
+
+60. TESTES
+
+Criar testes para:
+
+* autenticação;
+* onboarding;
+* perfil;
+* página pública;
+* RLS;
+* ownership;
+* release;
+* track;
+* upload;
+* metadata;
+* ISRC;
+* UPC;
+* rights;
+* splits;
+* royalties;
+* payout;
+* distribution;
+* state machine;
+* admin permissions.
+
+Teste crítico:
+
+USER A
+não pode acessar
+USER B
+
+⸻
+
+61. BUILD E QUALIDADE
+
+Depois de cada grande implementação:
+
+* TypeScript;
+* lint;
+* tests;
+* build;
+* migrations;
+* RLS;
+* Storage;
+* Edge Functions.
+
+Corrigir erros reais.
+
+Não esconder erros.
+
+Não utilizar any indiscriminadamente.
+
+Não desabilitar verificações apenas para fazer o build passar.
+
+⸻
+
+62. IMPLEMENTAÇÃO POR FASES
+
+Não implementar tudo de uma vez.
+
+FASE 0 — AUDITORIA
+
+Analisar completamente o IK FINANCE.
+
+Não alterar código.
+
+Entregar relatório.
+
+⸻
+
+FASE 1 — FOR ARTIST CORE
+
+Implementar:
+
+* módulo;
+* navegação;
+* permissões;
+* onboarding;
+* Artist Profile;
+* database;
+* RLS.
+
+⸻
+
+FASE 2 — PÁGINA PÚBLICA
+
+Implementar:
+
+* perfil público;
+* slug;
+* SEO;
+* discografia;
+* social links;
+* follow.
+
+⸻
+
+FASE 3 — RELEASE MANAGER
+
+Implementar:
+
+* singles;
+* EPs;
+* álbuns;
+* tracks;
+* artwork;
+* áudio;
+* metadata.
+
+⸻
+
+FASE 4 — RIGHTS
+
+Implementar:
+
+* contributors;
+* direitos;
+* splits;
+* contratos.
+
+⸻
+
+FASE 5 — DISTRIBUTION
+
+Implementar:
+
+* Distribution Center;
+* delivery engine;
+* adapters;
+* status;
+* timeline;
+* DDEX-ready.
+
+⸻
+
+FASE 6 — ROYALTIES
+
+Implementar:
+
+* royalty accounts;
+* splits;
+* transactions;
+* statements;
+* reports.
+
+⸻
+
+FASE 7 — ANALYTICS
+
+Implementar:
+
+* streams;
+* listeners;
+* followers;
+* revenue;
+* países;
+* plataformas;
+* tracks.
+
+⸻
+
+FASE 8 — PAYMENTS
+
+Integrar com IK FINANCE:
+
+* balances;
+* wallet;
+* payout;
+* histórico.
+
+⸻
+
+FASE 9 — CONTENT ID
+
+Criar infraestrutura para integração com parceiros autorizados.
+
+⸻
+
+FASE 10 — ADMIN
+
+Implementar:
+
+* artistas;
+* releases;
+* revisão;
+* distribution;
+* royalties;
+* Content ID;
+* fraud;
+* audit.
+
+⸻
+
+FASE 11 — SECURITY AUDIT
+
+Executar auditoria completa de:
+
+* RLS;
+* Storage;
+* permissions;
+* API;
+* Edge Functions;
+* webhooks;
+* secrets;
+* IDOR;
+* privilege escalation.
+
+⸻
+
+63. PRIMEIRO PASSO — AUDITORIA
+
+Antes de implementar qualquer funcionalidade:
+
+Analise o repositório atual.
+
+Apresente:
+
+AUDITORIA DO IK FINANCE
+
+1. Arquitetura
+
+2. Stack
+
+3. Estrutura de pastas
+
+4. Router
+
+5. Autenticação
+
+6. Supabase
+
+7. Database
+
+8. RLS
+
+9. Storage
+
+10. Edge Functions
+
+11. Wallet
+
+12. Pagamentos
+
+13. Notificações
+
+14. IA
+
+15. Admin
+
+16. Componentes reutilizáveis
+
+17. Possíveis conflitos
+
+18. Segurança
+
+19. Arquivos que precisarão ser modificados
+
+20. Novos arquivos
+
+21. Novas tabelas
+
+22. Novas policies
+
+23. Novas rotas
+
+24. Dependências necessárias
+
+25. Plano de implementação
+
+NÃO implemente antes de concluir esta auditoria.
+
+⸻
+
+64. PRINCÍPIO FINAL
+
+O FOR ARTIST deve tornar-se uma das principais áreas do IK FINANCE.
+
+Não pense nele como:
+
+“uma página onde o artista envia músicas”.
+
+Pense nele como:
+
+uma plataforma completa de gestão de carreira musical integrada a uma distribuidora e a um sistema financeiro.
+
+O produto final deve conectar:
+
+IDENTIDADE
+→ Perfil
+
+PRESENÇA
+→ Página pública
+
+MÚSICA
+→ Releases + Catálogo
+
+DISTRIBUIÇÃO
+→ DSPs + Delivery
+
+DIREITOS
+→ Copyright + Splits + Contracts
+
+AUDIÊNCIA
+→ Followers + Analytics
+
+RECEITA
+→ Royalties
+
+DINHEIRO
+→ IK FINANCE Wallet + Payouts
+
+A arquitetura deve ser modular, segura, escalável e preparada para operação internacional.
+
+Comece AGORA pela FASE 0 — AUDITORIA.
+
+Não faça alterações destrutivas.
+
+Não implemente as fases seguintes até concluir e validar a auditoria.
